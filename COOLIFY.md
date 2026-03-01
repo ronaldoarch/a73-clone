@@ -47,6 +47,15 @@ Para ter login, registro e bônus funcionando, use **Docker Compose** ou configu
 
 Se `VITE_API_URL` estiver definido no build, o frontend chama o backend diretamente e o CORS pode bloquear.
 
+### Erro 502 Bad Gateway no /api
+
+O 502 significa que o nginx do frontend não consegue alcançar o backend. Verifique:
+
+1. **Backend está rodando?** — No Coolify, abra o serviço do backend e confira os logs. Se houver crash (ex.: Prisma), corrija antes.
+2. **BACKEND_URL correto?** — Deve ser a URL pública do backend, ex: `https://jkcgkgks00ggggo4g0kow8ws.agenciamidas.com` (sem barra no final).
+3. **Teste o backend direto** — No navegador ou `curl`, acesse `https://<backend-url>/api/settings`. Se retornar 200/JSON, o backend está ok.
+4. **Docker Compose** — Se frontend e backend estiverem no mesmo `docker-compose.yml`, use `BACKEND_URL=http://backend:3000` (URL interna, sem HTTPS).
+
 ### Frontend e backend na mesma aplicação
 - Se estiverem no mesmo domínio, o nginx já faz proxy
 - `VITE_API_URL` = vazio
@@ -59,6 +68,7 @@ Se `VITE_API_URL` estiver definido no build, o frontend chama o backend diretame
 | DATABASE_URL           | URL do PostgreSQL (Coolify fornece)            |
 | JWT_SECRET             | Segredo para tokens JWT                        |
 | PORT                   | Porta (padrão 3000)                             |
+| FRONTEND_URL           | URL do frontend para CORS (ex: `https://lwsggkg88g0skg848880cg00.agenciamidas.com`). Várias: separar por vírgula |
 | IGAMEWIN_AGENT_CODE    | Código do agent (Seamless)                      |
 | IGAMEWIN_AGENT_SECRET  | Segredo do agent (Seamless, diferente do token)|
 

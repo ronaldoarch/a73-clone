@@ -15,6 +15,7 @@ services:
       - DATABASE_URL=postgresql://a73:a73@postgres:5432/a73db
       - JWT_SECRET=${JWT_SECRET:-a73-secret-change-in-production}
       - PORT=3000
+      - FRONTEND_URL=${FRONTEND_URL:-}
     depends_on:
       postgres:
         condition: service_healthy

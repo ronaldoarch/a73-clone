@@ -16,9 +16,16 @@ const app = express()
 const PORT = process.env.PORT || 3000
 const JWT_SECRET = process.env.JWT_SECRET || 'a73-secret-change-in-production'
 
-// CORS: frontend e backend em subdomínios diferentes (*.agenciamidas.com)
+// CORS: FRONTEND_URL restringe origens permitidas; se vazio, aceita qualquer
+const FRONTEND_URL = process.env.FRONTEND_URL || ''
 const corsOpts = {
-  origin: (o, cb) => cb(null, o || true),
+  origin: (o, cb) => {
+    if (!o) return cb(null, true)
+    if (!FRONTEND_URL) return cb(null, true)
+    const allowed = FRONTEND_URL.split(',').map(u => u.trim()).filter(Boolean)
+    const ok = allowed.some(u => o === u || o.startsWith(u.replace(/\/$/, '') + '/'))
+    return cb(null, ok ? o : false)
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']

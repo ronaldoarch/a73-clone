@@ -1,4 +1,5 @@
-FROM node:20-alpine
+# Debian tem melhor compatibilidade com Prisma que Alpine
+FROM node:20-slim
 
 WORKDIR /app
 

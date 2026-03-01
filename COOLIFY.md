@@ -35,17 +35,16 @@ Para ter login, registro e bônus funcionando, use **Docker Compose** ou configu
 - Se frontend e backend estiverem no mesmo domínio, o nginx já faz proxy de `/api` e `/uploads` para o backend
 - **Importante**: no docker-compose, o frontend depende do backend; o nginx usa `http://backend:3000`
 
-### Frontend e backend na mesma aplicação, URLs diferentes
-- Frontend: ex. `app.seudominio.com`
-- Backend: ex. `api.seudominio.com`
-- No Coolify, na aplicação do **frontend**, adicione variável de **build**:
-  - `VITE_API_URL` = URL do backend (ex: `https://api.seudominio.com`)
-- O frontend usará essa URL para todas as chamadas `/api` e `/uploads`
+### Frontend e backend em subdomínios diferentes (evitar CORS)
+- Frontend: ex. `app.agenciamidas.com`
+- Backend: ex. `api.agenciamidas.com`
+- **Build do frontend:** `VITE_API_URL` = vazio (ou omitir) — requests vão para mesma origem
+- **Runtime do frontend:** `BACKEND_URL` = URL do backend (ex: `https://api.agenciamidas.com`)
+- O nginx do frontend faz proxy de `/api` e `/uploads` para o backend — sem CORS
 
-### CORS (frontend e backend em subdomínios diferentes)
-- O backend já envia headers CORS (`Access-Control-Allow-Origin` etc.)
-- Se ainda houver erro de CORS, no Coolify verifique se o proxy do backend não está removendo headers
-- Ou adicione no proxy do backend: `Access-Control-Allow-Origin: *` (ou o domínio do frontend)
+### Frontend e backend na mesma aplicação
+- Se estiverem no mesmo domínio, o nginx já faz proxy
+- `VITE_API_URL` = vazio
 
 ## Variáveis
 

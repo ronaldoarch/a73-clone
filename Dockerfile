@@ -17,8 +17,12 @@ RUN npm run build
 FROM nginx:alpine
 
 COPY --from=builder /app/dist /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY nginx.conf.template /etc/nginx/conf.d/default.conf.template
+COPY nginx-no-proxy.conf /etc/nginx/conf.d/default.conf.no-proxy
+COPY entrypoint-nginx.sh /entrypoint-nginx.sh
+RUN chmod +x /entrypoint-nginx.sh
 
 EXPOSE 80
 
-CMD ["nginx", "-g", "daemon off;"]
+# BACKEND_URL: URL do backend para proxy /api (ex: https://api.seudominio.com)
+ENTRYPOINT ["/entrypoint-nginx.sh"]

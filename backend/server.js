@@ -529,6 +529,7 @@ app.post('/api/settings/igamewin', async (req, res) => {
         value: { agent_code: agent_code || '', agent_token: agent_token || '', agent_secret: agent_secret || '', sandbox: sandbox ?? true, is_demo: is_demo ?? true }
       }
     })
+    catalogCache = null
     return res.json({ ok: true })
   } catch (e) {
     console.error('save igamewin config:', e)
@@ -536,9 +537,57 @@ app.post('/api/settings/igamewin', async (req, res) => {
   }
 })
 
+// Catálogo de provedores e jogos (cache 10 min) - para a plataforma exibir
+const IGAMEWIN_URL = 'https://igamewin.com/api/v1'
+let catalogCache = null
+let catalogCacheTime = 0
+const CATALOG_TTL = 10 * 60 * 1000 // 10 min
+
+async function fetchIgamewin(body) {
+  const stored = await getIgamewinConfig()
+  const b = { ...body }
+  if (stored?.agent_code && stored?.agent_token) {
+    b.agent_code = stored.agent_code
+    b.agent_token = stored.agent_token
+  }
+  const r = await fetch(IGAMEWIN_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(b)
+  })
+  return r.json()
+}
+
+app.get('/api/igamewin/catalog', async (req, res) => {
+  try {
+    if (catalogCache && Date.now() - catalogCacheTime < CATALOG_TTL) {
+      return res.json(catalogCache)
+    }
+    const provRes = await fetchIgamewin({ method: 'provider_list' })
+    if (provRes.status !== 1 || !provRes.providers?.length) {
+      return res.json({ providers: [], gamesByProvider: {} })
+    }
+    const providers = provRes.providers.filter(p => p.status === 1)
+    const gamesByProvider = {}
+    for (const p of providers.slice(0, 12)) {
+      const gamesRes = await fetchIgamewin({ method: 'game_list', provider_code: p.code })
+      if (gamesRes.status === 1 && gamesRes.games?.length) {
+        gamesByProvider[p.code] = gamesRes.games.filter(g => g.status === 1)
+      } else {
+        gamesByProvider[p.code] = []
+      }
+    }
+    catalogCache = { providers, gamesByProvider }
+    catalogCacheTime = Date.now()
+    res.json(catalogCache)
+  } catch (e) {
+    console.error('igamewin catalog:', e)
+    res.json({ providers: [], gamesByProvider: {} })
+  }
+})
+
 // Proxy iGameWin API (evita CORS em produção)
 // Usa credenciais do backend (Settings) quando salvas; senão usa o body da requisição
-const IGAMEWIN_URL = 'https://igamewin.com/api/v1'
 app.post('/api/igamewin', async (req, res) => {
   try {
     const stored = await getIgamewinConfig()

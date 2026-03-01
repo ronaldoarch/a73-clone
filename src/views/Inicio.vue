@@ -131,6 +131,31 @@
         </div>
       </div>
 
+      <!-- Provedores e Jogos (iGameWin) -->
+      <div class="games-catalog-section">
+        <div v-if="catalogLoading" class="games-catalog-loading">Carregando jogos...</div>
+        <div v-else-if="catalogError" class="games-catalog-error">{{ catalogError }}</div>
+        <template v-else>
+          <div v-for="prov in catalogProviders" :key="prov.code" class="games-provider-block">
+            <h3 class="games-provider-title">{{ prov.name }}</h3>
+            <div class="games-grid">
+              <div
+                v-for="g in (catalogGamesByProvider[prov.code] || []).slice(0, 12)"
+                :key="g.game_code"
+                class="game-card"
+                @click="launchGame(prov.code, g.game_code)"
+              >
+                <div class="game-card-banner">
+                  <img v-if="g.banner" :src="g.banner" :alt="g.game_name" loading="lazy" />
+                  <div v-else class="game-card-placeholder">{{ g.game_name?.slice(0, 2) || '?' }}</div>
+                </div>
+                <span class="game-card-name">{{ g.game_name }}</span>
+              </div>
+            </div>
+          </div>
+        </template>
+      </div>
+
       <!-- Ranking de Lucro -->
       <div class="ranking-section">
         <div class="ranking-header">
@@ -228,8 +253,11 @@ import {
 import jackpotBg from '@/assets/bg-36-ByTDysgk.png'
 import jackpotCoin from '@/assets/coin-36-DzGEC43m.png'
 import { useSettings } from '@/composables/useSettings'
+import { useGamesCatalog } from '@/composables/useGamesCatalog'
+import { igamewinApi } from '@/api/igamewin'
 
 const { logoUrl, bannerUrl } = useSettings()
+const { providers: catalogProviders, gamesByProvider: catalogGamesByProvider, loading: catalogLoading, error: catalogError, load: loadCatalog } = useGamesCatalog()
 const showAppBanner = ref(true)
 const showJackpot = ref(true)
 const tickerGanhos = [
@@ -297,7 +325,17 @@ function runJackpotBurst() {
   }, 2000)
 }
 
+function launchGame(providerCode, gameCode) {
+  const userCode = localStorage.getItem('account') || 'guest'
+  igamewinApi.gameLaunch(userCode, providerCode, gameCode).then((data) => {
+    if (data?.status === 1 && data?.launch_url) {
+      window.open(data.launch_url, '_blank')
+    }
+  })
+}
+
 onMounted(() => {
+  loadCatalog()
   if (localStorage.getItem('a73_app_banner_hidden') === '1') {
     showAppBanner.value = false
   }
@@ -983,6 +1021,76 @@ function closeBanner() {
   color: #FDD835;
   letter-spacing: 0.08em;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+/* Provedores e Jogos (iGameWin) */
+.games-catalog-section {
+  margin: 0 16px 24px;
+  padding: 0;
+}
+.games-catalog-loading,
+.games-catalog-error {
+  text-align: center;
+  padding: 24px;
+  color: var(--text-muted);
+}
+.games-catalog-error { color: var(--danger, #ef4444); }
+.games-provider-block {
+  margin-bottom: 24px;
+}
+.games-provider-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--primary, #f59e0b);
+  margin: 0 0 12px 0;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border, #2a2a3a);
+}
+.games-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 12px;
+}
+.game-card {
+  background: var(--card, #1a1a24);
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--border, #2a2a3a);
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.game-card:active { transform: scale(0.98); }
+.game-card-banner {
+  aspect-ratio: 1;
+  overflow: hidden;
+  background: rgba(0,0,0,0.3);
+}
+.game-card-banner img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.game-card-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, var(--primary, #f59e0b) 0%, var(--card, #1a1a24) 100%);
+  color: #000;
+  font-weight: 700;
+  font-size: 1.25rem;
+}
+.game-card-name {
+  display: block;
+  padding: 6px 8px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text, #e5e7eb);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Ranking de Lucro - estilo bandeirolas */

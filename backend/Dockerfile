@@ -1,8 +1,5 @@
 FROM node:20-alpine
 
-# Prisma engine precisa de libssl.so.1.1 (Alpine usa OpenSSL 3 por padrão)
-RUN apk add --no-cache openssl1.1-compat
-
 WORKDIR /app
 
 COPY package*.json ./

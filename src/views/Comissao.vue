@@ -111,13 +111,13 @@ const jogos = [
   { logo: 'CQ9', provider: 'PANDA', aposta: '0,00', taxa: '0,00', receber: '0,30', coletavel: '0,00' },
 ]
 
-function receber() {
+async function receber() {
   const valor = coletavelRebate.value ?? 0
   if (valor <= 0) {
     toast.warning('Nenhum valor disponível para receber.')
     return
   }
-  if (receberComissao(valor)) {
+  if (await receberComissao(valor)) {
     toast.success(`R$ ${fmt(valor)} recebido!`)
   }
 }

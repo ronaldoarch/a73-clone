@@ -7,5 +7,15 @@
 </template>
 
 <script setup>
+import { onMounted } from 'vue'
 import { IonApp, IonRouterOutlet } from '@ionic/vue'
+import { useAfiliado } from '@/composables/useAfiliado'
+import { useSettings } from '@/composables/useSettings'
+
+onMounted(() => {
+  useSettings().load()
+  if (localStorage.getItem('token')) {
+    useAfiliado().refresh()
+  }
+})
 </script>

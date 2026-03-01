@@ -1,0 +1,40 @@
+# Deploy no Coolify: use este compose ou configure os serviços separadamente
+services:
+  frontend:
+    build: .
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    environment:
+      - BACKEND_URL=http://backend:3000
+
+  backend:
+    build: ./backend
+    environment:
+      - DATABASE_URL=postgresql://a73:a73@postgres:5432/a73db
+      - JWT_SECRET=${JWT_SECRET:-a73-secret-change-in-production}
+      - PORT=3000
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - backend-uploads:/app/uploads
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=a73
+      - POSTGRES_PASSWORD=a73
+      - POSTGRES_DB=a73db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U a73 -d a73db"]
+      interval: 2s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres_data:
+  backend-uploads:

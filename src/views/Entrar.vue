@@ -123,9 +123,9 @@ function selectOnlineDeposit() {
   // Abre fluxo de depósito online
 }
 
-function doDeposit() {
+async function doDeposit() {
   const valor = selectedAmount.value
-  registrarDeposito(valor)
+  await registrarDeposito(valor)
   toast.success(`Depósito de R$ ${valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} registrado!`)
 }
 

@@ -209,14 +209,14 @@ function compartilhar(rede) {
   else if (rede === 'facebook') window.open(`https://www.facebook.com/sharer/sharer.php?u=${url}`, '_blank')
   else if (rede === 'twitter') window.open(`https://twitter.com/intent/tweet?url=${url}&text=${text}`, '_blank')
 }
-function receberComissaoHandler() {
+async function receberComissaoHandler() {
   const { state } = useAfiliado()
   const valor = state.value.comissaoPendente || state.value.comissaoHoje || state.value.coletavelRebate || 0
   if (valor <= 0) {
     toast.warning('Nenhuma comissão disponível para receber.')
     return
   }
-  if (receberComissao(valor)) {
+  if (await receberComissao(valor)) {
     toast.success(`Comissão R$ ${fmt(valor)} recebida!`)
   }
 }

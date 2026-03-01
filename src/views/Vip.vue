@@ -130,16 +130,16 @@ const niveisVipFormatados = niveisVip.map(n => ({
   bonus: fmt(n.bonus),
 }))
 
-function coletar() {
-  if (coletarVip()) {
+async function coletar() {
+  if (await coletarVip()) {
     confetti()
     toast.success('Bônus VIP coletado!')
   } else {
     toast.warning('Nenhum bônus disponível para coletar.')
   }
 }
-function reclamar() {
-  if (coletarVip()) {
+async function reclamar() {
+  if (await coletarVip()) {
     confetti()
     toast.success('Recompensa de upgrade reclamada!')
   } else {

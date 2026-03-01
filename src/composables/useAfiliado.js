@@ -1,9 +1,10 @@
 /**
  * Store centralizado de afiliado e bônus.
- * Persiste em localStorage para funcionar sem backend.
+ * Usa backend quando logado; fallback localStorage para demo.
  * Regras: Promo (subordinados válidos), Comissão (rebate 5%), VIP (apostas), Misterioso (depósito/dias).
  */
 import { ref, computed, watch } from 'vue'
+import { afiliadoApi } from '@/api/afiliado'
 
 const STORAGE_KEY = 'a73_afiliado_data'
 const BASE_URL = typeof window !== 'undefined' ? (window.location.origin + window.location.pathname) : 'https://a73.com'
@@ -75,18 +76,18 @@ export function capturePidFromUrl() {
   return localStorage.getItem('a73_pid_ref')
 }
 
+/** Gera pid igual ao backend (hash do account) */
+function generatePid(account) {
+  const hash = Math.abs(String(account).split('').reduce((a, c) => a + c.charCodeAt(0), 0))
+  return '4' + String(hash).padStart(9, '0')
+}
+
 /** Pid do usuário logado (afiliado) - usado no link de convite */
 export function getMyPid() {
   const account = localStorage.getItem('account') || ''
   const token = localStorage.getItem('token')
   if (token && account) {
-    // Usar hash do account como pid único (simulação)
-    let pid = localStorage.getItem('a73_my_pid')
-    if (!pid) {
-      pid = '4' + String(Math.abs(account.split('').reduce((a, c) => a + c.charCodeAt(0), 0))).padStart(9, '0')
-      localStorage.setItem('a73_my_pid', pid)
-    }
-    return pid
+    return state.value.pid || generatePid(account)
   }
   return state.value.pid || '4180019537'
 }
@@ -245,6 +246,20 @@ export function useAfiliado() {
     return dep >= minDep && !reclamado
   })
 
+  /** Busca dados do backend (quando logado) */
+  async function refresh() {
+    if (!localStorage.getItem('token')) return
+    try {
+      const data = await afiliadoApi.getData()
+      if (data) {
+        state.value = { ...defaultData(), ...state.value, ...data }
+        if (data.pid) state.value.pid = data.pid
+      }
+    } catch (e) {
+      // API indisponível: mantém localStorage
+    }
+  }
+
   /** Inicializa dados do usuário ao registrar (com pid do indicador) */
   function initFromRegistro(account, pidRef) {
     if (pidRef) state.value.pid = pidRef
@@ -253,7 +268,7 @@ export function useAfiliado() {
     }
   }
 
-  /** Simula novo subordinado (para demo - em produção viria do backend) */
+  /** Simula novo subordinado (demo - backend não suporta) */
   function addSubordinadoValido() {
     state.value.subDiretos = (state.value.subDiretos || 0) + 1
     state.value.subValidos = (state.value.subValidos || 0) + 1
@@ -261,7 +276,16 @@ export function useAfiliado() {
   }
 
   /** Reclamar bônus Promo (por X pessoas) */
-  function reclamarBonusPromo(pessoas) {
+  async function reclamarBonusPromo(pessoas) {
+    if (localStorage.getItem('token')) {
+      try {
+        await afiliadoApi.reclamarPromo(pessoas)
+        await refresh()
+        return true
+      } catch (e) {
+        return false
+      }
+    }
     const reclamados = state.value.bonusPromoReclamados || []
     if (reclamados.some(x => x.pessoas === pessoas)) return false
     const r = recompensasPromo.find(x => x.pessoas === pessoas)
@@ -272,7 +296,16 @@ export function useAfiliado() {
   }
 
   /** Receber comissão */
-  function receberComissao(valor) {
+  async function receberComissao(valor) {
+    if (localStorage.getItem('token')) {
+      try {
+        await afiliadoApi.receberComissao(valor)
+        await refresh()
+        return true
+      } catch (e) {
+        return false
+      }
+    }
     const v = typeof valor === 'number' ? valor : (state.value.comissaoPendente || state.value.coletavelRebate || 0)
     if (v <= 0) return false
     state.value.comissaoRecebida = (state.value.comissaoRecebida || 0) + v
@@ -282,7 +315,16 @@ export function useAfiliado() {
   }
 
   /** Reclamar Misterioso */
-  function reclamarMisterioso() {
+  async function reclamarMisterioso() {
+    if (localStorage.getItem('token')) {
+      try {
+        await afiliadoApi.reclamarMisterioso()
+        await refresh()
+        return true
+      } catch (e) {
+        return false
+      }
+    }
     if (state.value.misteriosoReclamado) return false
     if ((state.value.depositoMisterioso || 0) < 30) return false
     state.value.misteriosoReclamado = true
@@ -290,7 +332,16 @@ export function useAfiliado() {
   }
 
   /** Coletar bônus VIP */
-  function coletarVip() {
+  async function coletarVip() {
+    if (localStorage.getItem('token')) {
+      try {
+        await afiliadoApi.coletarVip()
+        await refresh()
+        return true
+      } catch (e) {
+        return false
+      }
+    }
     const bonus = state.value.bonusVipReclamar || 0
     if (bonus <= 0) return false
     state.value.bonusVipReclamar = 0
@@ -298,19 +349,25 @@ export function useAfiliado() {
   }
 
   /** Registrar depósito (atualiza Misterioso, comissão, apostas VIP, etc.) */
-  function registrarDeposito(valor) {
+  async function registrarDeposito(valor) {
     if (!valor || valor <= 0) return
+    if (localStorage.getItem('token')) {
+      try {
+        await afiliadoApi.deposito(valor)
+        await refresh()
+        return
+      } catch (e) {
+        // Fallback local
+      }
+    }
     state.value.depositoMisterioso = (state.value.depositoMisterioso || 0) + valor
     state.value.valorDeposito = (state.value.valorDeposito || 0) + valor
     state.value.numDepositos = (state.value.numDepositos || 0) + 1
-    // Comissão 5% (rebate) - simulação
     const rebate = valor * 0.05
     state.value.coletavelRebate = (state.value.coletavelRebate || 0) + rebate
     state.value.comissaoPendente = (state.value.comissaoPendente || 0) + rebate
     state.value.comissaoHoje = (state.value.comissaoHoje || 0) + rebate
-    // Apostas acumuladas (simulação: depósito x 5 para progresso VIP)
     state.value.apostaAcumulada = (state.value.apostaAcumulada || 0) + valor * 5
-    // Bônus VIP disponível ao atingir novo nível
     const aposta = state.value.apostaAcumulada
     const nivel = state.value.nivelVip || 0
     const prox = niveisVip[Math.min(nivel + 1, niveisVip.length - 1)]
@@ -360,5 +417,6 @@ export function useAfiliado() {
     valorSaque,
     numSaques,
     registrarDeposito,
+    refresh,
   }
 }

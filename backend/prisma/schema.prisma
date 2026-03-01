@@ -1,0 +1,65 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  account      String   @unique
+  phone        String
+  password     String
+  indicatorId  String?  // quem indicou (userId do afiliado)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  afiliado     AfiliadoData?
+  depositos    Deposit[]
+}
+
+model AfiliadoData {
+  id                   String   @id @default(cuid())
+  userId               String   @unique
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pid                  String   @unique  // código do afiliado (link de convite)
+  subDiretos           Int      @default(0)
+  subValidos           Int      @default(0)
+  subOutros            Int      @default(0)
+  novosSubordinados    Int      @default(0)
+  valorDeposito        Float    @default(0)
+  numDepositos         Int      @default(0)
+  valorPrimeiroDep     Float    @default(0)
+  usuariosPrimeiroDep  Int      @default(0)
+  valorSaque           Float    @default(0)
+  numSaques            Int      @default(0)
+  comissaoRecebida     Float    @default(0)
+  comissaoPendente     Float    @default(0)
+  comissaoHoje         Float    @default(0)
+  coletavelRebate      Float    @default(0)
+  apostaAcumulada      Float    @default(0)
+  nivelVip             Int      @default(0)
+  bonusVipReclamar     Float    @default(0)
+  horaRegisto          DateTime?
+  depositoMisterioso   Float    @default(0)
+  misteriosoReclamado  Boolean  @default(false)
+  misteriosoDiasAtivos Int      @default(0)
+  bonusPromoReclamados Json     @default("[]")  // [{ pessoas, valor }]
+  bonusVipColetados    Json     @default("[]")  // [{ nivel, valor }]
+  updatedAt            DateTime @updatedAt
+}
+
+model Deposit {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  valor     Float
+  createdAt DateTime @default(now())
+}
+
+model Setting {
+  id    String @id @default("main")
+  logo  String?
+  banner String?
+}

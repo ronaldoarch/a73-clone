@@ -4,7 +4,7 @@
       <ion-toolbar class="menu-header-toolbar">
         <ion-buttons slot="start">
           <div class="menu-header-logo-wrap">
-            <img src="/s5/app-icon/1222508/LOGO.jpg" alt="A73" class="menu-header-logo" />
+            <img :src="logoUrl" alt="A73" class="menu-header-logo" />
             <span class="menu-header-brand">A73.com</span>
           </div>
         </ion-buttons>
@@ -74,7 +74,9 @@ import {
 } from '@ionic/vue'
 import { useRouter } from 'vue-router'
 import jackpotBg from '@/assets/bg-36-ByTDysgk.png'
+import { useSettings } from '@/composables/useSettings'
 
+const { logoUrl } = useSettings()
 const router = useRouter()
 const jackpotValue = ref(151095524.11)
 

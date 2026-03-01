@@ -171,8 +171,8 @@ function copiarLink() {
   navigator.clipboard?.writeText(linkConvite.value)
   confetti({ count: 30 })
 }
-function reclamarRecompensa(r) {
-  if (reclamarBonusPromo(r.pessoas)) {
+async function reclamarRecompensa(r) {
+  if (await reclamarBonusPromo(r.pessoas)) {
     confetti()
     toast.success(`Bônus R$ ${r.valor} reclamado!`)
   } else {

@@ -57,6 +57,7 @@ import {
 } from '@ionic/vue'
 import { useToast } from '@/composables/useToast'
 import { api } from '@/api/trpc'
+import { useAfiliado } from '@/composables/useAfiliado'
 
 const router = useRouter()
 const toast = useToast()
@@ -93,6 +94,7 @@ async function handleLogin() {
     }
     localStorage.setItem('token', res.token)
     localStorage.setItem('account', res.user?.account || phone.value)
+    await useAfiliado().refresh()
     toast.success('Login realizado!')
     router.push('/main/inicio/')
   } catch (e) {

@@ -402,6 +402,7 @@
 import { ref, computed, watch, h, onMounted } from 'vue'
 import { IonPage } from '@ionic/vue'
 import { igamewinApi } from '@/api/igamewin'
+import { useSettings } from '@/composables/useSettings'
 
 const TEMAS_KEY = 'a73_temas'
 const TEMA_ATIVO_KEY = 'a73_tema_ativo'
@@ -562,8 +563,7 @@ onMounted(() => {
   })
 })
 
-const logoUrl = ref('/s5/app-icon/1222508/LOGO.jpg')
-const bannerUrl = ref('/s5/1770954153806/9999.jpg')
+const { logoUrl, bannerUrl } = useSettings()
 const logoFile = ref(null)
 const bannerFile = ref(null)
 const logoMsg = ref('')

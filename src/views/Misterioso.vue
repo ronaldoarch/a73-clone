@@ -128,8 +128,8 @@ const momentoReclamar = ref('2026-02-27 00:00:00')
 const depositoTotal = computed(() => fmt(depositoMisterioso.value ?? 0))
 const horaRegistoFmt = computed(() => horaRegisto.value || new Date().toISOString().slice(0, 19).replace('T', ' '))
 
-function reclamar() {
-  if (reclamarMisterioso()) {
+async function reclamar() {
+  if (await reclamarMisterioso()) {
     confetti()
     toast.success('Prêmio misterioso reclamado!')
   } else {

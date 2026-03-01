@@ -12,7 +12,7 @@
       <ion-toolbar class="header-toolbar header-gradient">
         <ion-buttons slot="start">
           <div class="header-logo-wrap">
-            <img src="/s5/app-icon/1222508/LOGO.jpg" alt="A73" class="header-logo" />
+            <img :src="logoUrl" alt="A73" class="header-logo" />
             <span class="header-promo-badge">PROMO</span>
           </div>
         </ion-buttons>
@@ -40,7 +40,7 @@
       <div class="banner-section banner-carousel">
         <div class="banner-neon-frame">
           <div class="banner-slide active">
-            <img src="/s5/1770954153806/9999.jpg" alt="Banner A73" class="banner-img" />
+            <img :src="bannerUrl" alt="Banner A73" class="banner-img" />
             <div class="banner-overlay">
               <span class="banner-text-main">COM AMIGOS COMPARTILHE R$100</span>
               <ion-button size="small" color="warning" class="banner-saque-btn">SAQUE RÁPIDO</ion-button>
@@ -227,7 +227,9 @@ import {
 } from '@ionic/vue'
 import jackpotBg from '@/assets/bg-36-ByTDysgk.png'
 import jackpotCoin from '@/assets/coin-36-DzGEC43m.png'
+import { useSettings } from '@/composables/useSettings'
 
+const { logoUrl, bannerUrl } = useSettings()
 const showAppBanner = ref(true)
 const showJackpot = ref(true)
 const tickerGanhos = [

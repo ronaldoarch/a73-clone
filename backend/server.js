@@ -569,10 +569,10 @@ app.get('/api/igamewin/catalog', async (req, res) => {
     }
     const providers = provRes.providers.filter(p => p.status === 1)
     const gamesByProvider = {}
-    for (const p of providers.slice(0, 12)) {
+    for (const p of providers.slice(0, 7)) {
       const gamesRes = await fetchIgamewin({ method: 'game_list', provider_code: p.code })
       if (gamesRes.status === 1 && gamesRes.games?.length) {
-        gamesByProvider[p.code] = gamesRes.games.filter(g => g.status === 1)
+        gamesByProvider[p.code] = gamesRes.games.filter(g => g.status === 1).slice(0, 50)
       } else {
         gamesByProvider[p.code] = []
       }

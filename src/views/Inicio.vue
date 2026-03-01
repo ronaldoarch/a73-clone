@@ -133,14 +133,21 @@
 
       <!-- Provedores e Jogos (iGameWin) -->
       <div class="games-catalog-section">
+        <h2 class="games-catalog-title">Jogos</h2>
         <div v-if="catalogLoading" class="games-catalog-loading">Carregando jogos...</div>
-        <div v-else-if="catalogError" class="games-catalog-error">{{ catalogError }}</div>
+        <div v-else-if="catalogError" class="games-catalog-error">
+          {{ catalogError }}
+          <button class="games-retry-btn" @click="loadCatalog">Tentar novamente</button>
+        </div>
+        <div v-else-if="!catalogProviders.length" class="games-catalog-empty">
+          Nenhum jogo disponível. Configure as credenciais iGameWin no Admin (API de Jogos).
+        </div>
         <template v-else>
           <div v-for="prov in catalogProviders" :key="prov.code" class="games-provider-block">
             <h3 class="games-provider-title">{{ prov.name }}</h3>
             <div class="games-grid">
               <div
-                v-for="g in (catalogGamesByProvider[prov.code] || []).slice(0, 12)"
+                v-for="g in (catalogGamesByProvider[prov.code] || []).slice(0, 50)"
                 :key="g.game_code"
                 class="game-card"
                 @click="launchGame(prov.code, g.game_code)"
@@ -1028,13 +1035,32 @@ function closeBanner() {
   margin: 0 16px 24px;
   padding: 0;
 }
+.games-catalog-title {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: var(--primary, #f59e0b);
+  margin: 0 0 16px 0;
+}
 .games-catalog-loading,
-.games-catalog-error {
+.games-catalog-error,
+.games-catalog-empty {
   text-align: center;
   padding: 24px;
   color: var(--text-muted);
 }
 .games-catalog-error { color: var(--danger, #ef4444); }
+.games-catalog-empty { font-size: 0.9rem; }
+.games-retry-btn {
+  display: block;
+  margin: 12px auto 0;
+  padding: 8px 16px;
+  background: var(--primary, #f59e0b);
+  color: #000;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+}
 .games-provider-block {
   margin-bottom: 24px;
 }

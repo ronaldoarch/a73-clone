@@ -42,6 +42,11 @@ Para ter login, registro e bônus funcionando, use **Docker Compose** ou configu
   - `VITE_API_URL` = URL do backend (ex: `https://api.seudominio.com`)
 - O frontend usará essa URL para todas as chamadas `/api` e `/uploads`
 
+### CORS (frontend e backend em subdomínios diferentes)
+- O backend já envia headers CORS (`Access-Control-Allow-Origin` etc.)
+- Se ainda houver erro de CORS, no Coolify verifique se o proxy do backend não está removendo headers
+- Ou adicione no proxy do backend: `Access-Control-Allow-Origin: *` (ou o domínio do frontend)
+
 ## Variáveis
 
 ### Backend

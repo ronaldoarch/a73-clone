@@ -1,5 +1,12 @@
 # Deploy no Coolify com PostgreSQL
 
+## Deploy apenas do Frontend (padrão)
+
+Se você faz deploy só do repositório como **Application**, o frontend sobe sozinho (sem backend).
+O nginx não faz proxy para `backend` — o app carrega, mas chamadas `/api` e `/uploads` retornam 404.
+
+Para ter login, registro e bônus funcionando, use **Docker Compose** ou configure o backend separadamente.
+
 ## Opção 1: Docker Compose (recomendado)
 
 1. No Coolify, crie um novo recurso **Docker Compose**

@@ -137,10 +137,12 @@
         <div v-if="catalogLoading" class="games-catalog-loading">Carregando jogos...</div>
         <div v-else-if="catalogError" class="games-catalog-error">
           {{ catalogError }}
-          <button class="games-retry-btn" @click="loadCatalog">Tentar novamente</button>
+          <button class="games-retry-btn" @click="loadCatalog(true)">Tentar novamente</button>
         </div>
         <div v-else-if="!catalogProviders.length" class="games-catalog-empty">
-          Nenhum jogo disponível. Configure as credenciais iGameWin no Admin (API de Jogos).
+          Nenhum jogo disponível. No Admin: salve as credenciais (API de Jogos) e desmarque Sandbox.
+          <br />Se o proxy estiver configurado (BACKEND_URL, VITE_API_URL vazio), os jogos aparecerão aqui.
+          <button class="games-retry-btn" @click="loadCatalog(true)">Atualizar</button>
         </div>
         <template v-else>
           <div v-for="prov in catalogProviders" :key="prov.code" class="games-provider-block">

@@ -575,7 +575,8 @@ async function fetchIgamewin(body) {
 
 app.get('/api/igamewin/catalog', async (req, res) => {
   try {
-    if (catalogCache && Date.now() - catalogCacheTime < CATALOG_TTL) {
+    const forceRefresh = req.query.refresh === '1'
+    if (!forceRefresh && catalogCache && Date.now() - catalogCacheTime < CATALOG_TTL) {
       return res.json(catalogCache)
     }
     const provRes = await fetchIgamewin({ method: 'provider_list' })

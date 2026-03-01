@@ -223,6 +223,12 @@
                 <input v-model="igameConfig.is_demo" type="checkbox" @change="saveIgameConfig" />
                 Modo Demo/Samples (user_create com is_demo)
               </label>
+              <div class="api-jogos-save-row">
+                <button type="button" class="btn btn-primary" @click="saveIgameConfig">
+                  Salvar credenciais
+                </button>
+                <span v-if="igameSaveMsg" class="api-jogos-save-msg" :class="{ error: igameSaveError }">{{ igameSaveMsg }}</span>
+              </div>
             </div>
           </div>
 
@@ -506,6 +512,8 @@ const formAfiliado = ref({ codigo: '', nome: '', porcentagem: 20, tipo: 'primeir
 
 // API de Jogos (iGameWin)
 const igameConfig = ref({ ...igamewinApi.getConfig() })
+const igameSaveMsg = ref('')
+const igameSaveError = ref(false)
 
 async function loadIgamewinConfigFromBackend() {
   try {
@@ -655,8 +663,10 @@ function formatBalance(val) {
 
 async function saveIgameConfig() {
   igamewinApi.saveConfig(igameConfig.value)
+  igameSaveMsg.value = ''
+  igameSaveError.value = false
   try {
-    await fetch(apiUrl('/api/settings/igamewin'), {
+    const r = await fetch(apiUrl('/api/settings/igamewin'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -667,7 +677,19 @@ async function saveIgameConfig() {
         is_demo: igameConfig.value.is_demo,
       }),
     })
-  } catch (e) { /* ignore */ }
+    const data = await r.json()
+    if (data?.ok) {
+      igameSaveMsg.value = 'Credenciais salvas! Os jogos aparecerão na plataforma.'
+      igameSaveError.value = false
+    } else {
+      igameSaveMsg.value = data?.error || 'Erro ao salvar'
+      igameSaveError.value = true
+    }
+  } catch (e) {
+    igameSaveMsg.value = e.message || 'Erro de conexão. Verifique o proxy (BACKEND_URL).'
+    igameSaveError.value = true
+  }
+  setTimeout(() => { igameSaveMsg.value = '' }, 4000)
 }
 
 function doAddBalance() {
@@ -923,6 +945,9 @@ tr:hover { background: rgba(255,255,255,0.02); }
 .api-jogos-config { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border); }
 .api-jogos-check { display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0; cursor: pointer; font-size: 0.875rem; color: var(--text-muted); }
 .api-jogos-check input { accent-color: var(--primary); }
+.api-jogos-save-row { display: flex; align-items: center; gap: 1rem; margin-top: 1rem; flex-wrap: wrap; }
+.api-jogos-save-msg { font-size: 0.875rem; color: var(--success, #10b981); }
+.api-jogos-save-msg.error { color: var(--danger, #ef4444); }
 .btn-sm { padding: 0.35rem 0.5rem; font-size: 0.8rem; }
 .api-guide-card { margin-bottom: 1.5rem; }
 .api-guide-title { margin: 0 0 0.5rem 0; cursor: pointer; font-size: 1rem; display: flex; align-items: center; gap: 0.5rem; }

@@ -211,9 +211,17 @@
                 <label>Agent Token</label>
                 <input v-model="igameConfig.agent_token" type="password" placeholder="••••••" @blur="saveIgameConfig" />
               </div>
+              <div class="form-group">
+                <label>Agent Secret (Seamless)</label>
+                <input v-model="igameConfig.agent_secret" type="password" placeholder="••••••" @blur="saveIgameConfig" />
+              </div>
               <label class="api-jogos-check">
                 <input v-model="igameConfig.sandbox" type="checkbox" @change="saveIgameConfig" />
                 Modo Sandbox (mock)
+              </label>
+              <label class="api-jogos-check">
+                <input v-model="igameConfig.is_demo" type="checkbox" @change="saveIgameConfig" />
+                Modo Demo/Samples (user_create com is_demo)
               </label>
             </div>
           </div>
@@ -225,8 +233,39 @@
             </h4>
             <div v-show="apiGuideOpen" class="api-guide-content">
               <p><strong>Endpoint:</strong> <code>https://igamewin.com/api/v1</code></p>
-              <p>Métodos: user_create, user_deposit, user_withdraw, user_withdraw_reset, set_demo, game_launch, money_info, provider_list, game_list, get_game_log, control_rtp</p>
+              <p>Métodos: user_create, user_deposit, user_withdraw, user_withdraw_reset, set_demo, game_launch, money_info, provider_list, game_list, get_game_log, control_rtp, control_demo_spin</p>
             </div>
+          </div>
+
+          <!-- Call API (Slot) - RTP e Demo Spin -->
+          <div class="card api-slot-card">
+            <h4>Call API (Slot Game)</h4>
+            <p class="card-label" style="margin-bottom: 1rem;">RTP (1–95%) e Demo Spin (1–15). Deixe vazio para agent/todos.</p>
+            <div class="api-slot-grid">
+              <div class="api-slot-item">
+                <span class="api-slot-label">RTP</span>
+                <div class="api-slot-row">
+                  <input v-model.number="slotRtpValue" type="number" min="1" max="95" placeholder="92" class="api-slot-input" />
+                  <input v-model="slotRtpUsers" type="text" placeholder="user ou user1,user2,user3" class="api-slot-input wide" />
+                  <button class="btn btn-primary" :disabled="slotApiLoading" @click="doSlotRtp">
+                    {{ slotApiLoading ? '...' : 'RTP' }}
+                  </button>
+                </div>
+              </div>
+              <div class="api-slot-item">
+                <span class="api-slot-label">Demo Spin</span>
+                <div class="api-slot-row">
+                  <input v-model.number="slotDemoStart" type="number" min="1" max="15" placeholder="3" class="api-slot-input" />
+                  <span class="api-slot-sep">–</span>
+                  <input v-model.number="slotDemoEnd" type="number" min="1" max="15" placeholder="7" class="api-slot-input" />
+                  <input v-model="slotDemoUsers" type="text" placeholder="user ou user1,user2" class="api-slot-input wide" />
+                  <button class="btn btn-primary" :disabled="slotApiLoading" @click="doSlotDemoSpin">
+                    {{ slotApiLoading ? '...' : 'Demo Spin' }}
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div v-if="slotApiMsg" class="api-slot-msg" :class="{ error: slotApiError }">{{ slotApiMsg }}</div>
           </div>
 
           <!-- Provedores e Jogos -->
@@ -403,6 +442,7 @@ import { ref, computed, watch, h, onMounted } from 'vue'
 import { IonPage } from '@ionic/vue'
 import { igamewinApi } from '@/api/igamewin'
 import { useSettings } from '@/composables/useSettings'
+import { apiUrl } from '@/config/api'
 
 const TEMAS_KEY = 'a73_temas'
 const TEMA_ATIVO_KEY = 'a73_tema_ativo'
@@ -466,6 +506,17 @@ const formAfiliado = ref({ codigo: '', nome: '', porcentagem: 20, tipo: 'primeir
 
 // API de Jogos (iGameWin)
 const igameConfig = ref({ ...igamewinApi.getConfig() })
+
+async function loadIgamewinConfigFromBackend() {
+  try {
+    const r = await fetch(apiUrl('/api/settings/igamewin'))
+    const data = await r.json()
+    if (data?.agent_code || data?.agent_token || data?.agent_secret) {
+      igameConfig.value = { ...igamewinApi.getConfig(), ...data }
+      igamewinApi.saveConfig(igameConfig.value)
+    }
+  } catch (e) { /* ignore */ }
+}
 const addBalanceAmount = ref(10000)
 const showRtpModal = ref(false)
 const newRtpValue = ref(70)
@@ -475,6 +526,73 @@ const games = ref([])
 const selectedProvider = ref('')
 const gamesLoading = ref(false)
 const gamesError = ref('')
+
+// Call API (Slot) - RTP e Demo Spin
+const slotApiLoading = ref(false)
+const slotApiMsg = ref('')
+const slotApiError = ref(false)
+const slotRtpValue = ref(92)
+const slotRtpUsers = ref('')
+const slotDemoStart = ref(3)
+const slotDemoEnd = ref(7)
+const slotDemoUsers = ref('')
+
+function parseUserCodes(str) {
+  if (!str || !String(str).trim()) return null
+  const arr = String(str).split(/[,\s]+/).map(s => s.trim()).filter(Boolean)
+  return arr.length === 1 ? arr[0] : arr
+}
+
+async function doSlotRtp() {
+  const rtp = Math.min(95, Math.max(1, slotRtpValue.value || 92))
+  slotApiLoading.value = true
+  slotApiMsg.value = ''
+  slotApiError.value = false
+  try {
+    const userCode = parseUserCodes(slotRtpUsers.value)
+    const data = await igamewinApi.controlRtp(rtp, userCode)
+    if (data.status === 1) {
+      slotApiMsg.value = `RTP alterado para ${data.changed_rtp ?? rtp}%`
+      igameConfig.value = { ...igamewinApi.getConfig() }
+    } else {
+      slotApiMsg.value = data.msg || data.detail || 'Erro'
+      slotApiError.value = true
+    }
+  } catch (e) {
+    slotApiMsg.value = e.message || 'Erro'
+    slotApiError.value = true
+  } finally {
+    slotApiLoading.value = false
+  }
+}
+
+async function doSlotDemoSpin() {
+  const start = Math.min(15, Math.max(1, slotDemoStart.value || 3))
+  const end = Math.min(15, Math.max(1, slotDemoEnd.value || 7))
+  if (start > end) {
+    slotApiMsg.value = 'start deve ser ≤ end'
+    slotApiError.value = true
+    return
+  }
+  slotApiLoading.value = true
+  slotApiMsg.value = ''
+  slotApiError.value = false
+  try {
+    const userCode = parseUserCodes(slotDemoUsers.value)
+    const data = await igamewinApi.controlDemoSpin(start, end, userCode)
+    if (data.status === 1) {
+      slotApiMsg.value = `Demo Spin: ${data.demo_spin_start}–${data.demo_spin_end}`
+    } else {
+      slotApiMsg.value = data.msg || data.detail || 'Erro'
+      slotApiError.value = true
+    }
+  } catch (e) {
+    slotApiMsg.value = e.message || 'Erro'
+    slotApiError.value = true
+  } finally {
+    slotApiLoading.value = false
+  }
+}
 
 async function loadProviders() {
   gamesError.value = ''
@@ -516,7 +634,7 @@ async function loadGames() {
 }
 
 const apiMethods = [
-  { method: 'user_create', desc: 'Criar novo usuário' },
+  { method: 'user_create', desc: 'Criar novo usuário (is_demo para modo samples)' },
   { method: 'user_deposit', desc: 'Depositar saldo do usuário' },
   { method: 'user_withdraw', desc: 'Sacar saldo do usuário' },
   { method: 'user_withdraw_reset', desc: 'Resetar saque do usuário' },
@@ -525,7 +643,9 @@ const apiMethods = [
   { method: 'money_info', desc: 'Obter saldo do agent/usuário' },
   { method: 'provider_list', desc: 'Listar provedores' },
   { method: 'game_list', desc: 'Listar jogos por provedor' },
+  { method: 'get_game_log', desc: 'Histórico de jogos' },
   { method: 'control_rtp', desc: 'Controlar RTP do agent/usuário' },
+  { method: 'control_demo_spin', desc: 'Demo spin to pay (1–15)' },
 ]
 
 function formatBalance(val) {
@@ -533,8 +653,21 @@ function formatBalance(val) {
   return n.toLocaleString('pt-BR', { minimumFractionDigits: 2 })
 }
 
-function saveIgameConfig() {
+async function saveIgameConfig() {
   igamewinApi.saveConfig(igameConfig.value)
+  try {
+    await fetch(apiUrl('/api/settings/igamewin'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        agent_code: igameConfig.value.agent_code,
+        agent_token: igameConfig.value.agent_token,
+        agent_secret: igameConfig.value.agent_secret ?? '',
+        sandbox: igameConfig.value.sandbox,
+        is_demo: igameConfig.value.is_demo,
+      }),
+    })
+  } catch (e) { /* ignore */ }
 }
 
 function doAddBalance() {
@@ -556,6 +689,7 @@ watch(showRtpModal, (v) => {
 })
 
 onMounted(() => {
+  loadIgamewinConfigFromBackend()
   igamewinApi.moneyInfo().then((data) => {
     if (data?.agent?.balance != null) {
       igameConfig.value.agent_balance = data.agent.balance
@@ -666,9 +800,9 @@ async function uploadLogo() {
   const fd = new FormData()
   fd.append('file', logoFile.value)
   try {
-    const r = await fetch('/api/upload/logo', { method: 'POST', body: fd })
+    const r = await fetch(apiUrl('/api/upload/logo'), { method: 'POST', body: fd })
     const data = await r.json()
-    if (data.ok) { logoUrl.value = data.url + '?t=' + Date.now(); showUploadMsg('logo', 'Logo enviada!', false); logoFile.value = null }
+    if (data.ok) { logoUrl.value = apiUrl(data.url) + '?t=' + Date.now(); showUploadMsg('logo', 'Logo enviada!', false); logoFile.value = null }
     else showUploadMsg('logo', data.error || 'Erro', true)
   } catch (e) { showUploadMsg('logo', 'Erro ao enviar', true) }
 }
@@ -677,17 +811,17 @@ async function uploadBanner() {
   const fd = new FormData()
   fd.append('file', bannerFile.value)
   try {
-    const r = await fetch('/api/upload/banner', { method: 'POST', body: fd })
+    const r = await fetch(apiUrl('/api/upload/banner'), { method: 'POST', body: fd })
     const data = await r.json()
-    if (data.ok) { bannerUrl.value = data.url + '?t=' + Date.now(); showUploadMsg('banner', 'Banner enviado!', false); bannerFile.value = null }
+    if (data.ok) { bannerUrl.value = apiUrl(data.url) + '?t=' + Date.now(); showUploadMsg('banner', 'Banner enviado!', false); bannerFile.value = null }
     else showUploadMsg('banner', data.error || 'Erro', true)
   } catch (e) { showUploadMsg('banner', 'Erro ao enviar', true) }
 }
 
-watch(activeSection, (s) => {
+watch(activeSection, async (s) => {
   if (s === 'tema') temas.value = getTemas()
   if (s === 'jogos') {
-    igameConfig.value = { ...igamewinApi.getConfig() }
+    await loadIgamewinConfigFromBackend()
     if (!igameConfig.value.sandbox && providers.value.length === 0) loadProviders()
   }
 })
@@ -786,7 +920,7 @@ tr:hover { background: rgba(255,255,255,0.02); }
 .api-jogos-rtp-row { display: flex; align-items: center; gap: 0.5rem; }
 .api-jogos-add-row { display: flex; gap: 0.5rem; align-items: center; }
 .api-jogos-input { width: 120px; padding: 0.5rem 0.75rem; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 0.9rem; }
-.api-jogos-config { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border); }
+.api-jogos-config { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border); }
 .api-jogos-check { display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0; cursor: pointer; font-size: 0.875rem; color: var(--text-muted); }
 .api-jogos-check input { accent-color: var(--primary); }
 .btn-sm { padding: 0.35rem 0.5rem; font-size: 0.8rem; }
@@ -796,6 +930,17 @@ tr:hover { background: rgba(255,255,255,0.02); }
 .api-guide-content { padding-top: 0.5rem; }
 .api-guide-content p { margin: 0 0 0.5rem 0; font-size: 0.875rem; color: var(--text-muted); }
 .api-guide-content code { background: rgba(0,0,0,0.3); padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.8rem; }
+.api-slot-card { margin-bottom: 1.5rem; }
+.api-slot-card h4 { margin: 0 0 0.5rem 0; font-size: 1rem; }
+.api-slot-grid { display: flex; flex-direction: column; gap: 1rem; }
+.api-slot-item { display: flex; flex-direction: column; gap: 0.5rem; }
+.api-slot-label { font-size: 0.8rem; color: var(--text-muted); }
+.api-slot-row { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+.api-slot-input { width: 70px; padding: 0.5rem 0.75rem; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 0.9rem; }
+.api-slot-input.wide { flex: 1; min-width: 140px; }
+.api-slot-sep { color: var(--text-muted); font-weight: 600; }
+.api-slot-msg { font-size: 0.875rem; margin-top: 0.5rem; color: var(--success); }
+.api-slot-msg.error { color: var(--danger); }
 .api-list-card h4 { margin: 0 0 1rem 0; font-size: 1rem; }
 .api-list-table { display: flex; flex-direction: column; gap: 0.25rem; }
 .api-list-row { display: grid; grid-template-columns: 180px 1fr; gap: 1rem; padding: 0.5rem 0; border-bottom: 1px solid var(--border); font-size: 0.85rem; }

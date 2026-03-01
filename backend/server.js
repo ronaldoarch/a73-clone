@@ -290,6 +290,7 @@ app.post('/api/deposito', authMiddleware, async (req, res) => {
           depositoMisterioso: { increment: v },
           valorDeposito: { increment: v },
           numDepositos: { increment: 1 },
+          balance: { increment: v },
           coletavelRebate: { increment: rebate },
           comissaoPendente: { increment: rebate },
           comissaoHoje: { increment: rebate },
@@ -418,6 +419,144 @@ app.get('/api/afiliado/pid', authMiddleware, async (req, res) => {
     return res.json({ result: { data: { json: { pid: af.pid } } } })
   } catch (e) {
     return res.status(500).json({ error: { message: e.message } })
+  }
+})
+
+// Helper: carrega config iGameWin do banco (usado por proxy e gold_api)
+async function getIgamewinConfig() {
+  try {
+    const s = await prisma.setting.findUnique({ where: { id: 'igamewin' } })
+    const v = s?.value
+    if (v && typeof v === 'object') {
+      return {
+        agent_code: v.agent_code || '',
+        agent_token: v.agent_token || '',
+        agent_secret: v.agent_secret || '',
+        sandbox: v.sandbox ?? true,
+        is_demo: v.is_demo ?? true,
+      }
+    }
+  } catch (e) { /* ignore */ }
+  return null
+}
+
+// ========== iGameWin Seamless API (Site API) ==========
+// Endpoint que a iGameWin chama em modo Seamless. Configure a URL com iGameWin:
+// https://seu-dominio.com/gold_api
+// Usa agent_code e agent_secret do Settings (Admin) ou env
+app.post('/gold_api', async (req, res) => {
+  try {
+    const { method, agent_code, agent_secret, user_code } = req.body || {}
+    const stored = await getIgamewinConfig()
+    const expectedCode = stored?.agent_code || process.env.IGAMEWIN_AGENT_CODE || 'Midaslabs'
+    const expectedSecret = stored?.agent_secret || process.env.IGAMEWIN_AGENT_SECRET || ''
+    if (agent_code !== expectedCode || !expectedSecret || agent_secret !== expectedSecret) {
+      return res.json({ status: 0, msg: 'INVALID_AGENT', user_balance: 0 })
+    }
+    if (!user_code) {
+      return res.json({ status: 0, msg: 'INVALID_PARAMETER', user_balance: 0 })
+    }
+
+    if (method === 'user_balance') {
+      const af = await prisma.afiliadoData.findFirst({
+        where: { user: { account: user_code } },
+        include: { user: true }
+      })
+      const balance = af?.balance ?? 0
+      return res.json({ status: 1, user_balance: Math.round(balance * 100) / 100 })
+    }
+
+    if (method === 'transaction') {
+      const { agent_balance, user_balance: reportedBalance, game_type, slot } = req.body || {}
+      const slotData = slot || req.body?.live || req.body?.sport || {}
+      const txnType = slotData.txn_type || 'debit_credit'
+      const betMoney = Number(slotData.bet_money ?? slotData.bet ?? 0) || 0
+      const winMoney = Number(slotData.win_money ?? slotData.win ?? 0) || 0
+
+      let delta = 0
+      if (txnType === 'debit') delta = -betMoney
+      else if (txnType === 'credit') delta = winMoney
+      else delta = winMoney - betMoney
+
+      const af = await prisma.afiliadoData.findFirst({
+        where: { user: { account: user_code } },
+        include: { user: true }
+      })
+      if (!af) {
+        return res.json({ status: 0, msg: 'INVALID_USER', user_balance: 0 })
+      }
+
+      const currentBalance = af.balance ?? 0
+      const newBalance = currentBalance + delta
+      if (newBalance < 0) {
+        return res.json({ status: 0, msg: 'INSUFFICIENT_USER_FUNDS', user_balance: Math.round(currentBalance * 100) / 100 })
+      }
+
+      await prisma.afiliadoData.update({
+        where: { id: af.id },
+        data: { balance: newBalance, updatedAt: new Date() }
+      })
+      return res.json({ status: 1, user_balance: Math.round(newBalance * 100) / 100 })
+    }
+
+    return res.json({ status: 0, msg: 'INVALID_METHOD', user_balance: 0 })
+  } catch (e) {
+    console.error('gold_api error:', e)
+    res.status(500).json({ status: 0, msg: 'INTERNAL_ERROR', user_balance: 0 })
+  }
+})
+
+// GET/POST iGameWin config (Admin) - credenciais salvas no backend
+app.get('/api/settings/igamewin', async (req, res) => {
+  try {
+    const cfg = await getIgamewinConfig()
+    return res.json(cfg || { agent_code: '', agent_token: '', agent_secret: '', sandbox: true, is_demo: true })
+  } catch (e) {
+    return res.json({ agent_code: '', agent_token: '', agent_secret: '', sandbox: true, is_demo: true })
+  }
+})
+
+app.post('/api/settings/igamewin', async (req, res) => {
+  try {
+    const { agent_code, agent_token, agent_secret, sandbox, is_demo } = req.body || {}
+    await prisma.setting.upsert({
+      where: { id: 'igamewin' },
+      create: {
+        id: 'igamewin',
+        value: { agent_code: agent_code || '', agent_token: agent_token || '', agent_secret: agent_secret || '', sandbox: sandbox ?? true, is_demo: is_demo ?? true }
+      },
+      update: {
+        value: { agent_code: agent_code || '', agent_token: agent_token || '', agent_secret: agent_secret || '', sandbox: sandbox ?? true, is_demo: is_demo ?? true }
+      }
+    })
+    return res.json({ ok: true })
+  } catch (e) {
+    console.error('save igamewin config:', e)
+    return res.status(500).json({ ok: false, error: e.message })
+  }
+})
+
+// Proxy iGameWin API (evita CORS em produção)
+// Usa credenciais do backend (Settings) quando salvas; senão usa o body da requisição
+const IGAMEWIN_URL = 'https://igamewin.com/api/v1'
+app.post('/api/igamewin', async (req, res) => {
+  try {
+    const stored = await getIgamewinConfig()
+    const body = { ...req.body }
+    if (stored?.agent_code && stored?.agent_token) {
+      body.agent_code = stored.agent_code
+      body.agent_token = stored.agent_token
+    }
+    const r = await fetch(IGAMEWIN_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    })
+    const data = await r.json()
+    res.json(data)
+  } catch (e) {
+    console.error('igamewin proxy:', e)
+    res.status(502).json({ status: 0, msg: 'Proxy error' })
   }
 })
 

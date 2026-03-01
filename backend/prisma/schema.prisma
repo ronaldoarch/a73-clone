@@ -47,6 +47,7 @@ model AfiliadoData {
   misteriosoDiasAtivos Int      @default(0)
   bonusPromoReclamados Json     @default("[]")  // [{ pessoas, valor }]
   bonusVipColetados    Json     @default("[]")  // [{ nivel, valor }]
+  balance             Float    @default(0)     // Saldo para jogos (Seamless iGameWin)
   updatedAt            DateTime @updatedAt
 }
 
@@ -59,7 +60,8 @@ model Deposit {
 }
 
 model Setting {
-  id    String @id @default("main")
-  logo  String?
+  id     String  @id @default("main")
+  logo   String?
   banner String?
+  value  Json?   // Config extra (ex: igamewin { agent_code, agent_token, agent_secret })
 }

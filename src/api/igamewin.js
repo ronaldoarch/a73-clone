@@ -1,20 +1,29 @@
 /**
  * iGameWin API - Transfer API
  * Endpoint: https://igamewin.com/api/v1
- * Em dev usa proxy /igamewin-api para evitar CORS
- * Modo sandbox: usa mock quando API real falha
+ * Usa proxy do backend (/api/igamewin) quando disponível para evitar CORS.
+ * Em dev: /igamewin-api (Vite) ou /api/igamewin (backend).
+ * Modo sandbox: usa mock quando API real falha.
  */
-const API_URL = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
-  ? '/igamewin-api'
-  : 'https://igamewin.com/api/v1'
+import { apiUrl } from '@/config/api'
+
+function getIgamewinUrl() {
+  if (typeof window === 'undefined') return 'https://igamewin.com/api/v1'
+  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+    return '/igamewin-api' // Vite proxy em dev
+  }
+  return apiUrl('/api/igamewin') // Proxy do backend em produção (evita CORS)
+}
 const STORAGE_KEY = 'a73_igamewin_config'
 
 const defaultConfig = () => ({
   agent_code: 'Midaslabs',
   agent_token: '092b6406e28211f0b8f1bc2411881493',
+  agent_secret: '',
   agent_balance: 0,
   agent_rtp: 70,
   sandbox: true,
+  is_demo: true, // Modo demo/samples: user_create com is_demo=true (doc iGameWin)
 })
 
 function getConfig() {
@@ -44,7 +53,7 @@ async function callApi(method, params = {}) {
   }
 
   try {
-    const res = await fetch(API_URL, {
+    const res = await fetch(getIgamewinUrl(), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
@@ -113,6 +122,20 @@ function mockResponse(method, body, cfg) {
       }
     case 'control_rtp':
       return { status: 1, changed_rtp: body.rtp ?? rtp }
+    case 'get_game_log':
+      return {
+        status: 1,
+        total_count: 0,
+        page: body.page ?? 0,
+        perPage: body.perPage ?? 1000,
+        slot: [],
+      }
+    case 'control_demo_spin':
+      return {
+        status: 1,
+        demo_spin_start: body.demo_spin_start ?? 3,
+        demo_spin_end: body.demo_spin_end ?? 7,
+      }
     default:
       return { status: 1, msg: 'SUCCESS' }
   }
@@ -135,8 +158,10 @@ export const igamewinApi = {
     return data
   },
 
-  async userCreate(userCode, isDemo = false) {
-    return callApi('user_create', { user_code: userCode, is_demo: isDemo })
+  async userCreate(userCode, isDemo = null) {
+    const cfg = getConfig()
+    const demo = isDemo ?? cfg.is_demo ?? false
+    return callApi('user_create', { user_code: userCode, is_demo: demo })
   },
 
   async userDeposit(userCode, amount) {
@@ -185,9 +210,10 @@ export const igamewinApi = {
     return callApi('game_list', { provider_code: providerCode })
   },
 
+  /** control_rtp: agent (omit userCode), single user (string), bulk (string[]) */
   async controlRtp(rtp, userCode = null) {
     const params = { rtp }
-    if (userCode) params.user_code = userCode
+    if (userCode != null) params.user_code = userCode
     const data = await callApi('control_rtp', params)
     if (data.status === 1) {
       const cfg = getConfig()
@@ -195,6 +221,24 @@ export const igamewinApi = {
       saveConfig(cfg)
     }
     return data
+  },
+
+  async getGameLog(userCode, gameType = 'slot', start, end, page = 0, perPage = 1000) {
+    return callApi('get_game_log', {
+      user_code: userCode,
+      game_type: gameType,
+      start,
+      end,
+      page,
+      perPage,
+    })
+  },
+
+  /** control_demo_spin: all users (omit userCode), single (string), bulk (string[]) */
+  async controlDemoSpin(demoSpinStart, demoSpinEnd, userCode = null) {
+    const params = { demo_spin_start: demoSpinStart, demo_spin_end: demoSpinEnd }
+    if (userCode != null) params.user_code = userCode
+    return callApi('control_demo_spin', params)
   },
 
   /** Add Balance (sandbox) - adiciona saldo ao agent localmente */

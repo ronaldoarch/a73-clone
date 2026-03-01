@@ -1,6 +1,7 @@
 /**
  * API de afiliado, bônus, depósito - integração com backend
  */
+import { apiUrl } from '@/config/api'
 
 function getToken() {
   return localStorage.getItem('token')
@@ -12,7 +13,7 @@ function getAuthHeaders() {
 }
 
 async function trpcPost(path, data) {
-  const res = await fetch(path, {
+  const res = await fetch(apiUrl(path), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
     body: JSON.stringify({ json: data })
@@ -23,7 +24,7 @@ async function trpcPost(path, data) {
 }
 
 async function trpcGet(path) {
-  const res = await fetch(path, { headers: getAuthHeaders() })
+  const res = await fetch(apiUrl(path), { headers: getAuthHeaders() })
   const json = await res.json()
   if (json.error) throw new Error(json.error.message || 'Erro')
   return json.result?.data?.json

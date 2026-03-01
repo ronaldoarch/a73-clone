@@ -1,6 +1,8 @@
+import { apiUrl } from '@/config/api'
+
 export const api = {
   async login(data) {
-    const res = await fetch('/api/frontend/trpc/user.login', {
+    const res = await fetch(apiUrl('/api/frontend/trpc/user.login'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ json: data })
@@ -15,7 +17,7 @@ export const api = {
     // Inclui pid do indicador se disponível (link de convite)
     const pid = localStorage.getItem('a73_pid_ref')
     if (pid) data.pid = pid
-    const res = await fetch('/api/frontend/trpc/user.register', {
+    const res = await fetch(apiUrl('/api/frontend/trpc/user.register'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ json: data })

@@ -35,15 +35,38 @@ Para ter login, registro e bônus funcionando, use **Docker Compose** ou configu
 - Se frontend e backend estiverem no mesmo domínio, o nginx já faz proxy de `/api` e `/uploads` para o backend
 - **Importante**: no docker-compose, o frontend depende do backend; o nginx usa `http://backend:3000`
 
-### Se frontend e backend forem apps separados
-- Frontend: seu domínio principal
-- Backend: subdomínio (ex: `api.seudominio.com`) ou path
-- Ajuste o frontend para usar a URL do backend nas chamadas de API (variável `VITE_API_URL`)
+### Frontend e backend na mesma aplicação, URLs diferentes
+- Frontend: ex. `app.seudominio.com`
+- Backend: ex. `api.seudominio.com`
+- No Coolify, na aplicação do **frontend**, adicione variável de **build**:
+  - `VITE_API_URL` = URL do backend (ex: `https://api.seudominio.com`)
+- O frontend usará essa URL para todas as chamadas `/api` e `/uploads`
 
-## Variáveis do Backend
+## Variáveis
 
-| Variável      | Descrição                          |
-|---------------|------------------------------------|
-| DATABASE_URL  | URL do PostgreSQL (Coolify fornece)|
-| JWT_SECRET    | Segredo para tokens JWT           |
-| PORT          | Porta (padrão 3000)               |
+### Backend
+| Variável               | Descrição                                      |
+|------------------------|------------------------------------------------|
+| DATABASE_URL           | URL do PostgreSQL (Coolify fornece)            |
+| JWT_SECRET             | Segredo para tokens JWT                        |
+| PORT                   | Porta (padrão 3000)                             |
+| IGAMEWIN_AGENT_CODE    | Código do agent (Seamless)                      |
+| IGAMEWIN_AGENT_SECRET  | Segredo do agent (Seamless, diferente do token)|
+
+### Frontend (build)
+| Variável       | Descrição                                      |
+|----------------|------------------------------------------------|
+| VITE_API_URL   | URL do backend (ex: `https://api.seudominio.com`) quando em domínio diferente |
+
+### API iGameWin (jogos)
+- O backend faz proxy de `POST /api/igamewin` para `https://igamewin.com/api/v1`
+- Evita CORS quando frontend e iGameWin estão em domínios diferentes
+- Com `VITE_API_URL` configurado, o frontend usa esse proxy automaticamente
+
+### iGameWin Seamless (Site API)
+- O backend expõe `POST /gold_api` para modo Seamless
+- Configure na iGameWin a URL: `https://api.seudominio.com/gold_api`
+- Variáveis obrigatórias para Seamless:
+  - `IGAMEWIN_AGENT_CODE`: código do agent (ex: Midaslabs)
+  - `IGAMEWIN_AGENT_SECRET`: segredo do agent (diferente do agent_token)
+- O `user_code` deve corresponder ao `account` do usuário no sistema

@@ -60,11 +60,10 @@ import {
   IonItem, IonLabel, IonInput, IonButton
 } from '@ionic/vue'
 import { api } from '@/api/trpc'
-import { useAfiliado } from '@/composables/useAfiliado'
 
 const router = useRouter()
 const toast = useToast()
-const { initFromRegistro } = useAfiliado()
+const { initFromRegistro, refresh } = useAfiliado()
 const phone = ref('')
 const password = ref('')
 const confirmPassword = ref('')
@@ -104,7 +103,7 @@ async function handleRegister() {
     const pidRef = localStorage.getItem('a73_pid_ref')
     initFromRegistro(account, pidRef)
     if (pidRef) localStorage.removeItem('a73_pid_ref') // usado uma vez
-    await useAfiliado().refresh()
+    await refresh()
     toast.success('Conta criada!')
     router.push('/main/inicio/')
   } catch (e) {

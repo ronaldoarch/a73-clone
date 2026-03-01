@@ -36,11 +36,16 @@ Para ter login, registro e bônus funcionando, use **Docker Compose** ou configu
 - **Importante**: no docker-compose, o frontend depende do backend; o nginx usa `http://backend:3000`
 
 ### Frontend e backend em subdomínios diferentes (evitar CORS)
-- Frontend: ex. `app.agenciamidas.com`
-- Backend: ex. `api.agenciamidas.com`
-- **Build do frontend:** `VITE_API_URL` = vazio (ou omitir) — requests vão para mesma origem
-- **Runtime do frontend:** `BACKEND_URL` = URL do backend (ex: `https://api.agenciamidas.com`)
-- O nginx do frontend faz proxy de `/api` e `/uploads` para o backend — sem CORS
+
+**IMPORTANTE:** Se você vê erro de CORS, o frontend está chamando o backend diretamente. Use o proxy:
+
+- Frontend: ex. `lwsggkg88g0skg848880cg00.agenciamidas.com`
+- Backend: ex. `jkcgkgks00ggggo4g0kow8ws.agenciamidas.com`
+- **Build do frontend:** `VITE_API_URL` = **vazio ou omitir** — requests usam `/api` (mesma origem)
+- **Runtime do frontend:** `BACKEND_URL` = URL do backend (ex: `https://jkcgkgks00ggggo4g0kow8ws.agenciamidas.com`)
+- O nginx do frontend faz proxy de `/api` e `/uploads` para o backend — **sem CORS**
+
+Se `VITE_API_URL` estiver definido no build, o frontend chama o backend diretamente e o CORS pode bloquear.
 
 ### Frontend e backend na mesma aplicação
 - Se estiverem no mesmo domínio, o nginx já faz proxy

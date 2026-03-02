@@ -37,6 +37,27 @@ app.options('*', cors(corsOpts))
 app.use(express.json())
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')))
 
+// POST webhook Gatebox - recebe eventos PIX (PIX_PAY_IN, etc.) - sem auth
+app.post('/api/webhook/gatebox', async (req, res) => {
+  try {
+    res.status(200).json({ ok: true })
+    const body = req.body || {}
+    const eventType = (body.type || body.eventType || body.event || '').toUpperCase()
+    if (!eventType || !['PIX_PAY_IN', 'PIX_PAYIN', 'PAY_IN', 'PIX PAY IN'].includes(eventType.replace(/\s/g, '_'))) return
+    const externalId = body.externalId || body.data?.externalId || body.transactionId || body.id
+    if (!externalId) return
+    const deposit = await prisma.deposit.findFirst({
+      where: { externalId: String(externalId), status: 'pendente' },
+      include: { user: true }
+    })
+    if (!deposit) return
+    await confirmarDepositoPix(deposit)
+    console.log('Webhook Gatebox: depósito', externalId, 'confirmado')
+  } catch (e) {
+    console.error('Webhook Gatebox:', e)
+  }
+})
+
 /** Gera pid único a partir do account */
 function generatePid(account) {
   const hash = Math.abs(String(account).split('').reduce((a, c) => a + c.charCodeAt(0), 0))
@@ -106,6 +127,64 @@ async function getAppConfig() {
       bonusPrimeiroDepPercent: v.bonusPrimeiroDepPercent ?? 0
     }
   } catch (e) { return { depositoMin: 10, saqueMin: 20, saqueMax: 40000, roletaMinWithdraw: 100, roletaBonusDays: 3, roletaDailySpins: 1, bonusPrimeiroDep: 0, bonusPrimeiroDepPercent: 0 } }
+}
+
+/** Confirma depósito PIX e credita saldo (usado por polling e webhook) */
+async function confirmarDepositoPix(deposit) {
+  const af = await ensureAfiliado(deposit.userId, deposit.user?.account || '')
+  const cfg = await getAppConfig()
+  const bonusPrimeiro = (af.numDepositos ?? 0) === 0
+    ? (cfg.bonusPrimeiroDep ?? 0) + (deposit.valor * (cfg.bonusPrimeiroDepPercent ?? 0) / 100)
+    : 0
+  const balanceIncrement = deposit.valor + bonusPrimeiro
+  const rebate = deposit.valor * 0.05
+  const niveisVip = [
+    { nivel: 0, aposta: 0, bonus: 0 },
+    { nivel: 1, aposta: 100, bonus: 1 }, { nivel: 2, aposta: 1000, bonus: 3 }, { nivel: 3, aposta: 3000, bonus: 10 },
+    { nivel: 4, aposta: 10000, bonus: 15 }, { nivel: 5, aposta: 30000, bonus: 30 }, { nivel: 6, aposta: 60000, bonus: 40 },
+    { nivel: 7, aposta: 100000, bonus: 55 }, { nivel: 8, aposta: 300000, bonus: 155 }, { nivel: 9, aposta: 600000, bonus: 255 },
+    { nivel: 10, aposta: 1000000, bonus: 355 }, { nivel: 11, aposta: 2000000, bonus: 555 }, { nivel: 12, aposta: 3000000, bonus: 755 },
+    { nivel: 13, aposta: 4000000, bonus: 855 }, { nivel: 14, aposta: 5000000, bonus: 955 }, { nivel: 15, aposta: 6000000, bonus: 1055 }
+  ]
+  const apostaNova = af.apostaAcumulada + deposit.valor * 5
+  let nivelVip = af.nivelVip
+  let bonusVipReclamar = af.bonusVipReclamar
+  const prox = niveisVip[Math.min(nivelVip + 1, 15)]
+  if (apostaNova >= prox.aposta && nivelVip < 15) {
+    nivelVip++
+    bonusVipReclamar += prox.bonus
+  }
+  await prisma.$transaction([
+    prisma.deposit.update({ where: { id: deposit.id }, data: { status: 'concluido', updatedAt: new Date() } }),
+    prisma.afiliadoData.update({
+      where: { userId: deposit.userId },
+      data: {
+        depositoMisterioso: { increment: deposit.valor },
+        valorDeposito: { increment: deposit.valor },
+        numDepositos: { increment: 1 },
+        balance: { increment: balanceIncrement },
+        coletavelRebate: { increment: rebate },
+        comissaoPendente: { increment: rebate },
+        comissaoHoje: { increment: rebate },
+        apostaAcumulada: apostaNova,
+        nivelVip,
+        bonusVipReclamar,
+        updatedAt: new Date()
+      }
+    })
+  ])
+  const indicator = (await prisma.user.findUnique({ where: { id: deposit.userId } }))?.indicatorId
+  if (indicator) {
+    await prisma.afiliadoData.update({
+      where: { userId: indicator },
+      data: {
+        comissaoPendente: { increment: rebate },
+        coletavelRebate: { increment: rebate },
+        comissaoHoje: { increment: rebate },
+        updatedAt: new Date()
+      }
+    })
+  }
 }
 
 /** Garante AfiliadoData para o usuário */
@@ -461,60 +540,7 @@ app.get('/api/deposito/pix/status/:externalId', authMiddleware, async (req, res)
     const st = statusResult.data?.status || statusResult.data?.transactionStatus || (statusResult.data?.paid ? 'PAID' : 'PENDING')
     const paid = ['PAID', 'PAID_OUT', 'CONCLUIDO', 'concluido', 'pago'].includes(String(st).toUpperCase())
     if (paid) {
-      const af = await ensureAfiliado(req.userId, deposit.user?.account || '')
-      const cfg = await getAppConfig()
-      const bonusPrimeiro = (af.numDepositos ?? 0) === 0
-        ? (cfg.bonusPrimeiroDep ?? 0) + (deposit.valor * (cfg.bonusPrimeiroDepPercent ?? 0) / 100)
-        : 0
-      const balanceIncrement = deposit.valor + bonusPrimeiro
-      const rebate = deposit.valor * 0.05
-      const niveisVip = [
-        { nivel: 0, aposta: 0, bonus: 0 },
-        { nivel: 1, aposta: 100, bonus: 1 }, { nivel: 2, aposta: 1000, bonus: 3 }, { nivel: 3, aposta: 3000, bonus: 10 },
-        { nivel: 4, aposta: 10000, bonus: 15 }, { nivel: 5, aposta: 30000, bonus: 30 }, { nivel: 6, aposta: 60000, bonus: 40 },
-        { nivel: 7, aposta: 100000, bonus: 55 }, { nivel: 8, aposta: 300000, bonus: 155 }, { nivel: 9, aposta: 600000, bonus: 255 },
-        { nivel: 10, aposta: 1000000, bonus: 355 }, { nivel: 11, aposta: 2000000, bonus: 555 }, { nivel: 12, aposta: 3000000, bonus: 755 },
-        { nivel: 13, aposta: 4000000, bonus: 855 }, { nivel: 14, aposta: 5000000, bonus: 955 }, { nivel: 15, aposta: 6000000, bonus: 1055 }
-      ]
-      const apostaNova = af.apostaAcumulada + deposit.valor * 5
-      let nivelVip = af.nivelVip
-      let bonusVipReclamar = af.bonusVipReclamar
-      const prox = niveisVip[Math.min(nivelVip + 1, 15)]
-      if (apostaNova >= prox.aposta && nivelVip < 15) {
-        nivelVip++
-        bonusVipReclamar += prox.bonus
-      }
-      await prisma.$transaction([
-        prisma.deposit.update({ where: { id: deposit.id }, data: { status: 'concluido', updatedAt: new Date() } }),
-        prisma.afiliadoData.update({
-          where: { userId: req.userId },
-          data: {
-            depositoMisterioso: { increment: deposit.valor },
-            valorDeposito: { increment: deposit.valor },
-            numDepositos: { increment: 1 },
-            balance: { increment: balanceIncrement },
-            coletavelRebate: { increment: rebate },
-            comissaoPendente: { increment: rebate },
-            comissaoHoje: { increment: rebate },
-            apostaAcumulada: apostaNova,
-            nivelVip,
-            bonusVipReclamar,
-            updatedAt: new Date()
-          }
-        })
-      ])
-      const indicator = await prisma.user.findUnique({ where: { id: req.userId } }).then(u => u?.indicatorId)
-      if (indicator) {
-        await prisma.afiliadoData.update({
-          where: { userId: indicator },
-          data: {
-            comissaoPendente: { increment: rebate },
-            coletavelRebate: { increment: rebate },
-            comissaoHoje: { increment: rebate },
-            updatedAt: new Date()
-          }
-        })
-      }
+      await confirmarDepositoPix(deposit)
       return res.json({ result: { data: { json: { status: 'concluido', valor: deposit.valor } } } })
     }
     return res.json({ result: { data: { json: { status: 'pendente' } } } })

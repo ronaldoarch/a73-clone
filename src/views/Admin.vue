@@ -188,6 +188,14 @@
           <div class="card">
             <h3>Gatebox - Gateway PIX</h3>
             <p class="card-label" style="margin-bottom: 1rem;">Configure as credenciais da API Gatebox para depósitos e saques via PIX.</p>
+            <div class="form-group" style="margin-bottom: 1rem;">
+              <label>URL do Webhook (configure no painel Gatebox)</label>
+              <div class="webhook-url-wrap">
+                <input :value="webhookUrl" readonly class="webhook-url-input" />
+                <button type="button" class="btn btn-outline" @click="copyWebhookUrl">Copiar</button>
+              </div>
+              <span class="form-hint">Use esta URL no painel Gatebox → Webhook. Tipo: PIX_PAY_IN</span>
+            </div>
             <div v-if="gateboxLoading" class="card-label">Carregando...</div>
             <form v-else @submit.prevent="saveGatebox" class="config-form">
               <div class="form-group">
@@ -697,6 +705,10 @@ const gateboxMsg = ref('')
 const gateboxError = ref(false)
 const gateboxTestLoading = ref(false)
 const gateboxTestResult = ref('')
+const webhookUrl = computed(() => {
+  const base = typeof window !== 'undefined' ? window.location.origin : ''
+  return base ? `${base.replace(/\/$/, '')}/api/webhook/gatebox` : '/api/webhook/gatebox'
+})
 
 async function loadDashboard() {
   dashboardLoading.value = true
@@ -791,6 +803,16 @@ async function saveGatebox() {
     gateboxSaving.value = false
   }
   setTimeout(() => { gateboxMsg.value = '' }, 4000)
+}
+
+function copyWebhookUrl() {
+  const url = webhookUrl.value
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(url).then(() => {
+      gateboxMsg.value = 'URL copiada!'
+      setTimeout(() => { gateboxMsg.value = '' }, 2000)
+    })
+  }
 }
 
 async function testGateboxPix() {
@@ -1455,6 +1477,8 @@ watch(() => route.params.section, (section) => {
   margin-top: 1rem; padding: 0.75rem; background: var(--bg-dark, #1a1a2e); border-radius: 6px; font-size: 0.8rem; overflow-x: auto;
 }
 .gatebox-test-result pre { margin: 0; white-space: pre-wrap; word-break: break-all; }
+.webhook-url-wrap { display: flex; gap: 0.5rem; align-items: center; }
+.webhook-url-input { flex: 1; padding: 0.5rem 0.75rem; background: var(--bg-dark, #1a1a2e); border: 1px solid var(--border); border-radius: 6px; color: #fff; font-size: 0.85rem; }
 .admin-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; flex-wrap: wrap; gap: 1rem; }
 .admin-header h1 { font-size: 1.5rem; font-weight: 600; }
 .user-badge { display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 1rem; background: var(--card); border-radius: 8px; border: 1px solid var(--border); }

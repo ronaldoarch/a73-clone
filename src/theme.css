@@ -565,7 +565,7 @@ ion-item {
 }
 
 ion-input, ion-label {
-  --color: var(--ion-text-color);
+  --color: #e5e7eb;
   --ion-font-family: var(--font-prompt);
 }
 

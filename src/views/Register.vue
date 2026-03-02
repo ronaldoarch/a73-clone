@@ -11,31 +11,44 @@
           </ion-card-header>
           <ion-card-content>
             <form @submit.prevent="handleRegister">
-              <ion-item lines="none" class="ion-margin-bottom">
+              <ion-item lines="none" class="ion-margin-bottom input-item">
                 <ion-label position="stacked">Número de telefone</ion-label>
-                <ion-input
+                <input
                   v-model="phone"
                   type="tel"
                   placeholder="Ex: (11) 99999-9999"
                   inputmode="numeric"
+                  class="native-input"
+                  aria-label="Número de telefone"
                   required
                 />
               </ion-item>
-              <ion-item lines="none" class="ion-margin-bottom">
+              <ion-item lines="none" class="ion-margin-bottom input-item">
                 <ion-label position="stacked">Senha</ion-label>
-                <ion-input
-                  v-model="password"
-                  :type="showPassword ? 'text' : 'password'"
-                  placeholder="Digite sua senha"
-                  required
-                />
+                <div class="input-with-icon">
+                  <input
+                    v-model="password"
+                    :type="showPassword ? 'text' : 'password'"
+                    placeholder="Digite sua senha"
+                    class="native-input"
+                    aria-label="Senha"
+                    required
+                  />
+                  <ion-icon
+                    :name="showPassword ? 'eye-off-outline' : 'eye-outline'"
+                    class="toggle-password"
+                    @click="showPassword = !showPassword"
+                  />
+                </div>
               </ion-item>
-              <ion-item lines="none" class="ion-margin-bottom">
+              <ion-item lines="none" class="ion-margin-bottom input-item">
                 <ion-label position="stacked">Confirmar senha</ion-label>
-                <ion-input
+                <input
                   v-model="confirmPassword"
                   :type="showPassword ? 'text' : 'password'"
                   placeholder="Confirme sua senha"
+                  class="native-input"
+                  aria-label="Confirmar senha"
                   required
                 />
               </ion-item>
@@ -57,7 +70,7 @@ import { useToast } from '@/composables/useToast'
 import { useAfiliado } from '@/composables/useAfiliado'
 import {
   IonPage, IonContent, IonCard, IonCardHeader, IonCardTitle, IonCardContent,
-  IonItem, IonLabel, IonInput, IonButton
+  IonItem, IonLabel, IonButton, IonIcon
 } from '@ionic/vue'
 import { api } from '@/api/trpc'
 
@@ -135,5 +148,43 @@ async function handleRegister() {
 .login-link a {
   color: var(--ion-color-primary);
   text-decoration: none;
+}
+.input-item {
+  --padding-start: 0;
+  --inner-padding-end: 0;
+}
+.native-input {
+  width: 100%;
+  padding: 10px 12px;
+  font-size: 16px;
+  font-family: var(--font-prompt);
+  color: var(--ion-text-color);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  outline: none;
+}
+.native-input::placeholder {
+  color: var(--color-text-input-placeholder);
+}
+.native-input:focus {
+  border-color: var(--ion-color-primary);
+}
+.input-with-icon {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  position: relative;
+}
+.input-with-icon .native-input {
+  flex: 1;
+  padding-right: 44px;
+}
+.input-with-icon .toggle-password {
+  position: absolute;
+  right: 12px;
+  font-size: 22px;
+  color: var(--ion-text-color);
+  cursor: pointer;
 }
 </style>

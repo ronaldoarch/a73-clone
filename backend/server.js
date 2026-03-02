@@ -394,11 +394,30 @@ app.post('/api/deposito/pix', authMiddleware, async (req, res) => {
     }
     await prisma.deposit.update({ where: { id: deposit.id }, data: { externalId } })
     const d = result.data || {}
-    const nested = d.data || d.result || {}
-    const all = { ...d, ...nested }
-    const copyPaste = all.copyPaste || all.brCode || all.pixCopiaECola || all.payload || all.pixKey || ''
-    const qrcode = all.qrcode || all.qrCode || all.qrCodeBase64 || all.imagemQrCode || ''
-    if (!copyPaste && !qrcode) console.warn('Gatebox PIX: resposta sem qrcode/copyPaste. Keys:', Object.keys(all))
+    const nested = d.data || d.result || d.body || {}
+    const all = { ...d, ...(typeof nested === 'object' ? nested : {}) }
+    let copyPaste = all.copyPaste || all.brCode || all.pixCopiaECola || all.payload || all.pixKey || all.pixCopyPaste || ''
+    let qrcode = all.qrcode || all.qrCode || all.qrCodeBase64 || all.imagemQrCode || all.qrCodeImage || ''
+    if (!copyPaste || !qrcode) {
+      const flat = JSON.stringify(d)
+      const pixMatch = flat.match(/"00020[^"]{100,}"/)
+      if (pixMatch && !copyPaste) copyPaste = pixMatch[0].replace(/^"|"$/g, '')
+      const b64Match = flat.match(/"([A-Za-z0-9+/]{100,}=*)"/)
+      if (b64Match && !qrcode && /^[A-Za-z0-9+/=]+$/.test(b64Match[1])) qrcode = `data:image/png;base64,${b64Match[1]}`
+    }
+    if (!copyPaste && !qrcode) {
+      const keys = Object.keys(all)
+      const sample = JSON.stringify(d).slice(0, 800)
+      console.warn('Gatebox PIX: resposta sem qrcode/copyPaste. Keys:', keys, 'Sample:', sample)
+      await prisma.deposit.update({ where: { id: deposit.id }, data: { status: 'erro' } })
+      const debug = process.env.NODE_ENV !== 'production' ? { keys, sample } : undefined
+      return res.json({
+        error: {
+          message: 'Não foi possível gerar o PIX. Verifique os dados e tente novamente.',
+          ...(debug && { debug })
+        }
+      })
+    }
     return res.json({
       result: {
         data: {
@@ -1393,6 +1412,28 @@ app.post('/api/admin/gatebox', adminAuthMiddleware, async (req, res) => {
     return res.json({ ok: true })
   } catch (e) {
     console.error('admin gatebox save:', e)
+    return res.status(500).json({ ok: false, error: e.message })
+  }
+})
+
+// POST /api/admin/gatebox/test-pix - testa criação de PIX e retorna resposta bruta da Gatebox (debug)
+app.post('/api/admin/gatebox/test-pix', adminAuthMiddleware, async (req, res) => {
+  try {
+    const result = await gateboxCreatePix({
+      externalId: 'test-' + Date.now(),
+      amount: 0.1,
+      document: '12345678901',
+      name: 'Teste Debug',
+      expire: 60
+    })
+    return res.json({
+      ok: result.ok,
+      raw: result.data,
+      keys: result.data ? Object.keys(result.data) : [],
+      error: result.error
+    })
+  } catch (e) {
+    console.error('admin gatebox test-pix:', e)
     return res.status(500).json({ ok: false, error: e.message })
   }
 })

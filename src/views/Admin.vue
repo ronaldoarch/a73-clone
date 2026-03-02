@@ -204,7 +204,14 @@
                 <span class="form-hint">Deixe em branco para manter a senha atual</span>
               </div>
               <button type="submit" class="btn btn-primary" :disabled="gateboxSaving">{{ gateboxSaving ? 'Salvando...' : 'Salvar' }}</button>
+              <button type="button" class="btn btn-outline" style="margin-left: 0.5rem;" :disabled="gateboxTestLoading" @click="testGateboxPix">
+                {{ gateboxTestLoading ? 'Testando...' : 'Testar PIX' }}
+              </button>
               <span v-if="gateboxMsg" class="config-msg" :class="{ error: gateboxError }">{{ gateboxMsg }}</span>
+              <div v-if="gateboxTestResult" class="gatebox-test-result">
+                <strong>Resposta Gatebox:</strong>
+                <pre>{{ gateboxTestResult }}</pre>
+              </div>
             </form>
           </div>
         </section>
@@ -684,6 +691,8 @@ const gateboxLoading = ref(false)
 const gateboxSaving = ref(false)
 const gateboxMsg = ref('')
 const gateboxError = ref(false)
+const gateboxTestLoading = ref(false)
+const gateboxTestResult = ref('')
 
 async function loadDashboard() {
   dashboardLoading.value = true
@@ -778,6 +787,24 @@ async function saveGatebox() {
     gateboxSaving.value = false
   }
   setTimeout(() => { gateboxMsg.value = '' }, 4000)
+}
+
+async function testGateboxPix() {
+  gateboxTestLoading.value = true
+  gateboxTestResult.value = ''
+  try {
+    const r = await adminFetch('/api/admin/gatebox/test-pix', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({})
+    })
+    const data = await r.json()
+    gateboxTestResult.value = JSON.stringify(data, null, 2)
+  } catch (e) {
+    gateboxTestResult.value = 'Erro: ' + e.message
+  } finally {
+    gateboxTestLoading.value = false
+  }
 }
 
 function formatBr(val) {
@@ -1420,6 +1447,10 @@ watch(() => route.params.section, (section) => {
 .config-actions { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
 .config-msg { font-size: 0.875rem; color: var(--success); }
 .config-msg.error { color: var(--danger); }
+.gatebox-test-result {
+  margin-top: 1rem; padding: 0.75rem; background: var(--bg-dark, #1a1a2e); border-radius: 6px; font-size: 0.8rem; overflow-x: auto;
+}
+.gatebox-test-result pre { margin: 0; white-space: pre-wrap; word-break: break-all; }
 .admin-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; flex-wrap: wrap; gap: 1rem; }
 .admin-header h1 { font-size: 1.5rem; font-weight: 600; }
 .user-badge { display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 1rem; background: var(--card); border-radius: 8px; border: 1px solid var(--border); }

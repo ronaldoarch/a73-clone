@@ -96,6 +96,7 @@ async function getAppConfig() {
     const s = await prisma.setting.findUnique({ where: { id: 'config' } })
     const v = s?.value || {}
     return {
+      depositoMin: v.depositoMin ?? 10,
       saqueMin: v.saqueMin ?? 20,
       saqueMax: v.saqueMax ?? 40000,
       roletaMinWithdraw: v.roletaMinWithdraw ?? 100,
@@ -104,7 +105,7 @@ async function getAppConfig() {
       bonusPrimeiroDep: v.bonusPrimeiroDep ?? 0,
       bonusPrimeiroDepPercent: v.bonusPrimeiroDepPercent ?? 0
     }
-  } catch (e) { return { saqueMin: 20, saqueMax: 40000, roletaMinWithdraw: 100, roletaBonusDays: 3, roletaDailySpins: 1, bonusPrimeiroDep: 0, bonusPrimeiroDepPercent: 0 } }
+  } catch (e) { return { depositoMin: 10, saqueMin: 20, saqueMax: 40000, roletaMinWithdraw: 100, roletaBonusDays: 3, roletaDailySpins: 1, bonusPrimeiroDep: 0, bonusPrimeiroDepPercent: 0 } }
 }
 
 /** Garante AfiliadoData para o usuário */
@@ -363,7 +364,9 @@ app.post('/api/deposito/pix', authMiddleware, async (req, res) => {
   try {
     const { valor, cpf, nome } = req.body?.json || req.body || {}
     const v = parseFloat(valor)
-    if (!v || v < 10) return res.json({ error: { message: 'Valor mínimo R$ 10,00' } })
+    const cfg = await getAppConfig()
+    const minDep = cfg.depositoMin ?? 10
+    if (!v || v < minDep) return res.json({ error: { message: `Valor mínimo R$ ${minDep.toFixed(2)}` } })
     if (v > 50000) return res.json({ error: { message: 'Valor máximo R$ 50.000,00' } })
     const doc = String(cpf || '').replace(/\D/g, '')
     if (doc.length !== 11) return res.json({ error: { message: 'CPF inválido (11 dígitos)' } })
@@ -526,13 +529,14 @@ app.post('/api/deposito', authMiddleware, async (req, res) => {
   try {
     const { valor } = req.body?.json || req.body || {}
     const v = parseFloat(valor)
-    if (!v || v <= 0) {
-      return res.json({ error: { message: 'Valor inválido' } })
+    const cfg = await getAppConfig()
+    const minDep = cfg.depositoMin ?? 10
+    if (!v || v < minDep) {
+      return res.json({ error: { message: `Valor mínimo R$ ${minDep.toFixed(2)}` } })
     }
     const user = await prisma.user.findUnique({ where: { id: req.userId }, include: { afiliado: true } })
     if (!user) return res.status(401).json({ error: { message: 'Usuário não encontrado' } })
     const af = await ensureAfiliado(req.userId, user.account)
-    const cfg = await getAppConfig()
     const bonusPrimeiro = (af.numDepositos ?? 0) === 0
       ? (cfg.bonusPrimeiroDep ?? 0) + (v * (cfg.bonusPrimeiroDepPercent ?? 0) / 100)
       : 0
@@ -1347,6 +1351,7 @@ app.get('/api/admin/config', adminAuthMiddleware, async (req, res) => {
     const s = await prisma.setting.findUnique({ where: { id: 'config' } })
     const v = s?.value || {}
     return res.json({
+      depositoMin: v.depositoMin ?? 10,
       saqueMin: v.saqueMin ?? 20,
       saqueMax: v.saqueMax ?? 40000,
       roletaMinWithdraw: v.roletaMinWithdraw ?? 100,
@@ -1356,13 +1361,14 @@ app.get('/api/admin/config', adminAuthMiddleware, async (req, res) => {
       bonusPrimeiroDepPercent: v.bonusPrimeiroDepPercent ?? 0
     })
   } catch (e) {
-    return res.json({ saqueMin: 20, saqueMax: 40000, roletaMinWithdraw: 100, roletaBonusDays: 3, roletaDailySpins: 1, bonusPrimeiroDep: 0, bonusPrimeiroDepPercent: 0 })
+    return res.json({ depositoMin: 10, saqueMin: 20, saqueMax: 40000, roletaMinWithdraw: 100, roletaBonusDays: 3, roletaDailySpins: 1, bonusPrimeiroDep: 0, bonusPrimeiroDepPercent: 0 })
   }
 })
 
 app.post('/api/admin/config', adminAuthMiddleware, async (req, res) => {
   try {
     const body = req.body?.json || req.body || {}
+    const depositoMin = Math.max(1, parseInt(body.depositoMin, 10) || 10)
     const saqueMin = Math.max(1, parseInt(body.saqueMin, 10) || 20)
     const saqueMax = Math.min(1000000, Math.max(saqueMin, parseInt(body.saqueMax, 10) || 40000))
     const roletaMinWithdraw = Math.max(1, parseInt(body.roletaMinWithdraw, 10) || 100)
@@ -1372,8 +1378,8 @@ app.post('/api/admin/config', adminAuthMiddleware, async (req, res) => {
     const bonusPrimeiroDepPercent = Math.max(0, Math.min(100, parseFloat(body.bonusPrimeiroDepPercent) || 0))
     await prisma.setting.upsert({
       where: { id: 'config' },
-      create: { id: 'config', value: { saqueMin, saqueMax, roletaMinWithdraw, roletaBonusDays, roletaDailySpins, bonusPrimeiroDep, bonusPrimeiroDepPercent } },
-      update: { value: { saqueMin, saqueMax, roletaMinWithdraw, roletaBonusDays, roletaDailySpins, bonusPrimeiroDep, bonusPrimeiroDepPercent } }
+      create: { id: 'config', value: { depositoMin, saqueMin, saqueMax, roletaMinWithdraw, roletaBonusDays, roletaDailySpins, bonusPrimeiroDep, bonusPrimeiroDepPercent } },
+      update: { value: { depositoMin, saqueMin, saqueMax, roletaMinWithdraw, roletaBonusDays, roletaDailySpins, bonusPrimeiroDep, bonusPrimeiroDepPercent } }
     })
     return res.json({ ok: true })
   } catch (e) {
@@ -1460,19 +1466,26 @@ app.get('/api/admin/depositos', adminAuthMiddleware, async (req, res) => {
   }
 })
 
-// GET settings (logo, banner, siteName, pageTitle) - público
+// GET settings (logo, banner, siteName, pageTitle, depositoMin, saqueMin, saqueMax) - público
 app.get('/api/settings', async (req, res) => {
   try {
-    const s = await prisma.setting.findUnique({ where: { id: 'main' } })
-    const v = s?.value || {}
+    const [main, config] = await Promise.all([
+      prisma.setting.findUnique({ where: { id: 'main' } }),
+      prisma.setting.findUnique({ where: { id: 'config' } })
+    ])
+    const v = main?.value || {}
+    const cfg = config?.value || {}
     return res.json({
-      logo: s?.logo || '/s5/app-icon/1222508/LOGO.jpg',
-      banner: s?.banner || '/s5/1770954153806/9999.jpg',
+      logo: main?.logo || '/s5/app-icon/1222508/LOGO.jpg',
+      banner: main?.banner || '/s5/1770954153806/9999.jpg',
       siteName: v.siteName || 'A73.com',
-      pageTitle: v.pageTitle || 'A73'
+      pageTitle: v.pageTitle || 'A73',
+      depositoMin: cfg.depositoMin ?? 10,
+      saqueMin: cfg.saqueMin ?? 20,
+      saqueMax: cfg.saqueMax ?? 40000
     })
   } catch (e) {
-    return res.json({ logo: '/s5/app-icon/1222508/LOGO.jpg', banner: '/s5/1770954153806/9999.jpg', siteName: 'A73.com', pageTitle: 'A73' })
+    return res.json({ logo: '/s5/app-icon/1222508/LOGO.jpg', banner: '/s5/1770954153806/9999.jpg', siteName: 'A73.com', pageTitle: 'A73', depositoMin: 10, saqueMin: 20, saqueMax: 40000 })
   }
 })
 

@@ -148,10 +148,13 @@ import {
   onIonViewWillEnter
 } from '@ionic/vue'
 import { useAfiliado } from '@/composables/useAfiliado'
+import { useSettings } from '@/composables/useSettings'
 import { afiliadoApi } from '@/api/afiliado'
 import { useToast } from '@/composables/useToast'
+import QRCode from 'qrcode'
 
 const { refresh } = useAfiliado()
+const { depositoMin } = useSettings()
 const toast = useToast()
 const isLoggedIn = ref(!!localStorage.getItem('token'))
 
@@ -161,9 +164,21 @@ function checkLogin() {
 onMounted(checkLogin)
 onIonViewWillEnter(checkLogin)
 
-const presetAmounts = [10, 30, 50, 100, 500, 1000, 5000, 10000, 50000]
+const basePresetAmounts = [10, 30, 50, 100, 500, 1000, 5000, 10000, 50000]
+const presetAmounts = computed(() => {
+  const min = depositoMin.value ?? 10
+  const filtered = basePresetAmounts.filter(x => x >= min)
+  return filtered.length ? filtered : [min]
+})
 const selectedAmount = ref(10)
-const minAmount = 10
+watch(depositoMin, (min) => {
+  const m = min ?? 10
+  if (selectedAmount.value < m) {
+    const presets = presetAmounts.value
+    selectedAmount.value = presets.length ? presets[0] : m
+  }
+}, { immediate: true })
+const minAmount = computed(() => depositoMin.value ?? 10)
 const maxAmount = 50000
 const depositCpf = ref('')
 const depositNome = ref('')
@@ -224,8 +239,13 @@ function validarCpf(cpf) {
 
 async function doDeposit() {
   const valor = selectedAmount.value
+  const min = depositoMin.value ?? 10
   if (!localStorage.getItem('token')) {
     toast.error('Faça login para depositar')
+    return
+  }
+  if (valor < min) {
+    toast.error(`Valor mínimo R$ ${min.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`)
     return
   }
   const cpf = String(depositCpf.value).replace(/\D/g, '')
@@ -247,8 +267,13 @@ async function doDeposit() {
     pixValorDisplay.value = (data.valor || valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })
     pixStatus.value = 'pendente'
     const qr = data.qrcode
-    pixQrcode.value = (qr && (qr.startsWith('data:') || qr.startsWith('http'))) ? qr : (qr ? `data:image/png;base64,${qr}` : '')
     pixCopyPaste.value = data.copyPaste || ''
+    pixQrcode.value = (qr && (qr.startsWith('data:') || qr.startsWith('http'))) ? qr : (qr ? `data:image/png;base64,${qr}` : '')
+    if (!pixQrcode.value && pixCopyPaste.value) {
+      try {
+        pixQrcode.value = await QRCode.toDataURL(pixCopyPaste.value, { width: 256, margin: 2 })
+      } catch (_) {}
+    }
     pixModalOpen.value = true
     if (pixPollInterval) clearInterval(pixPollInterval)
     pixPollInterval = setInterval(pollPixStatus, 4000)

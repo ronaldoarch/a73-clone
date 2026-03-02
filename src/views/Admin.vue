@@ -224,6 +224,10 @@
             <form v-else @submit.prevent="saveConfig" class="config-form">
               <div class="config-grid">
                 <div class="form-group">
+                  <label>Depósito mínimo (R$)</label>
+                  <input v-model.number="appConfig.depositoMin" type="number" min="1" step="1" />
+                </div>
+                <div class="form-group">
                   <label>Saque mínimo (R$)</label>
                   <input v-model.number="appConfig.saqueMin" type="number" min="1" step="1" />
                 </div>
@@ -680,7 +684,7 @@ const saqueActionLoading = ref(null)
 const dashboard = ref({ usersCount: 0, depositsToday: 0, withdrawalsPending: 0, totalDeposits: 0, recentDeposits: [], recentWithdrawals: [] })
 const dashboardLoading = ref(false)
 
-const appConfig = ref({ saqueMin: 20, saqueMax: 40000, roletaMinWithdraw: 100, roletaBonusDays: 3, roletaDailySpins: 1, bonusPrimeiroDep: 0, bonusPrimeiroDepPercent: 0 })
+const appConfig = ref({ depositoMin: 10, saqueMin: 20, saqueMax: 40000, roletaMinWithdraw: 100, roletaBonusDays: 3, roletaDailySpins: 1, bonusPrimeiroDep: 0, bonusPrimeiroDepPercent: 0 })
 const configLoading = ref(false)
 const configSaving = ref(false)
 const configMsg = ref('')
@@ -714,7 +718,7 @@ async function loadConfig() {
     const data = await r.json()
     appConfig.value = data
   } catch (e) {
-    appConfig.value = { saqueMin: 20, saqueMax: 40000, roletaMinWithdraw: 100, roletaBonusDays: 3, roletaDailySpins: 1, bonusPrimeiroDep: 0, bonusPrimeiroDepPercent: 0 }
+    appConfig.value = { depositoMin: 10, saqueMin: 20, saqueMax: 40000, roletaMinWithdraw: 100, roletaBonusDays: 3, roletaDailySpins: 1, bonusPrimeiroDep: 0, bonusPrimeiroDepPercent: 0 }
   } finally {
     configLoading.value = false
   }

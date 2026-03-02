@@ -38,7 +38,7 @@
             v-model="amount"
             type="text"
             class="withdraw-amount-input"
-            placeholder="R$ 20,00 - 40.000,00"
+            :placeholder="`R$ ${(saqueMin || 20).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} - ${(saqueMax || 40000).toLocaleString('pt-BR', { minimumFractionDigits: 0 })}`"
           />
           <button type="button" class="withdraw-max-btn" @click="setMax">Máx.</button>
         </div>
@@ -97,10 +97,12 @@ import {
   onIonViewWillEnter
 } from '@ionic/vue'
 import { useAfiliado } from '@/composables/useAfiliado'
+import { useSettings } from '@/composables/useSettings'
 import { afiliadoApi } from '@/api/afiliado'
 import { useToast } from '@/composables/useToast'
 
 const { balanceFormatted, balance, refresh } = useAfiliado()
+const { saqueMin, saqueMax } = useSettings()
 const toast = useToast()
 const loading = ref(false)
 const isLoggedIn = computed(() => !!localStorage.getItem('token'))
@@ -109,7 +111,13 @@ const nome = ref('')
 const cpfId = ref('')
 const metodo = ref('cpf')
 
-const quickAmounts = [20, 50, 100, 500, 1000, 5000, 10000, 20000, 40000]
+const quickAmounts = computed(() => {
+  const min = saqueMin.value ?? 20
+  const max = saqueMax.value ?? 40000
+  const base = [20, 50, 100, 500, 1000, 5000, 10000, 20000, 40000]
+  const filtered = base.filter(x => x >= min && x <= max)
+  return filtered.length ? filtered : [min, Math.min(min * 2, max), max]
+})
 
 function formatVal(n) {
   return n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -117,7 +125,7 @@ function formatVal(n) {
 
 function setMax() {
   const max = typeof balance.value === 'number' ? balance.value : 0
-  amount.value = formatVal(max || 40000)
+  amount.value = formatVal(max || saqueMax.value || 40000)
 }
 
 function openSupport() {
@@ -126,12 +134,14 @@ function openSupport() {
 
 async function retirarAgora() {
   const v = parseFloat(String(amount.value).replace(/\./g, '').replace(',', '.')) || 0
-  if (v < 20) {
-    toast.error('Valor mínimo R$ 20,00')
+  const min = saqueMin.value ?? 20
+  const max = saqueMax.value ?? 40000
+  if (v < min) {
+    toast.error(`Valor mínimo R$ ${min.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`)
     return
   }
-  if (v > 40000) {
-    toast.error('Valor máximo R$ 40.000,00')
+  if (v > max) {
+    toast.error(`Valor máximo R$ ${max.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}`)
     return
   }
   const saldo = typeof balance.value === 'number' ? balance.value : 0

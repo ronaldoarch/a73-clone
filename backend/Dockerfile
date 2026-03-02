@@ -1,5 +1,8 @@
-# Debian tem melhor compatibilidade com Prisma que Alpine
-FROM node:20-slim
+# Debian Bookworm (OpenSSL 3.x) - compatível com Prisma
+FROM node:20-bookworm-slim
+
+# OpenSSL e libs necessárias para Prisma
+RUN apt-get update && apt-get install -y openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 

@@ -8,9 +8,11 @@ import multer from 'multer'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import { PrismaClient } from '@prisma/client'
+import { setPrisma, gateboxCreatePix, gateboxPixStatus, gateboxWithdraw, gateboxBalance } from './gatebox.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const prisma = new PrismaClient()
+setPrisma(prisma)
 
 const app = express()
 const PORT = process.env.PORT || 3000
@@ -356,7 +358,146 @@ app.get('/api/afiliado', authMiddleware, async (req, res) => {
   }
 })
 
-// POST depósito
+// POST depósito PIX (Gatebox) - gera QR e cria Deposit pendente
+app.post('/api/deposito/pix', authMiddleware, async (req, res) => {
+  try {
+    const { valor } = req.body?.json || req.body || {}
+    const v = parseFloat(valor)
+    if (!v || v < 10) return res.json({ error: { message: 'Valor mínimo R$ 10,00' } })
+    if (v > 50000) return res.json({ error: { message: 'Valor máximo R$ 50.000,00' } })
+    const user = await prisma.user.findUnique({ where: { id: req.userId } })
+    if (!user) return res.status(401).json({ error: { message: 'Usuário não encontrado' } })
+    const deposit = await prisma.deposit.create({
+      data: {
+        userId: req.userId,
+        valor: v,
+        status: 'pendente',
+        externalId: null
+      }
+    })
+    const externalId = deposit.id
+    const document = String(user.phone || '').replace(/\D/g, '') || '00000000000'
+    const name = String(user.account || 'Cliente').slice(0, 100)
+    const result = await gateboxCreatePix({
+      externalId,
+      amount: v,
+      document,
+      name,
+      description: `Depósito A73 - ${user.account}`,
+      expire: 3600
+    })
+    if (!result.ok) {
+      await prisma.deposit.update({ where: { id: deposit.id }, data: { status: 'erro' } })
+      return res.json({ error: { message: result.error || 'Erro ao gerar PIX' } })
+    }
+    await prisma.deposit.update({ where: { id: deposit.id }, data: { externalId } })
+    const d = result.data || {}
+    const qrcode = d.qrcode || d.qrCode || d.qrCodeBase64 || d.brCode
+    const copyPaste = d.copyPaste || d.brCode || d.pixCopiaECola || ''
+    return res.json({
+      result: {
+        data: {
+          json: {
+            ok: true,
+            externalId,
+            valor: v,
+            qrcode,
+            copyPaste,
+            expireAt: Date.now() + 3600 * 1000
+          }
+        }
+      }
+    })
+  } catch (e) {
+    console.error('deposito pix:', e)
+    return res.status(500).json({ error: { message: e.message } })
+  }
+})
+
+// GET status depósito PIX - polling até pagamento confirmado
+app.get('/api/deposito/pix/status/:externalId', authMiddleware, async (req, res) => {
+  try {
+    const { externalId } = req.params
+    if (!externalId) return res.status(400).json({ error: { message: 'externalId obrigatório' } })
+    const deposit = await prisma.deposit.findFirst({
+      where: { externalId, userId: req.userId },
+      include: { user: true }
+    })
+    if (!deposit) return res.status(404).json({ error: { message: 'Depósito não encontrado' } })
+    if (deposit.status === 'concluido') {
+      return res.json({ result: { data: { json: { status: 'concluido', valor: deposit.valor } } } })
+    }
+    const statusResult = await gateboxPixStatus({ externalId })
+    if (!statusResult.ok) {
+      return res.json({ result: { data: { json: { status: 'pendente', error: statusResult.error } } } })
+    }
+    const st = statusResult.data?.status || statusResult.data?.transactionStatus || (statusResult.data?.paid ? 'PAID' : 'PENDING')
+    const paid = ['PAID', 'PAID_OUT', 'CONCLUIDO', 'concluido', 'pago'].includes(String(st).toUpperCase())
+    if (paid) {
+      const af = await ensureAfiliado(req.userId, deposit.user?.account || '')
+      const cfg = await getAppConfig()
+      const bonusPrimeiro = (af.numDepositos ?? 0) === 0
+        ? (cfg.bonusPrimeiroDep ?? 0) + (deposit.valor * (cfg.bonusPrimeiroDepPercent ?? 0) / 100)
+        : 0
+      const balanceIncrement = deposit.valor + bonusPrimeiro
+      const rebate = deposit.valor * 0.05
+      const niveisVip = [
+        { nivel: 0, aposta: 0, bonus: 0 },
+        { nivel: 1, aposta: 100, bonus: 1 }, { nivel: 2, aposta: 1000, bonus: 3 }, { nivel: 3, aposta: 3000, bonus: 10 },
+        { nivel: 4, aposta: 10000, bonus: 15 }, { nivel: 5, aposta: 30000, bonus: 30 }, { nivel: 6, aposta: 60000, bonus: 40 },
+        { nivel: 7, aposta: 100000, bonus: 55 }, { nivel: 8, aposta: 300000, bonus: 155 }, { nivel: 9, aposta: 600000, bonus: 255 },
+        { nivel: 10, aposta: 1000000, bonus: 355 }, { nivel: 11, aposta: 2000000, bonus: 555 }, { nivel: 12, aposta: 3000000, bonus: 755 },
+        { nivel: 13, aposta: 4000000, bonus: 855 }, { nivel: 14, aposta: 5000000, bonus: 955 }, { nivel: 15, aposta: 6000000, bonus: 1055 }
+      ]
+      const apostaNova = af.apostaAcumulada + deposit.valor * 5
+      let nivelVip = af.nivelVip
+      let bonusVipReclamar = af.bonusVipReclamar
+      const prox = niveisVip[Math.min(nivelVip + 1, 15)]
+      if (apostaNova >= prox.aposta && nivelVip < 15) {
+        nivelVip++
+        bonusVipReclamar += prox.bonus
+      }
+      await prisma.$transaction([
+        prisma.deposit.update({ where: { id: deposit.id }, data: { status: 'concluido', updatedAt: new Date() } }),
+        prisma.afiliadoData.update({
+          where: { userId: req.userId },
+          data: {
+            depositoMisterioso: { increment: deposit.valor },
+            valorDeposito: { increment: deposit.valor },
+            numDepositos: { increment: 1 },
+            balance: { increment: balanceIncrement },
+            coletavelRebate: { increment: rebate },
+            comissaoPendente: { increment: rebate },
+            comissaoHoje: { increment: rebate },
+            apostaAcumulada: apostaNova,
+            nivelVip,
+            bonusVipReclamar,
+            updatedAt: new Date()
+          }
+        })
+      ])
+      const indicator = await prisma.user.findUnique({ where: { id: req.userId } }).then(u => u?.indicatorId)
+      if (indicator) {
+        await prisma.afiliadoData.update({
+          where: { userId: indicator },
+          data: {
+            comissaoPendente: { increment: rebate },
+            coletavelRebate: { increment: rebate },
+            comissaoHoje: { increment: rebate },
+            updatedAt: new Date()
+          }
+        })
+      }
+      return res.json({ result: { data: { json: { status: 'concluido', valor: deposit.valor } } } })
+    }
+    return res.json({ result: { data: { json: { status: 'pendente' } } } })
+  } catch (e) {
+    console.error('deposito pix status:', e)
+    return res.status(500).json({ error: { message: e.message } })
+  }
+})
+
+// POST depósito (legado - crédito imediato, sem PIX)
 app.post('/api/deposito', authMiddleware, async (req, res) => {
   try {
     const { valor } = req.body?.json || req.body || {}
@@ -1111,7 +1252,7 @@ app.patch('/api/admin/saques/:id', adminAuthMiddleware, async (req, res) => {
     if (!['concluido', 'recusado'].includes(status)) {
       return res.status(400).json({ ok: false, error: 'Status inválido. Use concluido ou recusado.' })
     }
-    const w = await prisma.withdrawal.findUnique({ where: { id } })
+    const w = await prisma.withdrawal.findUnique({ where: { id }, include: { user: { select: { account: true } } } })
     if (!w) return res.status(404).json({ ok: false, error: 'Saque não encontrado' })
     if (w.status !== 'pendente') return res.status(400).json({ ok: false, error: 'Saque já processado' })
     if (status === 'recusado') {
@@ -1122,10 +1263,24 @@ app.patch('/api/admin/saques/:id', adminAuthMiddleware, async (req, res) => {
           data: { balance: { increment: w.valor }, updatedAt: new Date() }
         })
       ])
-    } else {
-      await prisma.withdrawal.update({ where: { id }, data: { status: 'concluido', updatedAt: new Date() } })
+      return res.json({ ok: true, status })
     }
-    return res.json({ ok: true, status })
+    const key = String(w.cpfId || '').trim()
+    const name = String(w.nome || w.user?.account || 'Cliente').trim()
+    if (!key) return res.status(400).json({ ok: false, error: 'Chave PIX não informada no saque' })
+    const withdrawResult = await gateboxWithdraw({
+      externalId: id,
+      key,
+      name,
+      amount: w.valor,
+      documentNumber: /^\d+$/.test(key) ? key : undefined,
+      description: `Saque A73 - ${w.user?.account || w.userId}`
+    })
+    if (!withdrawResult.ok) {
+      return res.status(400).json({ ok: false, error: withdrawResult.error || 'Erro ao enviar PIX via Gatebox' })
+    }
+    await prisma.withdrawal.update({ where: { id }, data: { status: 'concluido', updatedAt: new Date() } })
+    return res.json({ ok: true, status: 'concluido' })
   } catch (e) {
     console.error('admin saque update:', e)
     return res.status(500).json({ ok: false, error: e.message })
@@ -1203,6 +1358,40 @@ app.post('/api/admin/config', adminAuthMiddleware, async (req, res) => {
   }
 })
 
+app.get('/api/admin/gatebox', adminAuthMiddleware, async (req, res) => {
+  try {
+    const s = await prisma.setting.findUnique({ where: { id: 'gatebox' } })
+    const v = s?.value || {}
+    return res.json({
+      apiUrl: v.apiUrl || 'https://api.gatebox.com.br',
+      username: v.username || '',
+      password: v.password ? '••••••' : ''
+    })
+  } catch (e) {
+    return res.json({ apiUrl: 'https://api.gatebox.com.br', username: '', password: '' })
+  }
+})
+
+app.post('/api/admin/gatebox', adminAuthMiddleware, async (req, res) => {
+  try {
+    const { apiUrl, username, password } = req.body?.json || req.body || {}
+    const s = await prisma.setting.findUnique({ where: { id: 'gatebox' } })
+    const v = (s?.value && typeof s.value === 'object') ? { ...s.value } : {}
+    v.apiUrl = (apiUrl || 'https://api.gatebox.com.br').replace(/\/$/, '')
+    v.username = String(username || '').trim()
+    if (password && password !== '••••••') v.password = String(password).trim()
+    await prisma.setting.upsert({
+      where: { id: 'gatebox' },
+      create: { id: 'gatebox', value: v },
+      update: { value: v }
+    })
+    return res.json({ ok: true })
+  } catch (e) {
+    console.error('admin gatebox save:', e)
+    return res.status(500).json({ ok: false, error: e.message })
+  }
+})
+
 app.get('/api/admin/depositos', adminAuthMiddleware, async (req, res) => {
   try {
     const limit = Math.min(parseInt(req.query.limit) || 50, 100)
@@ -1216,6 +1405,7 @@ app.get('/api/admin/depositos', adminAuthMiddleware, async (req, res) => {
       userId: d.userId,
       user: maskAccount(d.user?.account),
       valor: d.valor,
+      status: d.status || 'concluido',
       createdAt: d.createdAt?.toISOString?.()?.slice(0, 19)?.replace('T', ' ') || null
     })) })
   } catch (e) {
@@ -1224,16 +1414,39 @@ app.get('/api/admin/depositos', adminAuthMiddleware, async (req, res) => {
   }
 })
 
-// GET settings (logo, banner) - público
+// GET settings (logo, banner, siteName, pageTitle) - público
 app.get('/api/settings', async (req, res) => {
   try {
     const s = await prisma.setting.findUnique({ where: { id: 'main' } })
+    const v = s?.value || {}
     return res.json({
       logo: s?.logo || '/s5/app-icon/1222508/LOGO.jpg',
-      banner: s?.banner || '/s5/1770954153806/9999.jpg'
+      banner: s?.banner || '/s5/1770954153806/9999.jpg',
+      siteName: v.siteName || 'A73.com',
+      pageTitle: v.pageTitle || 'A73'
     })
   } catch (e) {
-    return res.json({ logo: '/s5/app-icon/1222508/LOGO.jpg', banner: '/s5/1770954153806/9999.jpg' })
+    return res.json({ logo: '/s5/app-icon/1222508/LOGO.jpg', banner: '/s5/1770954153806/9999.jpg', siteName: 'A73.com', pageTitle: 'A73' })
+  }
+})
+
+// POST settings branding (siteName, pageTitle) - requer admin
+app.post('/api/settings/branding', adminAuthMiddleware, async (req, res) => {
+  try {
+    const { siteName, pageTitle } = req.body?.json || req.body || {}
+    const s = await prisma.setting.findUnique({ where: { id: 'main' } })
+    const v = (s?.value && typeof s.value === 'object') ? { ...s.value } : {}
+    if (typeof siteName === 'string') v.siteName = siteName.trim() || 'A73.com'
+    if (typeof pageTitle === 'string') v.pageTitle = pageTitle.trim() || 'A73'
+    await prisma.setting.upsert({
+      where: { id: 'main' },
+      create: { id: 'main', logo: null, banner: null, value: v },
+      update: { value: v }
+    })
+    return res.json({ ok: true, siteName: v.siteName, pageTitle: v.pageTitle })
+  } catch (e) {
+    console.error('save branding:', e)
+    return res.status(500).json({ ok: false, error: e.message })
   }
 })
 

@@ -71,12 +71,12 @@
         </div>
 
         <div class="withdraw-field">
-          <label class="withdraw-label">CPF ID</label>
+          <label class="withdraw-label">Chave PIX</label>
           <input
             v-model="cpfId"
             type="text"
             class="withdraw-input"
-            placeholder="Digite seu CPF"
+            placeholder="CPF, e-mail ou telefone"
           />
         </div>
 

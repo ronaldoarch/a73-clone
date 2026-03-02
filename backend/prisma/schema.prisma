@@ -55,11 +55,13 @@ model AfiliadoData {
 }
 
 model Deposit {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  valor     Float
-  createdAt DateTime @default(now())
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  valor      Float
+  status     String   @default("concluido")  // concluido, pendente (aguardando PIX)
+  externalId String?  // id conciliação Gatebox
+  createdAt  DateTime @default(now())
 }
 
 model Setting {

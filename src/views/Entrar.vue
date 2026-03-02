@@ -9,6 +9,36 @@
       </ion-toolbar>
     </ion-header>
     <ion-content :fullscreen="true" class="deposit-content">
+      <!-- Modal PIX QR -->
+      <div v-if="pixModalOpen" class="pix-modal-overlay" @click.self="pixModalOpen = false">
+        <div class="pix-modal">
+          <div class="pix-modal-header">
+            <h3>Pague via PIX</h3>
+            <button type="button" class="pix-modal-close" @click="closePixModal" aria-label="Fechar">&times;</button>
+          </div>
+          <div class="pix-modal-body">
+            <p class="pix-modal-valor">R$ {{ pixValorDisplay }}</p>
+            <p class="pix-modal-hint">Escaneie o QR Code ou copie o código abaixo</p>
+            <div v-if="pixQrcode" class="pix-qr-wrap">
+              <img :src="pixQrcode" alt="QR Code PIX" class="pix-qr-img" />
+            </div>
+            <div v-if="pixCopyPaste" class="pix-copy-wrap">
+              <p class="pix-copy-label">Código PIX (copia e cola):</p>
+              <textarea ref="pixCopyRef" readonly class="pix-copy-text" :value="pixCopyPaste" rows="4"></textarea>
+              <ion-button size="small" @click="copyPixCode">Copiar código</ion-button>
+            </div>
+            <div v-if="pixStatus === 'concluido'" class="pix-success-msg">
+              <ion-icon name="checkmark-circle" />
+              Pagamento confirmado! Seu saldo foi creditado.
+            </div>
+            <div v-else-if="pixStatus === 'pendente'" class="pix-pending-msg">
+              <ion-spinner name="crescent" />
+              Aguardando pagamento...
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Não logado -->
       <div v-if="!isLoggedIn" class="deposit-login-prompt">
         <p>Faça login para realizar depósitos.</p>
@@ -80,15 +110,16 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import {
-  IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButton, IonIcon,
+  IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButton, IonIcon, IonSpinner,
   onIonViewWillEnter
 } from '@ionic/vue'
 import { useAfiliado } from '@/composables/useAfiliado'
+import { afiliadoApi } from '@/api/afiliado'
 import { useToast } from '@/composables/useToast'
 
-const { registrarDeposito } = useAfiliado()
+const { refresh } = useAfiliado()
 const toast = useToast()
 const isLoggedIn = ref(!!localStorage.getItem('token'))
 
@@ -107,6 +138,15 @@ const amountDisplay = computed(() => {
   return `${selectedAmount.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
 })
 
+const pixModalOpen = ref(false)
+const pixQrcode = ref('')
+const pixCopyPaste = ref('')
+const pixExternalId = ref('')
+const pixValorDisplay = ref('')
+const pixStatus = ref('pendente')
+const pixCopyRef = ref(null)
+let pixPollInterval = null
+
 function formatAmount(val) {
   return val.toLocaleString('pt-BR', { minimumFractionDigits: 2 })
 }
@@ -123,11 +163,75 @@ function selectOnlineDeposit() {
   // Abre fluxo de depósito online
 }
 
+function closePixModal() {
+  pixModalOpen.value = false
+  if (pixPollInterval) {
+    clearInterval(pixPollInterval)
+    pixPollInterval = null
+  }
+}
+
+function copyPixCode() {
+  const text = pixCopyPaste.value
+  if (!text) return
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(text).then(() => toast.success('Código copiado!'))
+  } else {
+    pixCopyRef.value?.select()
+    document.execCommand('copy')
+    toast.success('Código copiado!')
+  }
+}
+
 async function doDeposit() {
   const valor = selectedAmount.value
-  await registrarDeposito(valor)
-  toast.success(`Depósito de R$ ${valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} registrado!`)
+  if (!localStorage.getItem('token')) {
+    toast.error('Faça login para depositar')
+    return
+  }
+  try {
+    const data = await afiliadoApi.depositoPix(valor)
+    if (!data?.ok) {
+      toast.error(data?.error?.message || 'Erro ao gerar PIX')
+      return
+    }
+    pixExternalId.value = data.externalId
+    pixValorDisplay.value = (data.valor || valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })
+    pixStatus.value = 'pendente'
+    const qr = data.qrcode
+    pixQrcode.value = (qr && (qr.startsWith('data:') || qr.startsWith('http'))) ? qr : (qr ? `data:image/png;base64,${qr}` : '')
+    pixCopyPaste.value = data.copyPaste || ''
+    pixModalOpen.value = true
+    if (pixPollInterval) clearInterval(pixPollInterval)
+    pixPollInterval = setInterval(pollPixStatus, 4000)
+    pollPixStatus()
+  } catch (e) {
+    toast.error(e?.message || 'Erro ao gerar PIX. Verifique se o Gatebox está configurado.')
+  }
 }
+
+async function pollPixStatus() {
+  if (!pixExternalId.value) return
+  try {
+    const data = await afiliadoApi.depositoPixStatus(pixExternalId.value)
+    if (data?.status === 'concluido') {
+      pixStatus.value = 'concluido'
+      if (pixPollInterval) {
+        clearInterval(pixPollInterval)
+        pixPollInterval = null
+      }
+      await refresh()
+      toast.success(`Depósito de R$ ${pixValorDisplay.value} confirmado!`)
+      setTimeout(closePixModal, 2000)
+    }
+  } catch (e) {
+    // mantém polling
+  }
+}
+
+onUnmounted(() => {
+  if (pixPollInterval) clearInterval(pixPollInterval)
+})
 
 function openSupport() {
   window.open('https://wa.me/', '_blank')
@@ -294,5 +398,107 @@ function openSupport() {
   --padding-top: 16px;
   --padding-bottom: 16px;
   border-radius: 12px;
+}
+
+/* Modal PIX */
+.pix-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 16px;
+}
+.pix-modal {
+  background: var(--color-bg-100, #1a1a2e);
+  border: 1px solid rgba(168, 85, 247, 0.5);
+  border-radius: 16px;
+  max-width: 360px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+.pix-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+.pix-modal-header h3 {
+  margin: 0;
+  color: #fff;
+  font-size: 1.2rem;
+}
+.pix-modal-close {
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 1.8rem;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0 4px;
+}
+.pix-modal-body {
+  padding: 20px;
+}
+.pix-modal-valor {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: #f97316;
+  margin: 0 0 8px 0;
+}
+.pix-modal-hint {
+  color: rgba(255,255,255,0.8);
+  font-size: 0.9rem;
+  margin: 0 0 16px 0;
+}
+.pix-qr-wrap {
+  text-align: center;
+  margin-bottom: 16px;
+}
+.pix-qr-img {
+  max-width: 220px;
+  height: auto;
+  border-radius: 8px;
+}
+.pix-copy-wrap {
+  margin-top: 12px;
+}
+.pix-copy-label {
+  color: rgba(255,255,255,0.9);
+  font-size: 0.85rem;
+  margin: 0 0 8px 0;
+}
+.pix-copy-text {
+  width: 100%;
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(168, 85, 247, 0.4);
+  background: rgba(0,0,0,0.3);
+  color: #fff;
+  font-size: 0.8rem;
+  resize: none;
+  margin-bottom: 10px;
+}
+.pix-success-msg {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #84cc16;
+  font-weight: 600;
+  margin-top: 16px;
+}
+.pix-success-msg ion-icon {
+  font-size: 1.5rem;
+}
+.pix-pending-msg {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #fbbf24;
+  margin-top: 16px;
 }
 </style>

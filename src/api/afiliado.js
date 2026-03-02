@@ -39,6 +39,14 @@ export const afiliadoApi = {
     return trpcPost('/api/deposito', { valor })
   },
 
+  async depositoPix(valor) {
+    return trpcPost('/api/deposito/pix', { valor })
+  },
+
+  async depositoPixStatus(externalId) {
+    return trpcGet('/api/deposito/pix/status/' + encodeURIComponent(externalId))
+  },
+
   async reclamarPromo(pessoas) {
     return trpcPost('/api/afiliado/reclamar-promo', { pessoas })
   },

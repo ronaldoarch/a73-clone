@@ -103,9 +103,9 @@
           <div v-if="depositosLoading" class="card-label">Carregando depósitos...</div>
           <div v-else class="table-wrap">
             <table>
-              <thead><tr><th>Usuário</th><th>Valor</th><th>Data</th></tr></thead>
+              <thead><tr><th>Usuário</th><th>Valor</th><th>Status</th><th>Data</th></tr></thead>
               <tbody>
-                <tr v-for="d in depositos" :key="d.id"><td>{{ d.user }}</td><td>R$ {{ formatBr(d.valor) }}</td><td>{{ d.createdAt }}</td></tr>
+                <tr v-for="d in depositos" :key="d.id"><td>{{ d.user }}</td><td>R$ {{ formatBr(d.valor) }}</td><td><span :class="['badge', d.status === 'concluido' ? 'badge-success' : 'badge-pending']">{{ d.status || 'concluido' }}</span></td><td>{{ d.createdAt }}</td></tr>
               </tbody>
             </table>
             <div v-if="depositos.length === 0" class="admin-empty">Nenhum depósito encontrado.</div>
@@ -126,7 +126,7 @@
           <div v-if="saquesLoading" class="card-label">Carregando saques...</div>
           <div v-else class="table-wrap">
             <table>
-              <thead><tr><th>Usuário</th><th>Valor</th><th>Método</th><th>Nome/CPF</th><th>Status</th><th>Data</th><th>Ação</th></tr></thead>
+              <thead><tr><th>Usuário</th><th>Valor</th><th>Método</th><th>Nome / Chave PIX</th><th>Status</th><th>Data</th><th>Ação</th></tr></thead>
               <tbody>
                 <tr v-for="s in saques" :key="s.id">
                   <td>{{ s.user }}</td>
@@ -181,6 +181,32 @@
             </table>
           </div>
           <div style="margin-top: 1rem;"><button class="btn btn-primary" @click="openModalAfiliado()">+ Novo afiliado</button></div>
+        </section>
+
+        <!-- Gatebox PIX -->
+        <section v-show="activeSection === 'gatebox'" class="admin-section">
+          <div class="card">
+            <h3>Gatebox - Gateway PIX</h3>
+            <p class="card-label" style="margin-bottom: 1rem;">Configure as credenciais da API Gatebox para depósitos e saques via PIX.</p>
+            <div v-if="gateboxLoading" class="card-label">Carregando...</div>
+            <form v-else @submit.prevent="saveGatebox" class="config-form">
+              <div class="form-group">
+                <label>URL da API</label>
+                <input v-model="gateboxConfig.apiUrl" type="url" placeholder="https://api.gatebox.com.br" />
+              </div>
+              <div class="form-group">
+                <label>Username (CNPJ)</label>
+                <input v-model="gateboxConfig.username" type="text" placeholder="93892492000158" />
+              </div>
+              <div class="form-group">
+                <label>Senha</label>
+                <input v-model="gateboxConfig.password" type="password" placeholder="••••••" />
+                <span class="form-hint">Deixe em branco para manter a senha atual</span>
+              </div>
+              <button type="submit" class="btn btn-primary" :disabled="gateboxSaving">{{ gateboxSaving ? 'Salvando...' : 'Salvar' }}</button>
+              <span v-if="gateboxMsg" class="config-msg" :class="{ error: gateboxError }">{{ gateboxMsg }}</span>
+            </form>
+          </div>
         </section>
 
         <!-- Configurações -->
@@ -434,6 +460,23 @@
           <div class="card" style="margin-bottom: 1.5rem;">
             <div class="card-label" style="margin-bottom: 1rem;">Faça upload da logo e dos banners da plataforma.</div>
           </div>
+          <!-- Identidade do site -->
+          <div class="card" style="margin-bottom: 1.5rem;">
+            <h3>Identidade do site</h3>
+            <p class="card-label" style="margin-bottom: 1rem;">Nome e título exibidos na plataforma.</p>
+            <form @submit.prevent="saveBranding" class="config-form">
+              <div class="form-group">
+                <label>Nome na lateral (Menu)</label>
+                <input v-model="brandingForm.siteName" type="text" placeholder="Ex: A73.com" maxlength="50" />
+              </div>
+              <div class="form-group">
+                <label>Título da aba do navegador</label>
+                <input v-model="brandingForm.pageTitle" type="text" placeholder="Ex: A73" maxlength="60" />
+              </div>
+              <button type="submit" class="btn btn-primary">Salvar</button>
+              <span v-if="brandingMsg" class="config-msg" :class="{ error: brandingMsgError }">{{ brandingMsg }}</span>
+            </form>
+          </div>
           <div class="cards midia-grid">
             <div class="card">
               <h3>Logo / Ícone</h3>
@@ -444,7 +487,7 @@
               </div>
               <form @submit.prevent="uploadLogo">
                 <input ref="logoInput" type="file" accept=".jpg,.jpeg,.png,.webp,.gif,.svg" style="display:none" @change="onLogoSelect" />
-                <button type="button" class="btn btn-primary" @click="$refs.logoInput?.click()">Escolher arquivo</button>
+                <button type="button" class="btn btn-primary" @click="triggerLogoInput">Escolher arquivo</button>
                 <button type="submit" class="btn btn-primary" :disabled="!logoFile">Enviar</button>
               </form>
               <div v-if="logoMsg" class="upload-msg" :class="{ error: logoMsgError }">{{ logoMsg }}</div>
@@ -458,7 +501,7 @@
               </div>
               <form @submit.prevent="uploadBanner">
                 <input ref="bannerInput" type="file" accept=".jpg,.jpeg,.png,.webp" style="display:none" @change="onBannerSelect" />
-                <button type="button" class="btn btn-primary" @click="$refs.bannerInput?.click()">Escolher arquivo</button>
+                <button type="button" class="btn btn-primary" @click="triggerBannerInput">Escolher arquivo</button>
                 <button type="submit" class="btn btn-primary" :disabled="!bannerFile">Enviar</button>
               </form>
               <div v-if="bannerMsg" class="upload-msg" :class="{ error: bannerMsgError }">{{ bannerMsg }}</div>
@@ -565,7 +608,7 @@ const defaultTheme = {
 
 const router = useRouter()
 const route = useRoute()
-const VALID_SECTIONS = ['dashboard', 'usuarios', 'depositos', 'saques', 'afiliados', 'config', 'jogos', 'provedores', 'tema', 'midia']
+const VALID_SECTIONS = ['dashboard', 'usuarios', 'depositos', 'saques', 'afiliados', 'config', 'gatebox', 'jogos', 'provedores', 'tema', 'midia']
 
 const ADMIN_TOKEN_KEY = 'admin_token'
 const adminLoggedIn = ref(!!localStorage.getItem(ADMIN_TOKEN_KEY))
@@ -601,7 +644,7 @@ function selectSection(id) {
   router.replace({ path: `/admin/${id}` })
 }
 
-const titles = { dashboard: 'Dashboard', usuarios: 'Usuários', depositos: 'Depósitos', saques: 'Saques', afiliados: 'Afiliados', config: 'Configurações', jogos: 'API de Jogos', provedores: 'Provedores na Home', tema: 'Tema', midia: 'Logo e Banners' }
+const titles = { dashboard: 'Dashboard', usuarios: 'Usuários', depositos: 'Depósitos', saques: 'Saques', afiliados: 'Afiliados', config: 'Configurações', gatebox: 'Gatebox PIX', jogos: 'API de Jogos', provedores: 'Provedores na Home', tema: 'Tema', midia: 'Logo e Banners' }
 
 const sections = [
   { id: 'dashboard', label: 'Dashboard', icon: () => h('svg', { fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z' })]) },
@@ -610,6 +653,7 @@ const sections = [
   { id: 'saques', label: 'Saques', icon: () => h('svg', { fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z' })]) },
   { id: 'afiliados', label: 'Afiliados', icon: () => h('svg', { fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M17 20h5v-2a3 3 0 00-5.356-1.857M7 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z' })]) },
   { id: 'config', label: 'Configurações', icon: () => h('svg', { fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z' }), h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M15 12a3 3 0 11-6 0 3 3 0 016 0z' })]) },
+  { id: 'gatebox', label: 'Gatebox PIX', icon: () => h('svg', { fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z' })]) },
   { id: 'jogos', label: 'API de Jogos', icon: () => h('svg', { fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z' }), h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M21 12a9 9 0 11-18 0 9 9 0 0118 0z' })]) },
   { id: 'provedores', label: 'Provedores na Home', icon: () => h('svg', { fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10' })]) },
   { id: 'tema', label: 'Tema', icon: () => h('svg', { fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01' })]) },
@@ -634,6 +678,12 @@ const configLoading = ref(false)
 const configSaving = ref(false)
 const configMsg = ref('')
 const configError = ref(false)
+
+const gateboxConfig = ref({ apiUrl: 'https://api.gatebox.com.br', username: '', password: '' })
+const gateboxLoading = ref(false)
+const gateboxSaving = ref(false)
+const gateboxMsg = ref('')
+const gateboxError = ref(false)
 
 async function loadDashboard() {
   dashboardLoading.value = true
@@ -685,6 +735,49 @@ async function saveConfig() {
     configSaving.value = false
   }
   setTimeout(() => { configMsg.value = '' }, 4000)
+}
+
+async function loadGatebox() {
+  gateboxLoading.value = true
+  try {
+    const r = await adminFetch('/api/admin/gatebox')
+    const data = await r.json()
+    gateboxConfig.value = {
+      apiUrl: data.apiUrl || 'https://api.gatebox.com.br',
+      username: data.username || '',
+      password: data.password || ''
+    }
+  } catch (e) {
+    gateboxConfig.value = { apiUrl: 'https://api.gatebox.com.br', username: '', password: '' }
+  } finally {
+    gateboxLoading.value = false
+  }
+}
+
+async function saveGatebox() {
+  gateboxSaving.value = true
+  gateboxMsg.value = ''
+  gateboxError.value = false
+  try {
+    const r = await adminFetch('/api/admin/gatebox', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(gateboxConfig.value)
+    })
+    const data = await r.json()
+    if (data?.ok) {
+      gateboxMsg.value = 'Configuração Gatebox salva!'
+    } else {
+      gateboxMsg.value = data?.error || 'Erro ao salvar'
+      gateboxError.value = true
+    }
+  } catch (e) {
+    gateboxMsg.value = e.message || 'Erro ao salvar'
+    gateboxError.value = true
+  } finally {
+    gateboxSaving.value = false
+  }
+  setTimeout(() => { gateboxMsg.value = '' }, 4000)
 }
 
 function formatBr(val) {
@@ -1060,7 +1153,12 @@ onMounted(() => {
   })
 })
 
-const { logoUrl, bannerUrl, load: loadSettings } = useSettings()
+const { logoUrl, bannerUrl, siteName, pageTitle, load: loadSettings } = useSettings()
+const brandingForm = ref({ siteName: 'A73.com', pageTitle: 'A73' })
+const brandingMsg = ref('')
+const brandingMsgError = ref(false)
+const logoInput = ref(null)
+const bannerInput = ref(null)
 const logoFile = ref(null)
 const bannerFile = ref(null)
 const logoMsg = ref('')
@@ -1169,6 +1267,14 @@ function saveTema() {
   closeModalTema()
 }
 
+function triggerLogoInput() {
+  const el = logoInput.value
+  if (el && el.click) el.click()
+}
+function triggerBannerInput() {
+  const el = bannerInput.value
+  if (el && el.click) el.click()
+}
 function onLogoSelect(e) { logoFile.value = e.target.files?.[0] }
 function onBannerSelect(e) { bannerFile.value = e.target.files?.[0] }
 function showUploadMsg(which, text, isError) {
@@ -1180,26 +1286,82 @@ async function uploadLogo() {
   const fd = new FormData()
   fd.append('file', logoFile.value)
   try {
-    const r = await fetch(apiUrl('/api/upload/logo'), { method: 'POST', body: fd })
+    const headers = {}
+    const token = localStorage.getItem(ADMIN_TOKEN_KEY)
+    if (token) headers['Authorization'] = `Bearer ${token}`
+    const r = await fetch(apiUrl('/api/upload/logo'), { method: 'POST', headers, body: fd })
     const data = await r.json()
-    if (data.ok) { logoUrl.value = apiUrl(data.url) + '?t=' + Date.now(); showUploadMsg('logo', 'Logo enviada!', false); logoFile.value = null }
-    else showUploadMsg('logo', data.error || 'Erro', true)
-  } catch (e) { showUploadMsg('logo', 'Erro ao enviar', true) }
+    if (data.ok) {
+      const ts = '?t=' + Date.now()
+      logoUrl.value = (data.url.startsWith('http') ? data.url : apiUrl(data.url)) + (data.url.includes('?') ? '' : ts)
+      await loadSettings()
+      showUploadMsg('logo', 'Logo enviada! Atualize a página do site para ver a mudança.', false)
+      logoFile.value = null
+      if (logoInput.value) logoInput.value.value = ''
+    } else {
+      showUploadMsg('logo', data.error || 'Erro', true)
+    }
+  } catch (e) {
+    showUploadMsg('logo', 'Erro ao enviar: ' + (e.message || 'Verifique a conexão'), true)
+  }
 }
 async function uploadBanner() {
   if (!bannerFile.value) return
   const fd = new FormData()
   fd.append('file', bannerFile.value)
   try {
-    const r = await fetch(apiUrl('/api/upload/banner'), { method: 'POST', body: fd })
+    const headers = {}
+    const token = localStorage.getItem(ADMIN_TOKEN_KEY)
+    if (token) headers['Authorization'] = `Bearer ${token}`
+    const r = await fetch(apiUrl('/api/upload/banner'), { method: 'POST', headers, body: fd })
     const data = await r.json()
-    if (data.ok) { bannerUrl.value = apiUrl(data.url) + '?t=' + Date.now(); showUploadMsg('banner', 'Banner enviado!', false); bannerFile.value = null }
-    else showUploadMsg('banner', data.error || 'Erro', true)
-  } catch (e) { showUploadMsg('banner', 'Erro ao enviar', true) }
+    if (data.ok) {
+      const ts = '?t=' + Date.now()
+      bannerUrl.value = (data.url.startsWith('http') ? data.url : apiUrl(data.url)) + (data.url.includes('?') ? '' : ts)
+      await loadSettings()
+      showUploadMsg('banner', 'Banner enviado!', false)
+      bannerFile.value = null
+      if (bannerInput.value) bannerInput.value.value = ''
+    } else {
+      showUploadMsg('banner', data.error || 'Erro', true)
+    }
+  } catch (e) {
+    showUploadMsg('banner', 'Erro ao enviar: ' + (e.message || 'Verifique a conexão'), true)
+  }
+}
+
+async function saveBranding() {
+  try {
+    const headers = { 'Content-Type': 'application/json' }
+    const token = localStorage.getItem(ADMIN_TOKEN_KEY)
+    if (token) headers['Authorization'] = `Bearer ${token}`
+    const r = await fetch(apiUrl('/api/settings/branding'), {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ siteName: brandingForm.value.siteName, pageTitle: brandingForm.value.pageTitle })
+    })
+    const data = await r.json()
+    if (data.ok) {
+      siteName.value = brandingForm.value.siteName
+      pageTitle.value = brandingForm.value.pageTitle
+      brandingMsg.value = 'Salvo!'
+      brandingMsgError.value = false
+      setTimeout(() => { brandingMsg.value = '' }, 3000)
+    } else {
+      brandingMsg.value = data.error || 'Erro'
+      brandingMsgError.value = true
+    }
+  } catch (e) {
+    brandingMsg.value = 'Erro ao salvar'
+    brandingMsgError.value = true
+  }
 }
 
 watch(activeSection, async (s) => {
-  if (s === 'midia') loadSettings()
+  if (s === 'midia') {
+    await loadSettings()
+    brandingForm.value = { siteName: siteName.value, pageTitle: pageTitle.value }
+  }
   if (s === 'tema') temas.value = getTemas()
   if (s === 'jogos') {
     await loadIgamewinConfigFromBackend()
@@ -1211,6 +1373,7 @@ watch(activeSection, async (s) => {
   if (s === 'saques') loadSaques()
   if (s === 'dashboard') loadDashboard()
   if (s === 'config') loadConfig()
+  if (s === 'gatebox') loadGatebox()
 })
 
 // Sincroniza seção com a URL (ex: /admin/usuarios)
@@ -1228,6 +1391,7 @@ watch(() => route.params.section, (section) => {
 .form-group label { display: block; margin-bottom: 0.5rem; font-size: 0.875rem; color: var(--text-muted); }
 .form-group input { width: 100%; padding: 0.75rem 1rem; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 1rem; }
 .form-group input:focus { outline: none; border-color: var(--primary); }
+.form-hint { display: block; margin-top: 0.35rem; font-size: 0.75rem; color: var(--text-muted); }
 .admin-login-box .btn { width: 100%; justify-content: center; padding: 0.875rem; margin-top: 0.5rem; }
 .admin-login-error { padding: 0.75rem; background: rgba(239,68,68,0.15); border: 1px solid var(--danger); border-radius: 8px; color: var(--danger); font-size: 0.875rem; margin-bottom: 1rem; }
 .link-site { display: block; text-align: center; margin-top: 1.5rem; color: var(--text-muted); text-decoration: none; font-size: 0.875rem; }

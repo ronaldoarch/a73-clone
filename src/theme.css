@@ -503,7 +503,32 @@ ion-tabs {
     width: 100% !important;
     box-shadow: 0 0 80px rgba(0, 0, 0, 0.4);
   }
+  /* Admin: tela cheia - override dentro do media para garantir */
+  body.admin-fullscreen #app,
+  body.admin-fullscreen .app-platform,
+  body.admin-fullscreen ion-app {
+    max-width: none !important;
+    width: 100% !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+  }
 }
+
+/* Admin: tela cheia (fora do media, para mobile também) */
+body.admin-fullscreen {
+  width: 100% !important;
+  min-width: 100%;
+  overflow-x: hidden;
+}
+body.admin-fullscreen #app,
+body.admin-fullscreen .app-platform,
+body.admin-fullscreen ion-app {
+  max-width: none !important;
+  width: 100% !important;
+  margin: 0 !important;
+  box-shadow: none !important;
+}
+
 .ion-page, ion-content, .inner-scroll, #background-content {
   background: linear-gradient(180deg, #4D087B 0%, #5d108b 50%, #4D087B 100%) !important;
   background-color: var(--ion-background-color) !important;

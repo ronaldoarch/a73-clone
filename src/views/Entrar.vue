@@ -86,8 +86,15 @@
 
         <!-- Montante -->
         <h3 class="deposit-section-title">Montante</h3>
-        <div class="deposit-amount-display">
-          R$ {{ amountDisplay }}
+        <div class="deposit-field">
+          <input
+            v-model="amountInput"
+            type="text"
+            class="deposit-amount-input"
+            placeholder="Digite o valor (ex: 10 ou 10,50)"
+            inputmode="decimal"
+            @blur="formatAmountInput"
+          />
         </div>
 
         <!-- Texto PIX -->
@@ -102,7 +109,7 @@
             :key="val"
             type="button"
             class="deposit-amount-btn"
-            :class="{ active: selectedAmount === val }"
+            :class="{ active: selectedAmount === val || parseAmountInput(amountInput) === val }"
             @click="selectAmount(val)"
           >
             {{ formatAmount(val) }}
@@ -171,11 +178,13 @@ const presetAmounts = computed(() => {
   return filtered.length ? filtered : [min]
 })
 const selectedAmount = ref(10)
+const amountInput = ref('10,00')
 watch(depositoMin, (min) => {
   const m = min ?? 10
   if (selectedAmount.value < m) {
     const presets = presetAmounts.value
     selectedAmount.value = presets.length ? presets[0] : m
+    amountInput.value = formatAmount(selectedAmount.value)
   }
 }, { immediate: true })
 const minAmount = computed(() => depositoMin.value ?? 10)
@@ -183,9 +192,19 @@ const maxAmount = 50000
 const depositCpf = ref('')
 const depositNome = ref('')
 
-const amountDisplay = computed(() => {
-  return `${selectedAmount.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
-})
+function parseAmountInput(str) {
+  if (!str || typeof str !== 'string') return 0
+  const s = str.replace(/\s/g, '').replace(/\./g, '').replace(',', '.')
+  return parseFloat(s) || 0
+}
+
+function formatAmountInput() {
+  const num = parseAmountInput(amountInput.value)
+  if (num > 0) {
+    amountInput.value = formatAmount(num)
+    selectedAmount.value = num
+  }
+}
 
 const pixModalOpen = ref(false)
 const pixQrcode = ref('')
@@ -202,6 +221,7 @@ function formatAmount(val) {
 
 function selectAmount(val) {
   selectedAmount.value = val
+  amountInput.value = formatAmount(val)
 }
 
 function selectPix() {
@@ -238,7 +258,8 @@ function validarCpf(cpf) {
 }
 
 async function doDeposit() {
-  const valor = selectedAmount.value
+  const valor = parseAmountInput(amountInput.value) || selectedAmount.value
+  selectedAmount.value = valor
   const min = depositoMin.value ?? 10
   if (!localStorage.getItem('token')) {
     toast.error('Faça login para depositar')
@@ -418,15 +439,23 @@ function openSupport() {
   color: #f97316;
 }
 
-.deposit-amount-display {
+.deposit-amount-input {
+  width: 100%;
   background: var(--color-bg-100);
   border: 1px solid rgba(168, 85, 247, 0.5);
   border-radius: 10px;
   padding: 14px 16px;
   color: #f97316;
-  font-size: 1rem;
+  font-size: 1.1rem;
   font-weight: 700;
-  margin-bottom: 16px;
+  box-sizing: border-box;
+}
+.deposit-amount-input::placeholder {
+  color: rgba(249, 115, 22, 0.6);
+}
+.deposit-amount-input:focus {
+  outline: none;
+  border-color: #a855f7;
 }
 
 .deposit-pix-promo {

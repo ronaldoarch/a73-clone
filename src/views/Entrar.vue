@@ -18,23 +18,32 @@
           </div>
           <div class="pix-modal-body">
             <p class="pix-modal-valor">R$ {{ pixValorDisplay }}</p>
-            <p class="pix-modal-hint">Escaneie o QR Code ou copie o código abaixo</p>
-            <div v-if="pixQrcode" class="pix-qr-wrap">
-              <img :src="pixQrcode" alt="QR Code PIX" class="pix-qr-img" />
-            </div>
-            <div v-if="pixCopyPaste" class="pix-copy-wrap">
-              <p class="pix-copy-label">Código PIX (copia e cola):</p>
-              <textarea ref="pixCopyRef" readonly class="pix-copy-text" :value="pixCopyPaste" rows="4"></textarea>
-              <ion-button size="small" @click="copyPixCode">Copiar código</ion-button>
-            </div>
             <div v-if="pixStatus === 'concluido'" class="pix-success-msg">
               <ion-icon name="checkmark-circle" />
               Pagamento confirmado! Seu saldo foi creditado.
             </div>
-            <div v-else-if="pixStatus === 'pendente'" class="pix-pending-msg">
-              <ion-spinner name="crescent" />
-              Aguardando pagamento...
-            </div>
+            <template v-else>
+              <div v-if="!pixQrcode && !pixCopyPaste" class="pix-error-msg">
+                <ion-icon name="warning" />
+                Não foi possível gerar o PIX. Verifique os dados e tente novamente.
+                <ion-button size="small" fill="outline" @click="closePixModal">Fechar</ion-button>
+              </div>
+              <template v-else>
+                <p class="pix-modal-hint">Escaneie o QR Code ou copie o código abaixo</p>
+                <div v-if="pixQrcode" class="pix-qr-wrap">
+                  <img :src="pixQrcode" alt="QR Code PIX" class="pix-qr-img" />
+                </div>
+                <div v-if="pixCopyPaste" class="pix-copy-wrap">
+                  <p class="pix-copy-label">Código PIX (copia e cola):</p>
+                  <textarea ref="pixCopyRef" readonly class="pix-copy-text" :value="pixCopyPaste" rows="4"></textarea>
+                  <ion-button size="small" @click="copyPixCode">Copiar código</ion-button>
+                </div>
+                <div class="pix-pending-msg">
+                  <ion-spinner name="crescent" />
+                  Aguardando pagamento...
+                </div>
+              </template>
+            </template>
           </div>
         </div>
       </div>
@@ -565,5 +574,17 @@ function openSupport() {
   gap: 8px;
   color: #fbbf24;
   margin-top: 16px;
+}
+.pix-error-msg {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  color: #f87171;
+  text-align: center;
+  padding: 16px 0;
+}
+.pix-error-msg ion-icon {
+  font-size: 2rem;
 }
 </style>

@@ -394,8 +394,11 @@ app.post('/api/deposito/pix', authMiddleware, async (req, res) => {
     }
     await prisma.deposit.update({ where: { id: deposit.id }, data: { externalId } })
     const d = result.data || {}
-    const qrcode = d.qrcode || d.qrCode || d.qrCodeBase64 || d.brCode
-    const copyPaste = d.copyPaste || d.brCode || d.pixCopiaECola || ''
+    const nested = d.data || d.result || {}
+    const all = { ...d, ...nested }
+    const copyPaste = all.copyPaste || all.brCode || all.pixCopiaECola || all.payload || all.pixKey || ''
+    const qrcode = all.qrcode || all.qrCode || all.qrCodeBase64 || all.imagemQrCode || ''
+    if (!copyPaste && !qrcode) console.warn('Gatebox PIX: resposta sem qrcode/copyPaste. Keys:', Object.keys(all))
     return res.json({
       result: {
         data: {

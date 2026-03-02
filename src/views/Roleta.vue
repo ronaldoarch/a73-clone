@@ -136,7 +136,10 @@ import { IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButton, IonBut
 import { apiUrl } from '@/config/api'
 import { useToast } from '@/composables/useToast'
 
-// Ordem e cores idênticas à referência (clockwise: 30, 100, 50, ???, mine, 1000, ????, ??)
+// Ordem do backend: [30, 100, 50, 20, 0, 1000, 10, 5]
+// Ordem na imagem (clockwise do topo): 1000, ????, ??, 30, 100, 50, ???, 😎
+// Mapeamento: prizeIndex -> posição na imagem (0=topo)
+const IMAGE_POSITION_FOR_PRIZE_INDEX = [3, 4, 5, 6, 7, 0, 1, 2]
 const wheelSegments = [
   { label: '30,00', value: 30, color: '#7c3aed' },
   { label: '100,00', value: 100, color: '#2563eb' },
@@ -244,7 +247,8 @@ async function doSpin() {
     }
     lastPrizeIndex.value = prizeIndex
     const segmentAngle = 360 / wheelSegments.length
-    const targetAngle = 360 * 6 + (360 - prizeIndex * segmentAngle - segmentAngle / 2)
+    const imagePos = IMAGE_POSITION_FOR_PRIZE_INDEX[prizeIndex] ?? prizeIndex
+    const targetAngle = 360 * 6 + (imagePos * segmentAngle + segmentAngle / 2)
     wheelRotation.value += targetAngle
     resultPrize.value = prize
     resultModalType.value = prize > 0 ? 'win' : 'lose'

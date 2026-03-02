@@ -24,7 +24,7 @@ async function trpcPost(path, data) {
 }
 
 async function trpcGet(path) {
-  const res = await fetch(apiUrl(path), { headers: getAuthHeaders() })
+  const res = await fetch(apiUrl(path), { headers: getAuthHeaders(), cache: 'no-store' })
   const json = await res.json()
   if (json.error) throw new Error(json.error.message || 'Erro')
   return json.result?.data?.json
@@ -44,7 +44,7 @@ export const afiliadoApi = {
   },
 
   async depositoPixStatus(externalId) {
-    return trpcGet('/api/deposito/pix/status/' + encodeURIComponent(externalId))
+    return trpcGet('/api/deposito/pix/status/' + encodeURIComponent(externalId) + '?t=' + Date.now())
   },
 
   async reclamarPromo(pessoas) {

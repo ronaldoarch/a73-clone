@@ -297,7 +297,7 @@ async function doDeposit() {
     }
     pixModalOpen.value = true
     if (pixPollInterval) clearInterval(pixPollInterval)
-    pixPollInterval = setInterval(pollPixStatus, 4000)
+    pixPollInterval = setInterval(pollPixStatus, 2000)
     pollPixStatus()
   } catch (e) {
     toast.error(e?.message || 'Erro ao gerar PIX. Verifique se o Gatebox está configurado.')

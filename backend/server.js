@@ -39,20 +39,31 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')))
 
 // POST webhook Gatebox - recebe eventos PIX (PIX_PAY_IN, etc.) - sem auth
 app.post('/api/webhook/gatebox', async (req, res) => {
+  const body = req.body || {}
+  const eventType = (body.type || body.eventType || body.event || '').toUpperCase()
+  const externalId = body.externalId || body.data?.externalId || body.transactionId || body.id ||
+    body.conciliationId || body.conciliation_id || body.reference || body.pixChargeIdConciliation
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('Webhook Gatebox:', { eventType, externalId, keys: Object.keys(body) })
+  }
+  res.status(200).json({ ok: true })
   try {
-    res.status(200).json({ ok: true })
-    const body = req.body || {}
-    const eventType = (body.type || body.eventType || body.event || '').toUpperCase()
     if (!eventType || !['PIX_PAY_IN', 'PIX_PAYIN', 'PAY_IN', 'PIX PAY IN'].includes(eventType.replace(/\s/g, '_'))) return
-    const externalId = body.externalId || body.data?.externalId || body.transactionId || body.id
     if (!externalId) return
-    const deposit = await prisma.deposit.findFirst({
-      where: { externalId: String(externalId), status: 'pendente' },
+    const extStr = String(externalId).trim()
+    let deposit = await prisma.deposit.findFirst({
+      where: { externalId: extStr, status: 'pendente' },
       include: { user: true }
     })
+    if (!deposit) {
+      deposit = await prisma.deposit.findFirst({
+        where: { id: extStr, status: 'pendente' },
+        include: { user: true }
+      })
+    }
     if (!deposit) return
     await confirmarDepositoPix(deposit)
-    console.log('Webhook Gatebox: depósito', externalId, 'confirmado')
+    console.log('Webhook Gatebox: depósito', extStr, 'confirmado')
   } catch (e) {
     console.error('Webhook Gatebox:', e)
   }
@@ -522,6 +533,8 @@ app.post('/api/deposito/pix', authMiddleware, async (req, res) => {
 
 // GET status depósito PIX - polling até pagamento confirmado
 app.get('/api/deposito/pix/status/:externalId', authMiddleware, async (req, res) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate')
+  res.set('Pragma', 'no-cache')
   try {
     const { externalId } = req.params
     if (!externalId) return res.status(400).json({ error: { message: 'externalId obrigatório' } })

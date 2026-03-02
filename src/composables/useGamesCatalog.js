@@ -8,6 +8,7 @@ import { apiUrl } from '@/config/api'
 export function useGamesCatalog() {
   const providers = ref([])
   const gamesByProvider = ref({})
+  const homeProviders = ref([]) // códigos dos provedores a exibir na home (vazio = todos)
   const loading = ref(false)
   const error = ref('')
 
@@ -21,6 +22,7 @@ export function useGamesCatalog() {
       const data = await r.json()
       providers.value = data.providers || []
       gamesByProvider.value = data.gamesByProvider || {}
+      homeProviders.value = data.homeProviders || []
     } catch (e) {
       const msg = e.message || 'Erro ao carregar jogos'
       error.value = msg.includes('fetch') || msg.includes('Failed') ? 'Verifique o proxy (BACKEND_URL) e VITE_API_URL vazio no build' : msg
@@ -31,5 +33,5 @@ export function useGamesCatalog() {
     }
   }
 
-  return { providers, gamesByProvider, loading, error, load }
+  return { providers, gamesByProvider, homeProviders, loading, error, load }
 }

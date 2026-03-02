@@ -31,7 +31,7 @@
         </button>
 
         <h3 class="withdraw-section-title">Conta Saldo</h3>
-        <p class="withdraw-balance">R$ {{ balance }}</p>
+        <p class="withdraw-balance">R$ {{ balanceFormatted }}</p>
 
         <div class="withdraw-amount-row">
           <input
@@ -80,8 +80,8 @@
           />
         </div>
 
-        <ion-button class="withdraw-submit-btn" expand="block" @click="retirarAgora">
-          Retirar Agora
+        <ion-button class="withdraw-submit-btn" expand="block" @click="retirarAgora" :disabled="loading">
+          {{ loading ? 'Processando...' : 'Retirar Agora' }}
         </ion-button>
       </div>
     </ion-content>
@@ -89,13 +89,19 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import {
-  IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButton, IonIcon
+  IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButton, IonIcon,
+  onIonViewWillEnter
 } from '@ionic/vue'
+import { useAfiliado } from '@/composables/useAfiliado'
+import { afiliadoApi } from '@/api/afiliado'
+import { useToast } from '@/composables/useToast'
 
+const { balanceFormatted, balance, refresh } = useAfiliado()
+const toast = useToast()
+const loading = ref(false)
 const isLoggedIn = computed(() => !!localStorage.getItem('token'))
-const balance = ref('0,00')
 const amount = ref('')
 const nome = ref('')
 const cpfId = ref('')
@@ -108,16 +114,64 @@ function formatVal(n) {
 }
 
 function setMax() {
-  amount.value = '40.000,00'
+  const max = typeof balance.value === 'number' ? balance.value : 0
+  amount.value = formatVal(max || 40000)
 }
 
 function openSupport() {
   window.open('https://wa.me/', '_blank')
 }
 
-function retirarAgora() {
-  // placeholder - submit withdrawal
+async function retirarAgora() {
+  const v = parseFloat(String(amount.value).replace(/\./g, '').replace(',', '.')) || 0
+  if (v < 20) {
+    toast.error('Valor mínimo R$ 20,00')
+    return
+  }
+  if (v > 40000) {
+    toast.error('Valor máximo R$ 40.000,00')
+    return
+  }
+  const saldo = typeof balance.value === 'number' ? balance.value : 0
+  if (v > saldo) {
+    toast.error('Saldo insuficiente')
+    return
+  }
+  if (!nome.value?.trim()) {
+    toast.error('Informe o nome')
+    return
+  }
+  if (!cpfId.value?.trim()) {
+    toast.error('Informe o CPF')
+    return
+  }
+  loading.value = true
+  try {
+    const r = await afiliadoApi.saque({
+      valor: v,
+      metodo: metodo.value,
+      nome: nome.value.trim(),
+      cpfId: cpfId.value.trim()
+    })
+    if (r?.ok) {
+      toast.success(`Saque de R$ ${formatVal(v)} solicitado!`)
+      amount.value = ''
+      await refresh()
+    }
+  } catch (e) {
+    const msg = e?.message || e?.error?.message || 'Erro ao solicitar saque'
+    toast.error(msg)
+  } finally {
+    loading.value = false
+  }
 }
+
+onMounted(() => {
+  if (localStorage.getItem('token')) refresh()
+})
+onIonViewWillEnter(() => {
+  if (localStorage.getItem('token')) refresh()
+})
 </script>
 
 <style scoped>

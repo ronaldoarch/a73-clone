@@ -1,5 +1,5 @@
 /**
- * Settings da plataforma (logo, banner) - carregados do backend
+ * Settings da plataforma (logo, banner, app) - carregados do backend
  */
 import { ref, onMounted } from 'vue'
 import { apiUrl } from '@/config/api'

@@ -12,8 +12,10 @@ const BASE_URL = typeof window !== 'undefined' ? (window.location.origin + windo
 const defaultData = () => ({
   // Afiliado
   pid: '',
+  balance: 0,
   subDiretos: 0,
   subValidos: 0,
+  subEfetivos: 0,
   subOutros: 0,
   novosSubordinados: 0,
   valorDeposito: 0,
@@ -166,6 +168,8 @@ export function useAfiliado() {
     set: (v) => { state.value.bonusPromoReclamados = v }
   })
 
+  const balance = computed(() => state.value.balance ?? 0)
+  const balanceFormatted = computed(() => fmt(balance.value))
   const novosSubordinados = computed(() => state.value.novosSubordinados ?? 0)
   const valorDeposito = computed(() => fmt(state.value.valorDeposito ?? 0))
   const numDepositos = computed(() => state.value.numDepositos ?? 0)
@@ -191,7 +195,7 @@ export function useAfiliado() {
   ]
 
   const recompensasDisponiveis = computed(() => {
-    const validos = state.value.subValidos
+    const validos = state.value.subEfetivos ?? state.value.subValidos
     const reclamados = state.value.bonusPromoReclamados || []
     return recompensasPromo.filter(r => r.pessoas <= validos && !reclamados.some(x => x.pessoas === r.pessoas))
   })
@@ -379,6 +383,8 @@ export function useAfiliado() {
 
   return {
     state,
+    balance,
+    balanceFormatted,
     linkConvite,
     idIndicacao,
     subDiretos,

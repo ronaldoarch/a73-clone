@@ -58,5 +58,9 @@ export const afiliadoApi = {
   async getPid() {
     const r = await trpcGet('/api/afiliado/pid')
     return r?.pid
+  },
+
+  async saque(data) {
+    return trpcPost('/api/saque', data)
   }
 }

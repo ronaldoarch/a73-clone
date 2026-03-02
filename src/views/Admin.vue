@@ -5,6 +5,7 @@
       <div class="admin-login-box">
         <h1>🎰 A73 Admin</h1>
         <form @submit.prevent="adminLogin">
+          <div v-if="adminLoginError" class="admin-login-error">{{ adminLoginError }}</div>
           <div class="form-group">
             <label>Usuário</label>
             <input v-model="adminUser" type="text" placeholder="admin" />
@@ -58,56 +59,93 @@
 
         <!-- Dashboard -->
         <section v-show="activeSection === 'dashboard'" class="admin-section">
-          <div class="cards">
-            <div class="card"><div class="card-label">Usuários ativos</div><div class="card-value">1.247</div></div>
-            <div class="card"><div class="card-label">Depósitos hoje</div><div class="card-value green">R$ 12.450</div></div>
-            <div class="card"><div class="card-label">Saques pendentes</div><div class="card-value">R$ 3.200</div></div>
-            <div class="card"><div class="card-label">Banca total</div><div class="card-value">R$ 89.320</div></div>
-          </div>
-          <div class="table-wrap">
-            <table>
-              <thead><tr><th>Atividade recente</th><th>Valor</th><th>Status</th><th>Data</th></tr></thead>
-              <tbody>
-                <tr><td>Depósito - user_***42</td><td>R$ 50,00</td><td><span class="badge badge-success">Aprovado</span></td><td>25/02 14:32</td></tr>
-                <tr><td>Saque - user_***18</td><td>R$ 120,00</td><td><span class="badge badge-pending">Pendente</span></td><td>25/02 14:28</td></tr>
-              </tbody>
-            </table>
-          </div>
+          <div v-if="dashboardLoading" class="card-label">Carregando...</div>
+          <template v-else>
+            <div class="cards">
+              <div class="card"><div class="card-label">Usuários</div><div class="card-value">{{ dashboard.usersCount }}</div></div>
+              <div class="card"><div class="card-label">Depósitos hoje</div><div class="card-value green">R$ {{ formatBr(dashboard.depositsToday) }}</div></div>
+              <div class="card"><div class="card-label">Saques pendentes</div><div class="card-value">R$ {{ formatBr(dashboard.withdrawalsPending) }}</div></div>
+              <div class="card"><div class="card-label">Total depósitos</div><div class="card-value">R$ {{ formatBr(dashboard.totalDeposits) }}</div></div>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Atividade recente</th><th>Valor</th><th>Status</th><th>Data</th></tr></thead>
+                <tbody>
+                  <tr v-for="(d, i) in dashboard.recentDeposits" :key="'d-' + i"><td>Depósito - {{ d.user }}</td><td>R$ {{ formatBr(d.valor) }}</td><td><span class="badge badge-success">{{ d.status }}</span></td><td>{{ d.data }}</td></tr>
+                  <tr v-for="(w, i) in dashboard.recentWithdrawals" :key="'w-' + i"><td>Saque - {{ w.user }}</td><td>R$ {{ formatBr(w.valor) }}</td><td><span class="badge badge-pending">{{ w.status }}</span></td><td>{{ w.data }}</td></tr>
+                  <tr v-if="dashboard.recentDeposits.length === 0 && dashboard.recentWithdrawals.length === 0"><td colspan="4" class="admin-empty">Nenhuma atividade recente</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </template>
         </section>
 
         <!-- Usuários -->
         <section v-show="activeSection === 'usuarios'" class="admin-section">
-          <div class="table-wrap">
+          <div class="admin-list-toolbar">
+            <input v-model="usuariosSearch" type="text" placeholder="Buscar por usuário ou telefone..." class="admin-search-input" @keyup.enter="loadUsuarios" />
+            <button type="button" class="btn btn-primary" :disabled="usuariosLoading" @click="loadUsuarios">{{ usuariosLoading ? 'Carregando...' : 'Buscar' }}</button>
+          </div>
+          <div v-if="usuariosLoading" class="card-label">Carregando usuários...</div>
+          <div v-else class="table-wrap">
             <table>
-              <thead><tr><th>ID</th><th>Usuário</th><th>Saldo</th><th>Registro</th><th>Ações</th></tr></thead>
+              <thead><tr><th>Usuário</th><th>Telefone</th><th>Saldo</th><th>Depósitos</th><th>Apostas</th><th>Registro</th></tr></thead>
               <tbody>
-                <tr v-for="u in usuarios" :key="u.id"><td>{{ u.id }}</td><td>{{ u.user }}</td><td>{{ u.saldo }}</td><td>{{ u.reg }}</td><td><button class="btn btn-ghost">Ver</button></td></tr>
+                <tr v-for="u in usuarios" :key="u.id"><td>{{ u.account }}</td><td>{{ u.phone }}</td><td>R$ {{ formatBr(u.balance) }}</td><td>R$ {{ formatBr(u.valorDeposito) }}</td><td>R$ {{ formatBr(u.apostaAcumulada) }}</td><td>{{ u.createdAt }}</td></tr>
               </tbody>
             </table>
+            <div v-if="usuarios.length === 0" class="admin-empty">Nenhum usuário encontrado.</div>
           </div>
         </section>
 
         <!-- Depósitos -->
         <section v-show="activeSection === 'depositos'" class="admin-section">
-          <div class="table-wrap">
+          <div v-if="depositosLoading" class="card-label">Carregando depósitos...</div>
+          <div v-else class="table-wrap">
             <table>
-              <thead><tr><th>ID</th><th>Usuário</th><th>Valor</th><th>Método</th><th>Status</th><th>Data</th></tr></thead>
+              <thead><tr><th>Usuário</th><th>Valor</th><th>Data</th></tr></thead>
               <tbody>
-                <tr v-for="d in depositos" :key="d.id"><td>{{ d.id }}</td><td>{{ d.user }}</td><td>{{ d.valor }}</td><td>{{ d.metodo }}</td><td><span :class="['badge', d.badge]">{{ d.status }}</span></td><td>{{ d.data }}</td></tr>
+                <tr v-for="d in depositos" :key="d.id"><td>{{ d.user }}</td><td>R$ {{ formatBr(d.valor) }}</td><td>{{ d.createdAt }}</td></tr>
               </tbody>
             </table>
+            <div v-if="depositos.length === 0" class="admin-empty">Nenhum depósito encontrado.</div>
           </div>
         </section>
 
         <!-- Saques -->
         <section v-show="activeSection === 'saques'" class="admin-section">
-          <div class="table-wrap">
+          <div class="admin-list-toolbar">
+            <select v-model="saquesStatusFilter" class="admin-select" @change="loadSaques">
+              <option value="">Todos</option>
+              <option value="pendente">Pendentes</option>
+              <option value="concluido">Concluídos</option>
+              <option value="recusado">Recusados</option>
+            </select>
+            <button type="button" class="btn btn-primary" :disabled="saquesLoading" @click="loadSaques">{{ saquesLoading ? 'Carregando...' : 'Atualizar' }}</button>
+          </div>
+          <div v-if="saquesLoading" class="card-label">Carregando saques...</div>
+          <div v-else class="table-wrap">
             <table>
-              <thead><tr><th>ID</th><th>Usuário</th><th>Valor</th><th>Chave PIX</th><th>Status</th><th>Ação</th></tr></thead>
+              <thead><tr><th>Usuário</th><th>Valor</th><th>Método</th><th>Nome/CPF</th><th>Status</th><th>Data</th><th>Ação</th></tr></thead>
               <tbody>
-                <tr v-for="s in saques" :key="s.id"><td>{{ s.id }}</td><td>{{ s.user }}</td><td>{{ s.valor }}</td><td>{{ s.pix }}</td><td><span :class="['badge', s.badge]">{{ s.status }}</span></td><td><button v-if="s.pendente" class="btn btn-primary">Aprovar</button><span v-else>-</span></td></tr>
+                <tr v-for="s in saques" :key="s.id">
+                  <td>{{ s.user }}</td>
+                  <td>R$ {{ formatBr(s.valor) }}</td>
+                  <td>{{ s.metodo }}</td>
+                  <td>{{ s.nome || s.cpfId || '-' }}</td>
+                  <td><span :class="['badge', s.status === 'concluido' ? 'badge-success' : s.status === 'recusado' ? 'badge-danger' : 'badge-pending']">{{ s.status }}</span></td>
+                  <td>{{ s.createdAt }}</td>
+                  <td>
+                    <template v-if="s.status === 'pendente'">
+                      <button type="button" class="btn btn-primary btn-sm" :disabled="saqueActionLoading === s.id" @click="aprovarSaque(s.id)">Aprovar</button>
+                      <button type="button" class="btn btn-ghost btn-sm btn-danger" :disabled="saqueActionLoading === s.id" @click="rejeitarSaque(s.id)">Recusar</button>
+                    </template>
+                    <span v-else>-</span>
+                  </td>
+                </tr>
               </tbody>
             </table>
+            <div v-if="saques.length === 0" class="admin-empty">Nenhum saque encontrado.</div>
           </div>
         </section>
 
@@ -143,6 +181,50 @@
             </table>
           </div>
           <div style="margin-top: 1rem;"><button class="btn btn-primary" @click="openModalAfiliado()">+ Novo afiliado</button></div>
+        </section>
+
+        <!-- Configurações -->
+        <section v-show="activeSection === 'config'" class="admin-section">
+          <div class="card">
+            <h3>Configurações da plataforma</h3>
+            <div v-if="configLoading" class="card-label">Carregando...</div>
+            <form v-else @submit.prevent="saveConfig" class="config-form">
+              <div class="config-grid">
+                <div class="form-group">
+                  <label>Saque mínimo (R$)</label>
+                  <input v-model.number="appConfig.saqueMin" type="number" min="1" step="1" />
+                </div>
+                <div class="form-group">
+                  <label>Saque máximo (R$)</label>
+                  <input v-model.number="appConfig.saqueMax" type="number" min="1" step="1" />
+                </div>
+                <div class="form-group">
+                  <label>Roleta: mínimo para saque (R$)</label>
+                  <input v-model.number="appConfig.roletaMinWithdraw" type="number" min="1" step="1" />
+                </div>
+                <div class="form-group">
+                  <label>Roleta: dias de validade do prêmio</label>
+                  <input v-model.number="appConfig.roletaBonusDays" type="number" min="1" max="30" step="1" />
+                </div>
+                <div class="form-group">
+                  <label>Roleta: giros por dia</label>
+                  <input v-model.number="appConfig.roletaDailySpins" type="number" min="1" max="10" step="1" />
+                </div>
+                <div class="form-group">
+                  <label>Bônus 1º depósito fixo (R$)</label>
+                  <input v-model.number="appConfig.bonusPrimeiroDep" type="number" min="0" step="0.01" />
+                </div>
+                <div class="form-group">
+                  <label>Bônus 1º depósito (% do valor)</label>
+                  <input v-model.number="appConfig.bonusPrimeiroDepPercent" type="number" min="0" max="100" step="0.5" />
+                </div>
+              </div>
+              <div class="config-actions">
+                <button type="submit" class="btn btn-primary" :disabled="configSaving">{{ configSaving ? 'Salvando...' : 'Salvar' }}</button>
+                <span v-if="configMsg" class="config-msg" :class="{ error: configError }">{{ configMsg }}</span>
+              </div>
+            </form>
+          </div>
         </section>
 
         <!-- Tema -->
@@ -324,6 +406,29 @@
           </div>
         </section>
 
+        <!-- Provedores na Home -->
+        <section v-show="activeSection === 'provedores'" class="admin-section">
+          <div class="card">
+            <h3>Provedores exibidos na Home</h3>
+            <p class="card-label" style="margin-bottom: 1rem;">Selecione quais provedores aparecem nos hexágonos e no carrossel da página inicial. Deixe vazio para mostrar todos.</p>
+            <div v-if="homeProvidersLoading" class="card-label">Carregando provedores...</div>
+            <div v-else class="home-providers-grid">
+              <label v-for="p in homeProvidersList" :key="p.code" class="home-provider-check">
+                <input type="checkbox" :value="p.code" v-model="homeProvidersSelected" />
+                <span>{{ p.name }}</span>
+              </label>
+            </div>
+            <div v-if="homeProvidersList.length === 0 && !homeProvidersLoading" class="card-label">Nenhum provedor disponível. Carregue o catálogo na seção API de Jogos primeiro.</div>
+            <div class="home-providers-actions">
+              <button type="button" class="btn btn-primary" :disabled="homeProvidersSaving" @click="saveHomeProviders">
+                {{ homeProvidersSaving ? 'Salvando...' : 'Salvar' }}
+              </button>
+              <button type="button" class="btn btn-ghost" @click="homeProvidersSelected = []">Limpar (mostrar todos)</button>
+              <span v-if="homeProvidersMsg" class="home-providers-msg" :class="{ error: homeProvidersError }">{{ homeProvidersMsg }}</span>
+            </div>
+          </div>
+        </section>
+
         <!-- Mídia -->
         <section v-show="activeSection === 'midia'" class="admin-section">
           <div class="card" style="margin-bottom: 1.5rem;">
@@ -445,6 +550,7 @@
 
 <script setup>
 import { ref, computed, watch, h, onMounted } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { IonPage } from '@ionic/vue'
 import { igamewinApi } from '@/api/igamewin'
 import { useSettings } from '@/composables/useSettings'
@@ -457,19 +563,45 @@ const defaultTheme = {
   border: '#2a2a3a', text: '#e5e7eb', textMuted: '#9ca3af', success: '#10b981', danger: '#ef4444', icon: '/s5/app-icon/1222508/LOGO.jpg'
 }
 
-const adminLoggedIn = ref(!!localStorage.getItem('admin_a73'))
+const router = useRouter()
+const route = useRoute()
+const VALID_SECTIONS = ['dashboard', 'usuarios', 'depositos', 'saques', 'afiliados', 'config', 'jogos', 'provedores', 'tema', 'midia']
+
+const ADMIN_TOKEN_KEY = 'admin_token'
+const adminLoggedIn = ref(!!localStorage.getItem(ADMIN_TOKEN_KEY))
 const adminUser = ref('admin')
 const adminPass = ref('admin123')
+const adminLoginError = ref('')
+
+function getAdminToken() {
+  return localStorage.getItem(ADMIN_TOKEN_KEY)
+}
+
+function adminFetch(url, opts = {}) {
+  const token = getAdminToken()
+  const headers = { ...opts.headers }
+  if (token) headers.Authorization = 'Bearer ' + token
+  return fetch(apiUrl(url), { ...opts, headers }).then(r => {
+    if (r.status === 401 || r.status === 403) {
+      localStorage.removeItem(ADMIN_TOKEN_KEY)
+      adminLoggedIn.value = false
+      throw new Error('Sessão expirada. Faça login novamente.')
+    }
+    return r
+  })
+}
 const activeSection = ref('dashboard')
 const padraoSalvo = ref(false)
 const sidebarOpen = ref(false)
 
 function selectSection(id) {
+  if (!VALID_SECTIONS.includes(id)) id = 'dashboard'
   activeSection.value = id
   sidebarOpen.value = false
+  router.replace({ path: `/admin/${id}` })
 }
 
-const titles = { dashboard: 'Dashboard', usuarios: 'Usuários', depositos: 'Depósitos', saques: 'Saques', afiliados: 'Afiliados', jogos: 'API de Jogos', tema: 'Tema', midia: 'Logo e Banners' }
+const titles = { dashboard: 'Dashboard', usuarios: 'Usuários', depositos: 'Depósitos', saques: 'Saques', afiliados: 'Afiliados', config: 'Configurações', jogos: 'API de Jogos', provedores: 'Provedores na Home', tema: 'Tema', midia: 'Logo e Banners' }
 
 const sections = [
   { id: 'dashboard', label: 'Dashboard', icon: () => h('svg', { fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z' })]) },
@@ -477,14 +609,173 @@ const sections = [
   { id: 'depositos', label: 'Depósitos', icon: () => h('svg', { fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z' })]) },
   { id: 'saques', label: 'Saques', icon: () => h('svg', { fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z' })]) },
   { id: 'afiliados', label: 'Afiliados', icon: () => h('svg', { fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M17 20h5v-2a3 3 0 00-5.356-1.857M7 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z' })]) },
+  { id: 'config', label: 'Configurações', icon: () => h('svg', { fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z' }), h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M15 12a3 3 0 11-6 0 3 3 0 016 0z' })]) },
   { id: 'jogos', label: 'API de Jogos', icon: () => h('svg', { fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z' }), h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M21 12a9 9 0 11-18 0 9 9 0 0118 0z' })]) },
+  { id: 'provedores', label: 'Provedores na Home', icon: () => h('svg', { fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10' })]) },
   { id: 'tema', label: 'Tema', icon: () => h('svg', { fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01' })]) },
   { id: 'midia', label: 'Logo e Banners', icon: () => h('svg', { fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z' })]) },
 ]
 
-const usuarios = [{ id: 1001, user: 'user_***42', saldo: 'R$ 85,00', reg: '20/02/2025' }, { id: 1002, user: 'user_***18', saldo: 'R$ 0,00', reg: '22/02/2025' }, { id: 1003, user: 'user_***91', saldo: 'R$ 210,50', reg: '24/02/2025' }]
-const depositos = [{ id: 'D-4521', user: 'user_***42', valor: 'R$ 50,00', metodo: 'PIX', status: 'Aprovado', badge: 'badge-success', data: '25/02 14:32' }, { id: 'D-4520', user: 'user_***91', valor: 'R$ 25,00', metodo: 'PIX', status: 'Aprovado', badge: 'badge-success', data: '25/02 14:15' }, { id: 'D-4519', user: 'user_***77', valor: 'R$ 100,00', metodo: 'PIX', status: 'Pendente', badge: 'badge-pending', data: '25/02 13:58' }]
-const saques = [{ id: 'S-1203', user: 'user_***18', valor: 'R$ 120,00', pix: '***@email.com', status: 'Pendente', badge: 'badge-pending', pendente: true }, { id: 'S-1202', user: 'user_***55', valor: 'R$ 80,00', pix: '***123', status: 'Pago', badge: 'badge-success', pendente: false }]
+const usuarios = ref([])
+const usuariosLoading = ref(false)
+const usuariosSearch = ref('')
+const depositos = ref([])
+const depositosLoading = ref(false)
+const saques = ref([])
+const saquesLoading = ref(false)
+const saquesStatusFilter = ref('pendente')
+const saqueActionLoading = ref(null)
+
+const dashboard = ref({ usersCount: 0, depositsToday: 0, withdrawalsPending: 0, totalDeposits: 0, recentDeposits: [], recentWithdrawals: [] })
+const dashboardLoading = ref(false)
+
+const appConfig = ref({ saqueMin: 20, saqueMax: 40000, roletaMinWithdraw: 100, roletaBonusDays: 3, roletaDailySpins: 1, bonusPrimeiroDep: 0, bonusPrimeiroDepPercent: 0 })
+const configLoading = ref(false)
+const configSaving = ref(false)
+const configMsg = ref('')
+const configError = ref(false)
+
+async function loadDashboard() {
+  dashboardLoading.value = true
+  try {
+    const r = await adminFetch('/api/admin/dashboard')
+    const data = await r.json()
+    dashboard.value = data
+  } catch (e) {
+    dashboard.value = { usersCount: 0, depositsToday: 0, withdrawalsPending: 0, totalDeposits: 0, recentDeposits: [], recentWithdrawals: [] }
+  } finally {
+    dashboardLoading.value = false
+  }
+}
+
+async function loadConfig() {
+  configLoading.value = true
+  try {
+    const r = await adminFetch('/api/admin/config')
+    const data = await r.json()
+    appConfig.value = data
+  } catch (e) {
+    appConfig.value = { saqueMin: 20, saqueMax: 40000, roletaMinWithdraw: 100, roletaBonusDays: 3, roletaDailySpins: 1, bonusPrimeiroDep: 0, bonusPrimeiroDepPercent: 0 }
+  } finally {
+    configLoading.value = false
+  }
+}
+
+async function saveConfig() {
+  configSaving.value = true
+  configMsg.value = ''
+  configError.value = false
+  try {
+    const r = await adminFetch('/api/admin/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(appConfig.value)
+    })
+    const data = await r.json()
+    if (data?.ok) {
+      configMsg.value = 'Configurações salvas!'
+    } else {
+      configMsg.value = data?.error || 'Erro ao salvar'
+      configError.value = true
+    }
+  } catch (e) {
+    configMsg.value = e.message || 'Erro ao salvar'
+    configError.value = true
+  } finally {
+    configSaving.value = false
+  }
+  setTimeout(() => { configMsg.value = '' }, 4000)
+}
+
+function formatBr(val) {
+  const n = Number(val) || 0
+  return n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+async function loadUsuarios() {
+  usuariosLoading.value = true
+  try {
+    const r = await adminFetch('/api/admin/usuarios' + (usuariosSearch.value ? '?q=' + encodeURIComponent(usuariosSearch.value) : ''))
+    const data = await r.json()
+    usuarios.value = data.list || []
+  } catch (e) {
+    usuarios.value = []
+  } finally {
+    usuariosLoading.value = false
+  }
+}
+
+async function loadDepositos() {
+  depositosLoading.value = true
+  try {
+    const r = await adminFetch('/api/admin/depositos')
+    const data = await r.json()
+    depositos.value = data.list || []
+  } catch (e) {
+    depositos.value = []
+  } finally {
+    depositosLoading.value = false
+  }
+}
+
+async function loadSaques() {
+  saquesLoading.value = true
+  try {
+    const q = saquesStatusFilter.value ? '?status=' + saquesStatusFilter.value : ''
+    const r = await adminFetch('/api/admin/saques' + q)
+    const data = await r.json()
+    saques.value = data.list || []
+  } catch (e) {
+    saques.value = []
+  } finally {
+    saquesLoading.value = false
+  }
+}
+
+async function aprovarSaque(id) {
+  saqueActionLoading.value = id
+  try {
+    const r = await adminFetch('/api/admin/saques/' + id, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'concluido' })
+    })
+    const data = await r.json()
+    if (data?.ok) {
+      const idx = saques.value.findIndex(s => s.id === id)
+      if (idx >= 0) saques.value[idx].status = 'concluido'
+    } else {
+      alert(data?.error || 'Erro ao aprovar')
+    }
+  } catch (e) {
+    alert(e.message || 'Erro ao aprovar')
+  } finally {
+    saqueActionLoading.value = null
+  }
+}
+
+async function rejeitarSaque(id) {
+  if (!confirm('Recusar este saque? O valor será devolvido ao saldo do usuário.')) return
+  saqueActionLoading.value = id
+  try {
+    const r = await adminFetch('/api/admin/saques/' + id, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'recusado' })
+    })
+    const data = await r.json()
+    if (data?.ok) {
+      const idx = saques.value.findIndex(s => s.id === id)
+      if (idx >= 0) saques.value[idx].status = 'recusado'
+    } else {
+      alert(data?.error || 'Erro ao recusar')
+    }
+  } catch (e) {
+    alert(e.message || 'Erro ao recusar')
+  } finally {
+    saqueActionLoading.value = null
+  }
+}
 
 const configPadrao = ref(JSON.parse(localStorage.getItem('a73_config_padrao_afiliado') || '{"porcentagem":20,"tipo":"primeiro"}'))
 const afiliados = ref([
@@ -544,6 +835,56 @@ const slotRtpUsers = ref('')
 const slotDemoStart = ref(3)
 const slotDemoEnd = ref(7)
 const slotDemoUsers = ref('')
+
+// Provedores na Home
+const homeProvidersList = ref([])
+const homeProvidersSelected = ref([])
+const homeProvidersLoading = ref(false)
+const homeProvidersSaving = ref(false)
+const homeProvidersMsg = ref('')
+const homeProvidersError = ref(false)
+
+async function loadHomeProviders() {
+  homeProvidersLoading.value = true
+  homeProvidersMsg.value = ''
+  try {
+    const r = await adminFetch('/api/igamewin/catalog?refresh=1')
+    const data = await r.json()
+    homeProvidersList.value = (data.providers || []).map(p => ({ code: p.code, name: p.name || p.code }))
+    homeProvidersSelected.value = [...(data.homeProviders || [])]
+  } catch (e) {
+    homeProvidersMsg.value = e.message || 'Erro ao carregar'
+    homeProvidersError.value = true
+  } finally {
+    homeProvidersLoading.value = false
+  }
+}
+
+async function saveHomeProviders() {
+  homeProvidersSaving.value = true
+  homeProvidersMsg.value = ''
+  homeProvidersError.value = false
+  try {
+    const r = await adminFetch('/api/settings/home-providers', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ homeProviders: homeProvidersSelected.value })
+    })
+    const data = await r.json()
+    if (data?.ok) {
+      homeProvidersMsg.value = 'Salvo! A home exibirá apenas os provedores selecionados.'
+    } else {
+      homeProvidersMsg.value = data?.error || 'Erro ao salvar'
+      homeProvidersError.value = true
+    }
+  } catch (e) {
+    homeProvidersMsg.value = e.message || 'Erro ao salvar'
+    homeProvidersError.value = true
+  } finally {
+    homeProvidersSaving.value = false
+  }
+  setTimeout(() => { homeProvidersMsg.value = '' }, 4000)
+}
 
 function parseUserCodes(str) {
   if (!str || !String(str).trim()) return null
@@ -719,7 +1060,7 @@ onMounted(() => {
   })
 })
 
-const { logoUrl, bannerUrl } = useSettings()
+const { logoUrl, bannerUrl, load: loadSettings } = useSettings()
 const logoFile = ref(null)
 const bannerFile = ref(null)
 const logoMsg = ref('')
@@ -727,14 +1068,31 @@ const logoMsgError = ref(false)
 const bannerMsg = ref('')
 const bannerMsgError = ref(false)
 
-function adminLogin() {
-  if (adminUser.value && adminPass.value) {
-    localStorage.setItem('admin_a73', '1')
-    adminLoggedIn.value = true
+async function adminLogin() {
+  adminLoginError.value = ''
+  if (!adminUser.value || !adminPass.value) {
+    adminLoginError.value = 'Usuário e senha obrigatórios'
+    return
+  }
+  try {
+    const r = await fetch(apiUrl('/api/admin/login'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user: adminUser.value, password: adminPass.value })
+    })
+    const data = await r.json()
+    if (data?.token) {
+      localStorage.setItem(ADMIN_TOKEN_KEY, data.token)
+      adminLoggedIn.value = true
+    } else {
+      adminLoginError.value = data?.error?.message || 'Credenciais inválidas'
+    }
+  } catch (e) {
+    adminLoginError.value = e.message || 'Erro ao conectar'
   }
 }
 function adminLogout() {
-  localStorage.removeItem('admin_a73')
+  localStorage.removeItem(ADMIN_TOKEN_KEY)
   adminLoggedIn.value = false
 }
 
@@ -841,12 +1199,24 @@ async function uploadBanner() {
 }
 
 watch(activeSection, async (s) => {
+  if (s === 'midia') loadSettings()
   if (s === 'tema') temas.value = getTemas()
   if (s === 'jogos') {
     await loadIgamewinConfigFromBackend()
     if (!igameConfig.value.sandbox && providers.value.length === 0) loadProviders()
   }
+  if (s === 'provedores') loadHomeProviders()
+  if (s === 'usuarios') loadUsuarios()
+  if (s === 'depositos') loadDepositos()
+  if (s === 'saques') loadSaques()
+  if (s === 'dashboard') loadDashboard()
+  if (s === 'config') loadConfig()
 })
+
+// Sincroniza seção com a URL (ex: /admin/usuarios)
+watch(() => route.params.section, (section) => {
+  if (section && VALID_SECTIONS.includes(section)) activeSection.value = section
+}, { immediate: true })
 </script>
 
 <style scoped>
@@ -859,6 +1229,7 @@ watch(activeSection, async (s) => {
 .form-group input { width: 100%; padding: 0.75rem 1rem; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 1rem; }
 .form-group input:focus { outline: none; border-color: var(--primary); }
 .admin-login-box .btn { width: 100%; justify-content: center; padding: 0.875rem; margin-top: 0.5rem; }
+.admin-login-error { padding: 0.75rem; background: rgba(239,68,68,0.15); border: 1px solid var(--danger); border-radius: 8px; color: var(--danger); font-size: 0.875rem; margin-bottom: 1rem; }
 .link-site { display: block; text-align: center; margin-top: 1.5rem; color: var(--text-muted); text-decoration: none; font-size: 0.875rem; }
 .link-site:hover { color: var(--primary); }
 
@@ -876,6 +1247,15 @@ watch(activeSection, async (s) => {
 .nav-item svg { width: 20px; height: 20px; flex-shrink: 0; }
 .admin-main { flex: 1; min-width: 0; padding: 2rem; overflow-y: auto; overflow-x: hidden; background: var(--bg); }
 .admin-section { width: 100%; max-width: 100%; min-width: 0; }
+.admin-list-toolbar { display: flex; gap: 1rem; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; }
+.admin-search-input { padding: 0.5rem 1rem; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 0.9rem; min-width: 220px; }
+.admin-select { padding: 0.5rem 1rem; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 0.9rem; }
+.admin-empty { padding: 2rem; text-align: center; color: var(--text-muted); font-size: 0.9rem; }
+.config-form { margin-top: 1rem; }
+.config-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1.5rem; margin-bottom: 1.5rem; }
+.config-actions { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+.config-msg { font-size: 0.875rem; color: var(--success); }
+.config-msg.error { color: var(--danger); }
 .admin-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; flex-wrap: wrap; gap: 1rem; }
 .admin-header h1 { font-size: 1.5rem; font-weight: 600; }
 .user-badge { display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 1rem; background: var(--card); border-radius: 8px; border: 1px solid var(--border); }
@@ -930,6 +1310,15 @@ tr:hover { background: rgba(255,255,255,0.02); }
 .padrao-msg { margin-top: 0.75rem; font-size: 0.875rem; color: var(--success); }
 .upload-msg { margin-top: 0.75rem; font-size: 0.875rem; }
 .upload-msg.error { color: var(--danger); }
+
+/* Provedores na Home */
+.home-providers-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 0.75rem; margin-bottom: 1.5rem; }
+.home-provider-check { display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.75rem; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; cursor: pointer; font-size: 0.875rem; color: var(--text); transition: all 0.2s; }
+.home-provider-check:hover { border-color: var(--primary); }
+.home-provider-check input { accent-color: var(--primary); }
+.home-providers-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; }
+.home-providers-msg { font-size: 0.875rem; color: var(--success); }
+.home-providers-msg.error { color: var(--danger); }
 
 /* API de Jogos */
 .api-jogos-card { margin-bottom: 1.5rem; }

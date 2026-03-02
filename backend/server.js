@@ -57,6 +57,54 @@ function authMiddleware(req, res, next) {
   }
 }
 
+/** Middleware Admin - verifica JWT com claim admin */
+function adminAuthMiddleware(req, res, next) {
+  const auth = req.headers.authorization
+  const token = auth?.startsWith('Bearer ') ? auth.slice(7) : null
+  if (!token) return res.status(401).json({ error: { message: 'Token obrigatório' } })
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET)
+    if (!decoded.admin) return res.status(403).json({ error: { message: 'Acesso negado' } })
+    req.admin = true
+    next()
+  } catch (e) {
+    return res.status(401).json({ error: { message: 'Token inválido ou expirado' } })
+  }
+}
+
+/** Obtém credenciais admin (Settings ou env) */
+async function getAdminCredentials() {
+  try {
+    const s = await prisma.setting.findUnique({ where: { id: 'admin' } })
+    const v = s?.value
+    if (v && typeof v === 'object' && v.user && v.passwordHash) {
+      return { user: v.user, passwordHash: v.passwordHash, fromDb: true }
+    }
+  } catch (e) { /* ignore */ }
+  return {
+    user: process.env.ADMIN_USER || 'admin',
+    password: process.env.ADMIN_PASSWORD || 'admin123',
+    fromDb: false
+  }
+}
+
+/** Configurações da plataforma (Saque, Roleta, Bônus) */
+async function getAppConfig() {
+  try {
+    const s = await prisma.setting.findUnique({ where: { id: 'config' } })
+    const v = s?.value || {}
+    return {
+      saqueMin: v.saqueMin ?? 20,
+      saqueMax: v.saqueMax ?? 40000,
+      roletaMinWithdraw: v.roletaMinWithdraw ?? 100,
+      roletaBonusDays: v.roletaBonusDays ?? 3,
+      roletaDailySpins: v.roletaDailySpins ?? 1,
+      bonusPrimeiroDep: v.bonusPrimeiroDep ?? 0,
+      bonusPrimeiroDepPercent: v.bonusPrimeiroDepPercent ?? 0
+    }
+  } catch (e) { return { saqueMin: 20, saqueMax: 40000, roletaMinWithdraw: 100, roletaBonusDays: 3, roletaDailySpins: 1, bonusPrimeiroDep: 0, bonusPrimeiroDepPercent: 0 } }
+}
+
 /** Garante AfiliadoData para o usuário */
 async function ensureAfiliado(userId, account) {
   let af = await prisma.afiliadoData.findUnique({ where: { userId } })
@@ -174,6 +222,7 @@ app.post('/api/frontend/trpc/user.register', async (req, res) => {
           updatedAt: new Date()
         }
       })
+      await addBonusSpinToIndicator(indicatorId)
     }
     const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '7d' })
     return res.json({
@@ -232,14 +281,52 @@ app.post('/api/upload/banner', upload.single('file'), async (req, res) => {
 
 // ========== Afiliado / Bônus (requer auth) ==========
 
+const MISTERIOSO_CICLO_DIAS = 32
+
+async function checkMisteriosoReset(af, user) {
+  const horaReg = af.horaRegisto || user?.createdAt
+  if (!horaReg) return af
+  const now = new Date()
+  const regDate = horaReg instanceof Date ? horaReg : new Date(horaReg)
+  const diasDesdeRegistro = (now - regDate) / (24 * 60 * 60 * 1000)
+  const cicloAtual = Math.floor(diasDesdeRegistro / MISTERIOSO_CICLO_DIAS)
+  const cicloSalvo = af.misteriosoCicloAtual ?? 0
+  if (cicloAtual > cicloSalvo) {
+    const updated = await prisma.afiliadoData.update({
+      where: { userId: af.userId },
+      data: {
+        misteriosoReclamado: false,
+        depositoMisterioso: 0,
+        misteriosoCicloAtual: cicloAtual,
+        updatedAt: now
+      }
+    })
+    return updated
+  }
+  return af
+}
+
 // GET afiliado - retorna dados completos
 app.get('/api/afiliado', authMiddleware, async (req, res) => {
   try {
-    const af = await ensureAfiliado(req.userId, (await prisma.user.findUnique({ where: { id: req.userId } }))?.account || '')
+    const user = await prisma.user.findUnique({ where: { id: req.userId } })
+    let af = await ensureAfiliado(req.userId, user?.account || '')
+    af = await checkMisteriosoReset(af, user)
+    const subordinados = await prisma.user.findMany({
+      where: { indicatorId: req.userId },
+      include: { afiliado: true }
+    })
+    const subEfetivos = subordinados.filter(u => {
+      const a = u.afiliado
+      if (!a) return false
+      return (a.valorDeposito ?? 0) >= PROMO_DEP_MIN && (a.apostaAcumulada ?? 0) >= PROMO_APOSTA_MIN
+    }).length
     const data = {
       pid: af.pid,
+      balance: af.balance ?? 0,
       subDiretos: af.subDiretos,
       subValidos: af.subValidos,
+      subEfetivos,
       subOutros: af.subOutros,
       novosSubordinados: af.novosSubordinados,
       valorDeposito: af.valorDeposito,
@@ -280,6 +367,11 @@ app.post('/api/deposito', authMiddleware, async (req, res) => {
     const user = await prisma.user.findUnique({ where: { id: req.userId }, include: { afiliado: true } })
     if (!user) return res.status(401).json({ error: { message: 'Usuário não encontrado' } })
     const af = await ensureAfiliado(req.userId, user.account)
+    const cfg = await getAppConfig()
+    const bonusPrimeiro = (af.numDepositos ?? 0) === 0
+      ? (cfg.bonusPrimeiroDep ?? 0) + (v * (cfg.bonusPrimeiroDepPercent ?? 0) / 100)
+      : 0
+    const balanceIncrement = v + bonusPrimeiro
     const rebate = v * 0.05
     const niveisVip = [
       { nivel: 0, aposta: 0, bonus: 0 },
@@ -305,7 +397,7 @@ app.post('/api/deposito', authMiddleware, async (req, res) => {
           depositoMisterioso: { increment: v },
           valorDeposito: { increment: v },
           numDepositos: { increment: 1 },
-          balance: { increment: v },
+          balance: { increment: balanceIncrement },
           coletavelRebate: { increment: rebate },
           comissaoPendente: { increment: rebate },
           comissaoHoje: { increment: rebate },
@@ -334,7 +426,11 @@ app.post('/api/deposito', authMiddleware, async (req, res) => {
   }
 })
 
-// POST reclamar bônus Promo
+// Promo: critérios para "número de promoção efetiva"
+const PROMO_DEP_MIN = 30
+const PROMO_APOSTA_MIN = 600
+
+// POST reclamar bônus Promo - usa "promoção efetiva": subordinados com dep≥30 e apostas≥600
 app.post('/api/afiliado/reclamar-promo', authMiddleware, async (req, res) => {
   try {
     const { pessoas } = req.body?.json || req.body || {}
@@ -351,13 +447,28 @@ app.post('/api/afiliado/reclamar-promo', authMiddleware, async (req, res) => {
     const r = recompensasPromo.find(x => x.pessoas === p)
     if (!r) return res.json({ error: { message: 'Recompensa não encontrada' } })
     const af = await ensureAfiliado(req.userId, (await prisma.user.findUnique({ where: { id: req.userId } }))?.account || '')
-    if (af.subValidos < p) return res.json({ error: { message: 'Subordinados insuficientes' } })
+    const subordinados = await prisma.user.findMany({
+      where: { indicatorId: req.userId },
+      include: { afiliado: true }
+    })
+    const subEfetivos = subordinados.filter(u => {
+      const a = u.afiliado
+      if (!a) return false
+      const dep = a.valorDeposito ?? 0
+      const aposta = a.apostaAcumulada ?? 0
+      return dep >= PROMO_DEP_MIN && aposta >= PROMO_APOSTA_MIN
+    })
+    if (subEfetivos.length < p) return res.json({ error: { message: `Subordinados efetivos insuficientes (${subEfetivos.length}/${p}). Necessário: depósito ≥ ${PROMO_DEP_MIN} e apostas ≥ ${PROMO_APOSTA_MIN} por subordinado.` } })
     const reclamados = Array.isArray(af.bonusPromoReclamados) ? af.bonusPromoReclamados : []
     if (reclamados.some(x => x.pessoas === p)) return res.json({ error: { message: 'Já reclamado' } })
     reclamados.push({ pessoas: p, valor: r.valor })
     await prisma.afiliadoData.update({
       where: { userId: req.userId },
-      data: { bonusPromoReclamados: reclamados, updatedAt: new Date() }
+      data: {
+        bonusPromoReclamados: reclamados,
+        balance: { increment: r.valor },
+        updatedAt: new Date()
+      }
     })
     return res.json({ result: { data: { json: { ok: true, valor: r.valor } } } })
   } catch (e) {
@@ -382,6 +493,7 @@ app.post('/api/afiliado/receber-comissao', authMiddleware, async (req, res) => {
         comissaoRecebida: (af.comissaoRecebida || 0) + v,
         comissaoPendente: pend,
         coletavelRebate: reb,
+        balance: { increment: v },
         updatedAt: new Date()
       }
     })
@@ -392,17 +504,33 @@ app.post('/api/afiliado/receber-comissao', authMiddleware, async (req, res) => {
   }
 })
 
-// POST reclamar Misterioso
+// POST reclamar Misterioso - prêmio baseado em depositoMisterioso (tabela alinhada ao frontend)
+const TABELA_MISTERIOSO = [
+  { minDep: 30, premioMin: 0.3, premioMax: 88 }, { minDep: 70, premioMin: 0.7, premioMax: 188 },
+  { minDep: 150, premioMin: 1, premioMax: 388 }, { minDep: 300, premioMin: 3, premioMax: 688 },
+  { minDep: 600, premioMin: 7, premioMax: 888 }, { minDep: 1000, premioMin: 10, premioMax: 1888 },
+  { minDep: 2000, premioMin: 24, premioMax: 2888 }, { minDep: 5000, premioMin: 61, premioMax: 8888 },
+]
 app.post('/api/afiliado/reclamar-misterioso', authMiddleware, async (req, res) => {
   try {
-    const af = await ensureAfiliado(req.userId, (await prisma.user.findUnique({ where: { id: req.userId } }))?.account || '')
+    const user = await prisma.user.findUnique({ where: { id: req.userId } })
+    let af = await ensureAfiliado(req.userId, user?.account || '')
+    af = await checkMisteriosoReset(af, user)
     if (af.misteriosoReclamado) return res.json({ error: { message: 'Já reclamado' } })
     if (af.depositoMisterioso < 30) return res.json({ error: { message: 'Depósito mínimo R$ 30,00' } })
+    const faixa = [...TABELA_MISTERIOSO].reverse().find(t => af.depositoMisterioso >= t.minDep)
+    const min = faixa ? faixa.premioMin : 0.3
+    const max = faixa ? faixa.premioMax : 88
+    const premio = Math.round((min + Math.random() * (max - min)) * 100) / 100
     await prisma.afiliadoData.update({
       where: { userId: req.userId },
-      data: { misteriosoReclamado: true, updatedAt: new Date() }
+      data: {
+        misteriosoReclamado: true,
+        balance: { increment: premio },
+        updatedAt: new Date()
+      }
     })
-    return res.json({ result: { data: { json: { ok: true } } } })
+    return res.json({ result: { data: { json: { ok: true, valor: premio } } } })
   } catch (e) {
     console.error('reclamar-misterioso:', e)
     return res.status(500).json({ error: { message: e.message } })
@@ -414,11 +542,17 @@ app.post('/api/afiliado/coletar-vip', authMiddleware, async (req, res) => {
   try {
     const af = await ensureAfiliado(req.userId, (await prisma.user.findUnique({ where: { id: req.userId } }))?.account || '')
     if (af.bonusVipReclamar <= 0) return res.json({ error: { message: 'Nenhum bônus disponível' } })
+    const valor = af.bonusVipReclamar
     const coletados = Array.isArray(af.bonusVipColetados) ? af.bonusVipColetados : []
-    coletados.push({ nivel: af.nivelVip, valor: af.bonusVipReclamar })
+    coletados.push({ nivel: af.nivelVip, valor })
     await prisma.afiliadoData.update({
       where: { userId: req.userId },
-      data: { bonusVipReclamar: 0, bonusVipColetados: coletados, updatedAt: new Date() }
+      data: {
+        bonusVipReclamar: 0,
+        bonusVipColetados: coletados,
+        balance: { increment: valor },
+        updatedAt: new Date()
+      }
     })
     return res.json({ result: { data: { json: { ok: true } } } })
   } catch (e) {
@@ -573,32 +707,88 @@ async function fetchIgamewin(body) {
   return r.json()
 }
 
+// Catálogo demo quando API falha ou sem credenciais - 4 provedores, 30 jogos cada
+const DEMO_GAMES = (prefix, names) => names.map((n, i) => ({ game_code: `${prefix}_${i}`, game_name: n, banner: '', status: 1 }))
+const DEMO_CATALOG = {
+  providers: [
+    { code: 'PRAGMATIC', name: 'Pragmatic Play', status: 1 },
+    { code: 'PGSOFT', name: 'PG Soft', status: 1 },
+    { code: 'CQ9', name: 'CQ9', status: 1 },
+    { code: 'EVOLUTION', name: 'Evolution', status: 1 },
+  ],
+  gamesByProvider: {
+    PRAGMATIC: DEMO_GAMES('pp', ['The Dog House', 'Gates of Olympus', 'Sweet Bonanza', 'Sugar Rush', 'Starlight Princess', 'Big Bass Bonanza', 'Wolf Gold', 'Great Rhino', 'Madame Destiny', 'Fruit Party', 'Wild West Gold', 'The Hand of Midas', 'Fire Strike', 'John Hunter', 'Aztec Gems', 'Hot Safari', 'Lucky Lightning', 'Buffalo King', 'Release the Kraken', 'Legacy of Dead', 'Rise of Olympus', 'Chilli Heat', 'Pirate Gold', 'Dragon Kingdom', 'Mustang Gold', 'Ancient Egypt', 'Voodoo Magic', 'Magic Journey', 'Leprechaun Song', 'Caishen Wins']),
+    PGSOFT: DEMO_GAMES('pg', ['Monkey Warrior', 'Mahjong Ways', 'Dragon Hatch', 'Treasure Rush', 'Ganesha Gold', 'Prosperity Lion', 'Bikini Paradise', 'Wild Bandito', 'Fortune Tiger', 'Fortune Ox', 'Fortune Rabbit', 'Candy Bonanza', 'Medusa', 'Gem Saviour', 'Double Fortune', 'Lucky Neko', 'Plushie Frenzy', 'Ways of Qilin', 'Sushi Oishi', 'Aladdin', 'Genie Jackpots', 'Wrath of Medusa', 'Jurassic Kingdom', 'Dragon Legend', 'Queen of Bounty', 'Treasures of Aztec', 'Santas Gift', 'Mermaid Riches', 'Cosmic Cash', 'Wild Bandito']),
+    CQ9: DEMO_GAMES('cq9', ['God of Wealth', 'Dragon Rising', 'Lucky Neko', 'Fire Chibi', 'Rising Sun', 'Super Ace', 'Vault of Anubis', 'Sakai Empire', 'Lucky Bats', 'Totem Wonders', 'Win Win Won', 'Good Fortune', 'Dragon Hatch', 'Treasure Raider', 'Leprechaun Riches', 'Buffalo King', 'Golden Empire', 'Lucky Lion', 'Monkey King', 'Ninja Ways', 'Sushi Oishi', 'Wild Bandito', 'Fortune Tiger', 'Dragon Legend', 'Gem Saviour', 'Prosperity Lion', 'Ganesha Gold', 'Treasure Rush', 'Dragon Hatch', 'Candy Bonanza']),
+    EVOLUTION: DEMO_GAMES('ev', ['Lightning Roulette', 'Crazy Time', 'Monopoly Live', 'Dream Catcher', 'Deal or No Deal', 'Mega Ball', 'Cash or Crash', 'Football Studio', 'Side Bet City', 'Caribbean Stud', 'Blackjack', 'Baccarat', 'Texas Holdem', 'Three Card Poker', 'Casino Holdem', 'Dragon Tiger', 'Speed Baccarat', 'Lightning Baccarat', 'Infinite Blackjack', 'Auto Roulette', 'Immersive Roulette', 'Speed Roulette', 'Double Ball Roulette', 'Mega Roulette', 'PowerUp Roulette', 'Gonzo Treasure Hunt', 'Crazy Coin Flip', 'Cash Drop', 'Monopoly Big Baller', 'Deal or No Deal Megaball']),
+  },
+}
+
+async function getHomeProviders() {
+  try {
+    const s = await prisma.setting.findUnique({ where: { id: 'home' } })
+    const v = s?.value
+    if (v && Array.isArray(v.homeProviders)) return v.homeProviders
+  } catch (e) {}
+  return []
+}
+
 app.get('/api/igamewin/catalog', async (req, res) => {
   try {
     const forceRefresh = req.query.refresh === '1'
     if (!forceRefresh && catalogCache && Date.now() - catalogCacheTime < CATALOG_TTL) {
-      return res.json(catalogCache)
+      const homeProviders = await getHomeProviders()
+      return res.json({ ...catalogCache, homeProviders })
     }
     const provRes = await fetchIgamewin({ method: 'provider_list' })
     if (provRes.status !== 1 || !provRes.providers?.length) {
-      return res.json({ providers: [], gamesByProvider: {} })
+      const homeProviders = await getHomeProviders()
+      return res.json({ ...DEMO_CATALOG, homeProviders })
     }
-    const providers = provRes.providers.filter(p => p.status === 1)
+    const providers = provRes.providers.filter(p => p.status === 1).slice(0, 20)
     const gamesByProvider = {}
-    for (const p of providers.slice(0, 7)) {
+    for (const p of providers) {
       const gamesRes = await fetchIgamewin({ method: 'game_list', provider_code: p.code })
       if (gamesRes.status === 1 && gamesRes.games?.length) {
-        gamesByProvider[p.code] = gamesRes.games.filter(g => g.status === 1).slice(0, 50)
+        gamesByProvider[p.code] = gamesRes.games.filter(g => g.status === 1).slice(0, 200)
       } else {
         gamesByProvider[p.code] = []
       }
     }
     catalogCache = { providers, gamesByProvider }
     catalogCacheTime = Date.now()
-    res.json(catalogCache)
+    const homeProviders = await getHomeProviders()
+    res.json({ ...catalogCache, homeProviders })
   } catch (e) {
     console.error('igamewin catalog:', e)
-    res.json({ providers: [], gamesByProvider: {} })
+    const homeProviders = await getHomeProviders().catch(() => [])
+    res.json({ ...DEMO_CATALOG, homeProviders })
+  }
+})
+
+app.get('/api/settings/home-providers', async (req, res) => {
+  try {
+    const homeProviders = await getHomeProviders()
+    return res.json({ homeProviders })
+  } catch (e) {
+    return res.json({ homeProviders: [] })
+  }
+})
+
+app.post('/api/settings/home-providers', async (req, res) => {
+  try {
+    const { homeProviders } = req.body?.json || req.body || {}
+    const list = Array.isArray(homeProviders) ? homeProviders.filter(x => typeof x === 'string') : []
+    await prisma.setting.upsert({
+      where: { id: 'home' },
+      create: { id: 'home', value: { homeProviders: list } },
+      update: { value: { homeProviders: list } }
+    })
+    catalogCache = null
+    return res.json({ ok: true, homeProviders: list })
+  } catch (e) {
+    console.error('save home providers:', e)
+    return res.status(500).json({ ok: false, error: e.message })
   }
 })
 
@@ -622,6 +812,415 @@ app.post('/api/igamewin', async (req, res) => {
   } catch (e) {
     console.error('igamewin proxy:', e)
     res.status(502).json({ status: 0, msg: 'Proxy error' })
+  }
+})
+
+// GET ranking de lucro (apostaAcumulada) - top usuários
+function maskAccount(account) {
+  if (!account || account.length < 5) return '****'
+  return account.slice(0, 2) + '****' + account.slice(-2)
+}
+function formatAmountBr(val) {
+  const [intPart, decPart] = Number(val).toFixed(2).split('.')
+  return intPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.') + ',' + decPart
+}
+app.get('/api/ranking', async (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit) || 20, 50)
+    const afiliados = await prisma.afiliadoData.findMany({
+      where: { apostaAcumulada: { gt: 0 } },
+      orderBy: { apostaAcumulada: 'desc' },
+      take: limit,
+      include: { user: { select: { account: true } } }
+    })
+    const list = afiliados.map((af, i) => ({
+      pos: i + 1,
+      user: maskAccount(af.user?.account),
+      amount: formatAmountBr(af.apostaAcumulada)
+    }))
+    return res.json({ top3: list.slice(0, 3), list })
+  } catch (e) {
+    console.error('ranking:', e)
+    return res.json({ top3: [], list: [] })
+  }
+})
+
+// ========== Roleta (Mina Misteriosa) - requer auth ==========
+const ROLETA_PRIZES = [30, 100, 50, 20, 0, 1000, 10, 5] // ordem: 30,100,50,???,mine,1000,????,??
+
+async function getOrCreateRoleta(userId) {
+  const cfg = await getAppConfig()
+  const dailySpins = cfg.roletaDailySpins ?? 1
+  let r = await prisma.roletaBonus.findUnique({ where: { userId } })
+  if (!r) {
+    r = await prisma.roletaBonus.create({
+      data: { userId, bonusBalance: 0, spinsRemaining: dailySpins }
+    })
+  }
+  const now = new Date()
+  // Prêmio expirado após 3 dias
+  if (r.bonusExpiresAt && now > r.bonusExpiresAt) {
+    r = await prisma.roletaBonus.update({
+      where: { userId },
+      data: { bonusBalance: 0, bonusExpiresAt: null, updatedAt: now }
+    })
+  }
+  const today = now.toISOString().slice(0, 10)
+  const lastDate = r.lastSpinDate?.toISOString?.()?.slice(0, 10)
+  if (lastDate !== today) {
+    r = await prisma.roletaBonus.update({
+      where: { userId },
+      data: { spinsRemaining: dailySpins, lastSpinDate: null, updatedAt: now }
+    })
+  }
+  return r
+}
+
+async function addBonusSpinToIndicator(indicatorUserId) {
+  try {
+    const cfg = await getAppConfig()
+    const dailySpins = cfg.roletaDailySpins ?? 1
+    let rb = await prisma.roletaBonus.findUnique({ where: { userId: indicatorUserId } })
+    if (!rb) {
+      rb = await prisma.roletaBonus.create({
+        data: { userId: indicatorUserId, bonusBalance: 0, spinsRemaining: dailySpins + 1 }
+      })
+    } else {
+      await prisma.roletaBonus.update({
+        where: { userId: indicatorUserId },
+        data: { spinsRemaining: { increment: 1 }, updatedAt: new Date() }
+      })
+    }
+  } catch (e) {
+    console.error('addBonusSpinToIndicator:', e)
+  }
+}
+
+app.get('/api/roleta', authMiddleware, async (req, res) => {
+  try {
+    const cfg = await getAppConfig()
+    const minWithdraw = cfg.roletaMinWithdraw ?? 100
+    let r = await getOrCreateRoleta(req.userId)
+    const now = new Date()
+    const canCollect = r.bonusBalance >= minWithdraw &&
+      (!r.bonusExpiresAt || now < r.bonusExpiresAt)
+    if (canCollect) {
+      const amount = r.bonusBalance
+      const u = await prisma.user.findUnique({ where: { id: req.userId } })
+      await ensureAfiliado(req.userId, u?.account || '')
+      await prisma.$transaction([
+        prisma.roletaBonus.update({
+          where: { userId: req.userId },
+          data: { bonusBalance: 0, bonusExpiresAt: null, updatedAt: now }
+        }),
+        prisma.afiliadoData.update({
+          where: { userId: req.userId },
+          data: { balance: { increment: amount }, updatedAt: now }
+        })
+      ])
+      r = await prisma.roletaBonus.findUnique({ where: { userId: req.userId } })
+    }
+    const logs = await prisma.roletaBonusLog.findMany({
+      where: { userId: req.userId },
+      orderBy: { createdAt: 'desc' },
+      take: 20
+    })
+    const user = await prisma.user.findUnique({ where: { id: req.userId } })
+    const maskAccount = (a) => !a || a.length < 5 ? '****' : a.slice(0, 2) + '****' + a.slice(-2)
+    return res.json({
+      bonusBalance: r.bonusBalance,
+      spinsRemaining: r.spinsRemaining,
+      minWithdraw,
+      bonusCollected: canCollect,
+      report: logs.map(l => ({
+        id: maskAccount(user?.account),
+        descricao: l.descricao,
+        bonus: '+' + l.valor.toFixed(2).replace('.', ',') + ' R$'
+      }))
+    })
+  } catch (e) {
+    console.error('roleta get:', e)
+    return res.status(500).json({ error: e.message })
+  }
+})
+
+app.post('/api/roleta/spin', authMiddleware, async (req, res) => {
+  try {
+    const r = await getOrCreateRoleta(req.userId)
+    if (r.spinsRemaining <= 0) {
+      return res.json({ ok: false, error: 'Sem giros restantes. Volte amanhã!' })
+    }
+    const cfg = await getAppConfig()
+    const bonusDays = cfg.roletaBonusDays ?? 3
+    const prizeIndex = Math.floor(Math.random() * ROLETA_PRIZES.length)
+    const prize = ROLETA_PRIZES[prizeIndex]
+    const today = new Date()
+    const expiresAt = prize > 0 ? new Date(Date.now() + bonusDays * 24 * 60 * 60 * 1000) : undefined
+    await prisma.$transaction([
+      prisma.roletaBonus.update({
+        where: { userId: req.userId },
+        data: {
+          bonusBalance: { increment: prize },
+          spinsRemaining: { decrement: 1 },
+          lastSpinDate: today,
+          ...(expiresAt && { bonusExpiresAt: expiresAt }),
+          updatedAt: today
+        }
+      }),
+      prisma.roletaBonusLog.create({
+        data: {
+          userId: req.userId,
+          valor: prize,
+          descricao: prize > 0 ? 'Ganhou na roleta' : 'Sem prêmio'
+        }
+      })
+    ])
+    return res.json({
+      ok: true,
+      prize,
+      prizeIndex,
+      bonusBalance: r.bonusBalance + prize,
+      spinsRemaining: r.spinsRemaining - 1
+    })
+  } catch (e) {
+    console.error('roleta spin:', e)
+    return res.status(500).json({ ok: false, error: e.message })
+  }
+})
+
+// ========== Saque (Withdraw) ==========
+app.post('/api/saque', authMiddleware, async (req, res) => {
+  try {
+    const cfg = await getAppConfig()
+    const { valor, metodo, nome, cpfId } = req.body?.json || req.body || {}
+    const v = parseFloat(valor)
+    if (!v || v < cfg.saqueMin) return res.json({ error: { message: `Valor mínimo R$ ${cfg.saqueMin.toFixed(2)}` } })
+    if (v > cfg.saqueMax) return res.json({ error: { message: `Valor máximo R$ ${cfg.saqueMax.toFixed(2).replace('.', ',')}` } })
+    const af = await ensureAfiliado(req.userId, (await prisma.user.findUnique({ where: { id: req.userId } }))?.account || '')
+    const saldo = af.balance ?? 0
+    if (saldo < v) return res.json({ error: { message: 'Saldo insuficiente' } })
+    await prisma.$transaction([
+      prisma.afiliadoData.update({
+        where: { userId: req.userId },
+        data: {
+          balance: { decrement: v },
+          valorSaque: { increment: v },
+          numSaques: { increment: 1 },
+          updatedAt: new Date()
+        }
+      }),
+      prisma.withdrawal.create({
+        data: {
+          userId: req.userId,
+          valor: v,
+          metodo: metodo || 'cpf',
+          nome: nome || null,
+          cpfId: cpfId || null,
+          status: 'pendente'
+        }
+      })
+    ])
+    return res.json({ result: { data: { json: { ok: true, valor: v, saldoRestante: saldo - v } } } })
+  } catch (e) {
+    console.error('saque:', e)
+    return res.status(500).json({ error: { message: e.message } })
+  }
+})
+
+// ========== Admin APIs ==========
+app.post('/api/admin/login', async (req, res) => {
+  try {
+    const { user, password } = req.body?.json || req.body || {}
+    if (!user || !password) return res.status(400).json({ error: { message: 'Usuário e senha obrigatórios' } })
+    const cred = await getAdminCredentials()
+    let ok = false
+    if (cred.fromDb) {
+      ok = await bcrypt.compare(password, cred.passwordHash)
+    } else {
+      ok = password === cred.password && user.toLowerCase() === cred.user.toLowerCase()
+    }
+    if (!ok) return res.status(401).json({ error: { message: 'Credenciais inválidas' } })
+    const token = jwt.sign({ admin: true }, JWT_SECRET, { expiresIn: '7d' })
+    return res.json({ ok: true, token })
+  } catch (e) {
+    console.error('admin login:', e)
+    return res.status(500).json({ error: { message: e.message } })
+  }
+})
+
+app.get('/api/admin/dashboard', adminAuthMiddleware, async (req, res) => {
+  try {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const todayEnd = new Date(today)
+    todayEnd.setDate(todayEnd.getDate() + 1)
+    const [usersCount, depositsToday, withdrawalsPending, recentDeposits, recentWithdrawals] = await Promise.all([
+      prisma.user.count(),
+      prisma.deposit.aggregate({ where: { createdAt: { gte: today, lt: todayEnd } }, _sum: { valor: true } }),
+      prisma.withdrawal.aggregate({ where: { status: 'pendente' }, _sum: { valor: true } }),
+      prisma.deposit.findMany({ orderBy: { createdAt: 'desc' }, take: 5, include: { user: { select: { account: true } } } }),
+      prisma.withdrawal.findMany({ where: { status: 'pendente' }, orderBy: { createdAt: 'desc' }, take: 5, include: { user: { select: { account: true } } } })
+    ])
+    const totalDeposits = await prisma.deposit.aggregate({ _sum: { valor: true } })
+    return res.json({
+      usersCount,
+      depositsToday: depositsToday._sum.valor ?? 0,
+      withdrawalsPending: withdrawalsPending._sum.valor ?? 0,
+      totalDeposits: totalDeposits._sum.valor ?? 0,
+      recentDeposits: recentDeposits.map(d => ({ user: maskAccount(d.user?.account), valor: d.valor, status: 'Aprovado', data: d.createdAt?.toISOString?.()?.slice(0, 16)?.replace('T', ' ') })),
+      recentWithdrawals: recentWithdrawals.map(w => ({ user: maskAccount(w.user?.account), valor: w.valor, status: 'Pendente', data: w.createdAt?.toISOString?.()?.slice(0, 16)?.replace('T', ' ') }))
+    })
+  } catch (e) {
+    console.error('admin dashboard:', e)
+    return res.status(500).json({ usersCount: 0, depositsToday: 0, withdrawalsPending: 0, totalDeposits: 0, recentDeposits: [], recentWithdrawals: [] })
+  }
+})
+
+app.get('/api/admin/saques', adminAuthMiddleware, async (req, res) => {
+  try {
+    const status = req.query.status || ''
+    const limit = Math.min(parseInt(req.query.limit) || 50, 100)
+    const where = status ? { status } : {}
+    const list = await prisma.withdrawal.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+      include: { user: { select: { account: true } } }
+    })
+    return res.json({ list: list.map(w => ({
+      id: w.id,
+      userId: w.userId,
+      user: maskAccount(w.user?.account),
+      valor: w.valor,
+      metodo: w.metodo,
+      nome: w.nome,
+      cpfId: w.cpfId,
+      status: w.status,
+      createdAt: w.createdAt?.toISOString?.()?.slice(0, 19)?.replace('T', ' ') || null
+    })) })
+  } catch (e) {
+    console.error('admin saques:', e)
+    return res.status(500).json({ list: [], error: e.message })
+  }
+})
+
+app.patch('/api/admin/saques/:id', adminAuthMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params
+    const { status } = req.body?.json || req.body || {}
+    if (!['concluido', 'recusado'].includes(status)) {
+      return res.status(400).json({ ok: false, error: 'Status inválido. Use concluido ou recusado.' })
+    }
+    const w = await prisma.withdrawal.findUnique({ where: { id } })
+    if (!w) return res.status(404).json({ ok: false, error: 'Saque não encontrado' })
+    if (w.status !== 'pendente') return res.status(400).json({ ok: false, error: 'Saque já processado' })
+    if (status === 'recusado') {
+      await prisma.$transaction([
+        prisma.withdrawal.update({ where: { id }, data: { status: 'recusado', updatedAt: new Date() } }),
+        prisma.afiliadoData.update({
+          where: { userId: w.userId },
+          data: { balance: { increment: w.valor }, updatedAt: new Date() }
+        })
+      ])
+    } else {
+      await prisma.withdrawal.update({ where: { id }, data: { status: 'concluido', updatedAt: new Date() } })
+    }
+    return res.json({ ok: true, status })
+  } catch (e) {
+    console.error('admin saque update:', e)
+    return res.status(500).json({ ok: false, error: e.message })
+  }
+})
+
+app.get('/api/admin/usuarios', adminAuthMiddleware, async (req, res) => {
+  try {
+    const q = (req.query.q || '').trim()
+    const limit = Math.min(parseInt(req.query.limit) || 50, 100)
+    const where = q ? {
+      OR: [
+        { account: { contains: q, mode: 'insensitive' } },
+        { phone: { contains: q, mode: 'insensitive' } }
+      ]
+    } : {}
+    const list = await prisma.user.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+      include: { afiliado: { select: { balance: true, valorDeposito: true, apostaAcumulada: true } } }
+    })
+    return res.json({ list: list.map(u => ({
+      id: u.id,
+      account: u.account,
+      phone: u.phone,
+      balance: u.afiliado?.balance ?? 0,
+      valorDeposito: u.afiliado?.valorDeposito ?? 0,
+      apostaAcumulada: u.afiliado?.apostaAcumulada ?? 0,
+      createdAt: u.createdAt?.toISOString?.()?.slice(0, 19)?.replace('T', ' ') || null
+    })) })
+  } catch (e) {
+    console.error('admin usuarios:', e)
+    return res.status(500).json({ list: [], error: e.message })
+  }
+})
+
+app.get('/api/admin/config', adminAuthMiddleware, async (req, res) => {
+  try {
+    const s = await prisma.setting.findUnique({ where: { id: 'config' } })
+    const v = s?.value || {}
+    return res.json({
+      saqueMin: v.saqueMin ?? 20,
+      saqueMax: v.saqueMax ?? 40000,
+      roletaMinWithdraw: v.roletaMinWithdraw ?? 100,
+      roletaBonusDays: v.roletaBonusDays ?? 3,
+      roletaDailySpins: v.roletaDailySpins ?? 1,
+      bonusPrimeiroDep: v.bonusPrimeiroDep ?? 0,
+      bonusPrimeiroDepPercent: v.bonusPrimeiroDepPercent ?? 0
+    })
+  } catch (e) {
+    return res.json({ saqueMin: 20, saqueMax: 40000, roletaMinWithdraw: 100, roletaBonusDays: 3, roletaDailySpins: 1, bonusPrimeiroDep: 0, bonusPrimeiroDepPercent: 0 })
+  }
+})
+
+app.post('/api/admin/config', adminAuthMiddleware, async (req, res) => {
+  try {
+    const body = req.body?.json || req.body || {}
+    const saqueMin = Math.max(1, parseInt(body.saqueMin, 10) || 20)
+    const saqueMax = Math.min(1000000, Math.max(saqueMin, parseInt(body.saqueMax, 10) || 40000))
+    const roletaMinWithdraw = Math.max(1, parseInt(body.roletaMinWithdraw, 10) || 100)
+    const roletaBonusDays = Math.max(1, Math.min(30, parseInt(body.roletaBonusDays, 10) || 3))
+    const roletaDailySpins = Math.max(1, Math.min(10, parseInt(body.roletaDailySpins, 10) || 1))
+    const bonusPrimeiroDep = Math.max(0, parseFloat(body.bonusPrimeiroDep) || 0)
+    const bonusPrimeiroDepPercent = Math.max(0, Math.min(100, parseFloat(body.bonusPrimeiroDepPercent) || 0))
+    await prisma.setting.upsert({
+      where: { id: 'config' },
+      create: { id: 'config', value: { saqueMin, saqueMax, roletaMinWithdraw, roletaBonusDays, roletaDailySpins, bonusPrimeiroDep, bonusPrimeiroDepPercent } },
+      update: { value: { saqueMin, saqueMax, roletaMinWithdraw, roletaBonusDays, roletaDailySpins, bonusPrimeiroDep, bonusPrimeiroDepPercent } }
+    })
+    return res.json({ ok: true })
+  } catch (e) {
+    console.error('admin config save:', e)
+    return res.status(500).json({ ok: false, error: e.message })
+  }
+})
+
+app.get('/api/admin/depositos', adminAuthMiddleware, async (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit) || 50, 100)
+    const list = await prisma.deposit.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+      include: { user: { select: { account: true } } }
+    })
+    return res.json({ list: list.map(d => ({
+      id: d.id,
+      userId: d.userId,
+      user: maskAccount(d.user?.account),
+      valor: d.valor,
+      createdAt: d.createdAt?.toISOString?.()?.slice(0, 19)?.replace('T', ' ') || null
+    })) })
+  } catch (e) {
+    console.error('admin depositos:', e)
+    return res.status(500).json({ list: [], error: e.message })
   }
 })
 

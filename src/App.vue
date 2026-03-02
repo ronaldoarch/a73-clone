@@ -17,5 +17,9 @@ onMounted(() => {
   if (localStorage.getItem('token')) {
     useAfiliado().refresh()
   }
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault()
+    window.__deferredPrompt = e
+  })
 })
 </script>

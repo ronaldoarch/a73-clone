@@ -40,6 +40,8 @@ import Login from './views/Login.vue'
 import Register from './views/Register.vue'
 import Admin from './views/Admin.vue'
 import OriginalSpa from './views/OriginalSpa.vue'
+import Jogos from './views/Jogos.vue'
+import Roleta from './views/Roleta.vue'
 
 const routes = [
   { path: '/', redirect: '/main/inicio/' },
@@ -64,9 +66,12 @@ const routes = [
       { path: 'vip/', name: 'vip', component: Vip },
       { path: 'perfil/', name: 'perfil', component: Perfil },
       { path: 'menu/', name: 'menu', component: Menu },
+      { path: 'jogos/', name: 'jogos', component: Jogos },
+      { path: 'roleta/', name: 'roleta', component: Roleta },
     ]
   },
-  { path: '/admin/', name: 'admin', component: Admin },
+  { path: '/admin/:section?', name: 'admin', component: Admin },
+  { path: '/admin/', redirect: '/admin/dashboard' },
   { path: '/main/original/', name: 'original', component: OriginalSpa },
 ]
 

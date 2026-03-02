@@ -9,7 +9,7 @@
           </div>
         </ion-buttons>
         <ion-buttons slot="end">
-          <span class="menu-balance">R$ 0,00</span>
+          <span class="menu-balance">R$ {{ balanceFormatted }}</span>
           <ion-button fill="clear" class="menu-header-btn" @click="$router.push('/main/entrar/')">
             <ion-icon name="wallet" />
           </ion-button>
@@ -68,15 +68,18 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import {
-  IonPage, IonHeader, IonToolbar, IonContent, IonButtons, IonButton, IonIcon
+  IonPage, IonHeader, IonToolbar, IonContent, IonButtons, IonButton, IonIcon,
+  onIonViewWillEnter
 } from '@ionic/vue'
 import { useRouter } from 'vue-router'
 import jackpotBg from '@/assets/bg-36-ByTDysgk.png'
 import { useSettings } from '@/composables/useSettings'
+import { useAfiliado } from '@/composables/useAfiliado'
 
 const { logoUrl } = useSettings()
+const { balanceFormatted, refresh } = useAfiliado()
 const router = useRouter()
 const jackpotValue = ref(151095524.11)
 
@@ -102,6 +105,13 @@ const menuItems = [
 function goTo(path) {
   router.push(path)
 }
+
+onMounted(() => {
+  if (localStorage.getItem('token')) refresh()
+})
+onIonViewWillEnter(() => {
+  if (localStorage.getItem('token')) refresh()
+})
 </script>
 
 <style scoped>

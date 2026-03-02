@@ -17,8 +17,16 @@
           </div>
         </ion-buttons>
         <ion-buttons slot="end">
-          <ion-button @click="$router.push('/main/login/')" class="btn-entrar">ENTRAR</ion-button>
-          <ion-button @click="$router.push('/main/register/')" class="btn-registro">Registro R$ <span class="registro-plus">+99</span></ion-button>
+          <template v-if="!isLoggedIn">
+            <ion-button @click="$router.push('/main/login/')" class="btn-entrar">ENTRAR</ion-button>
+            <ion-button @click="$router.push('/main/register/')" class="btn-registro">Registro R$ <span class="registro-plus">+99</span></ion-button>
+          </template>
+          <template v-else>
+            <span class="header-balance" @click="$router.push('/main/perfil/')">R$ {{ balanceFormatted }}</span>
+            <ion-button @click="$router.push('/main/perfil/')" class="btn-perfil">
+              <ion-icon name="person-circle-outline" />
+            </ion-button>
+          </template>
         </ion-buttons>
       </ion-toolbar>
     </ion-header>
@@ -49,23 +57,20 @@
         </div>
       </div>
 
-      <!-- Segmentos hexagonais (Popular, PG, PP, POPOK) -->
+      <!-- Segmentos hexagonais (Popular + provedores iGameWin) -->
       <div class="hexagon-row">
-        <div class="hex-item hex-active">
+        <div class="hex-item hex-active" @click="goToJogos()">
           <img src="/assets/hot-platform-36-gold.svg" alt="Popular" class="hex-icon-svg" />
           <span class="hex-label">Popular</span>
         </div>
-        <div class="hex-item">
-          <img src="/assets/segment-providers-36-CXCNuLFc.svg" alt="PG" class="hex-icon-svg" />
-          <span class="hex-label">PG</span>
-        </div>
-        <div class="hex-item">
-          <img src="/assets/segment-games-36-WR4a7IrE.svg" alt="PP" class="hex-icon-svg" />
-          <span class="hex-label">PP</span>
-        </div>
-        <div class="hex-item">
-          <img src="/assets/segment-promotion-36-CjaXnHPI.svg" alt="POPOK" class="hex-icon-svg" />
-          <span class="hex-label">POPOK</span>
+        <div
+          v-for="p in providersForDisplay"
+          :key="p.code"
+          class="hex-item"
+          @click="goToJogos(p.code)"
+        >
+          <div class="hex-provider-logo">{{ p.logo }}</div>
+          <span class="hex-label">{{ p.logo }}</span>
         </div>
       </div>
 
@@ -103,7 +108,7 @@
           <span class="popular-title">Popular</span>
           <span class="popular-badge">Games 100+</span>
         </div>
-        <a href="#" class="popular-todos">Todos &gt;</a>
+        <a href="#" class="popular-todos" @click.prevent="goToJogos()">Todos &gt;</a>
       </div>
 
       <!-- Jackpot: números na imagem, moedas ao redor -->
@@ -114,7 +119,7 @@
         <div class="jackpot-stripes"></div>
         <img :src="jackpotBg" alt="JACKPOT" class="jackpot-bg-img" />
         <!-- Mina Misteriosa -->
-        <div class="mina-misteriosa-card">
+        <div class="mina-misteriosa-card" @click="$router.push('/main/roleta/')">
           <div class="mina-misteriosa-img-wrap">
             <img src="/images/mina-misteriosa.png" alt="Mina Misteriosa" class="mina-misteriosa-img" />
             <span class="mina-misteriosa-timer">{{ minaTimerFormatted }}</span>
@@ -145,11 +150,23 @@
           <button class="games-retry-btn" @click="loadCatalog(true)">Atualizar</button>
         </div>
         <template v-else>
+          <!-- Blocos por provedor -->
           <div v-for="prov in catalogProviders" :key="prov.code" class="games-provider-block">
-            <h3 class="games-provider-title">{{ prov.name }}</h3>
+            <div class="games-provider-header">
+              <h3 class="games-provider-title">{{ prov.name }}</h3>
+              <button
+                v-if="(catalogGamesByProvider[prov.code] || []).length > GAMES_PREVIEW"
+                class="games-ver-todos-btn"
+                @click="goToJogos(prov.code)"
+              >
+                Ver todos
+                <ion-icon name="chevron-forward" />
+              </button>
+            </div>
+            <div class="games-provider-line"></div>
             <div class="games-grid">
               <div
-                v-for="g in (catalogGamesByProvider[prov.code] || []).slice(0, 50)"
+                v-for="g in getGamesToShow(prov.code)"
                 :key="g.game_code"
                 class="game-card"
                 @click="launchGame(prov.code, g.game_code)"
@@ -173,22 +190,22 @@
           <h3 class="ranking-title">* Ranking de Lucro *</h3>
         </div>
         <div class="ranking-top3">
-          <div class="rank-card rank-2">
+          <div v-if="rankingTop3[1]" class="rank-card rank-2">
             <div class="rank-avatar">👦</div>
-            <span class="rank-user">42****71</span>
-            <span class="rank-amount">221.227,05</span>
+            <span class="rank-user">{{ rankingTop3[1].user }}</span>
+            <span class="rank-amount">{{ rankingTop3[1].amount }}</span>
             <span class="rank-badge rank-badge-2">2nd</span>
           </div>
-          <div class="rank-card rank-1">
+          <div v-if="rankingTop3[0]" class="rank-card rank-1">
             <div class="rank-avatar">👨</div>
-            <span class="rank-user">46****90</span>
-            <span class="rank-amount">221.231,05</span>
+            <span class="rank-user">{{ rankingTop3[0].user }}</span>
+            <span class="rank-amount">{{ rankingTop3[0].amount }}</span>
             <span class="rank-badge rank-badge-1">1st</span>
           </div>
-          <div class="rank-card rank-3">
+          <div v-if="rankingTop3[2]" class="rank-card rank-3">
             <div class="rank-avatar">👩</div>
-            <span class="rank-user">49****44</span>
-            <span class="rank-amount">220.979,79</span>
+            <span class="rank-user">{{ rankingTop3[2].user }}</span>
+            <span class="rank-amount">{{ rankingTop3[2].amount }}</span>
             <span class="rank-badge rank-badge-3">3rd</span>
           </div>
         </div>
@@ -198,11 +215,18 @@
             <span>Membro</span>
             <span>Quantia</span>
           </div>
-          <div class="ranking-list-row" v-for="(r, i) in rankingList" :key="i">
-            <span class="rank-pos">{{ String(r.pos).padStart(2, '0') }}</span>
-            <span class="rank-member"><span class="rank-avatar-sm">👤</span> {{ r.user }}</span>
-            <span class="rank-qty">{{ r.amount }}</span>
+          <div class="ranking-list-scroll-view" v-if="rankingListRest.length">
+            <div class="ranking-list-scroll-track">
+              <div class="ranking-list-scroll-group" v-for="g in 2" :key="g">
+                <div class="ranking-list-row" v-for="(r, i) in rankingListRest" :key="g + '-' + i">
+                  <span class="rank-pos">{{ String(r.pos).padStart(2, '0') }}</span>
+                  <span class="rank-member"><span class="rank-avatar-sm">👤</span> {{ r.user }}</span>
+                  <span class="rank-qty">{{ r.amount }}</span>
+                </div>
+              </div>
+            </div>
           </div>
+          <div v-else class="ranking-list-empty">{{ rankingLoading ? 'Carregando...' : 'Aguarde mais apostas para o ranking' }}</div>
         </div>
       </div>
 
@@ -225,23 +249,29 @@
           <img src="/images/papai-noel-download.png" alt="Papai Noel" class="download-santa-img" />
         </div>
         <div class="download-buttons-wrap">
-          <ion-button class="download-platform-btn" @click="installApp">
+          <ion-button class="download-platform-btn" @click="downloadAndroid">
             <ion-icon name="logo-android" />
             <span>Android</span>
           </ion-button>
-          <ion-button class="download-platform-btn" @click="installApp">
+          <ion-button class="download-platform-btn" @click="downloadIos">
             <ion-icon name="logo-apple" />
             <span>iOS</span>
           </ion-button>
         </div>
       </div>
 
-      <!-- Provedores e Pagamentos -->
+      <!-- Provedores e Pagamentos (iGameWin) - carrossel animado -->
       <div class="providers-section">
-        <div class="providers-carousel">
-          <div class="provider-card" v-for="p in providers" :key="p.name">
-            <div class="provider-logo">{{ p.logo }}</div>
-            <span class="provider-name">{{ p.name }}</span>
+        <div class="providers-carousel-wrap">
+          <div class="providers-carousel-track">
+            <div class="provider-card" v-for="p in providersForDisplay" :key="p.code" @click="goToJogos(p.code)">
+              <div class="provider-logo">{{ p.logo }}</div>
+              <span class="provider-name">{{ p.name }}</span>
+            </div>
+            <div class="provider-card" v-for="p in providersForDisplay" :key="'dup-' + p.code" @click="goToJogos(p.code)">
+              <div class="provider-logo">{{ p.logo }}</div>
+              <span class="provider-name">{{ p.name }}</span>
+            </div>
           </div>
         </div>
       </div>
@@ -257,16 +287,35 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import {
-  IonPage, IonHeader, IonToolbar, IonContent, IonButton, IonButtons, IonIcon, IonLabel
+  IonPage, IonHeader, IonToolbar, IonContent, IonButton, IonButtons, IonIcon, IonLabel,
+  onIonViewWillEnter
 } from '@ionic/vue'
 import jackpotBg from '@/assets/bg-36-ByTDysgk.png'
 import jackpotCoin from '@/assets/coin-36-DzGEC43m.png'
+import { useRouter } from 'vue-router'
 import { useSettings } from '@/composables/useSettings'
+import { useAfiliado } from '@/composables/useAfiliado'
 import { useGamesCatalog } from '@/composables/useGamesCatalog'
+import { useRanking } from '@/composables/useRanking'
 import { igamewinApi } from '@/api/igamewin'
 
+const router = useRouter()
 const { logoUrl, bannerUrl } = useSettings()
-const { providers: catalogProviders, gamesByProvider: catalogGamesByProvider, loading: catalogLoading, error: catalogError, load: loadCatalog } = useGamesCatalog()
+const { balanceFormatted, refresh } = useAfiliado()
+const { top3: rankingTop3, list: rankingList, loading: rankingLoading, load: loadRanking } = useRanking()
+const { providers: catalogProviders, gamesByProvider: catalogGamesByProvider, homeProviders, loading: catalogLoading, error: catalogError, load: loadCatalog } = useGamesCatalog()
+const GAMES_PREVIEW = 30
+function getGamesToShow(provCode) {
+  const games = catalogGamesByProvider.value[provCode] || []
+  return games.slice(0, GAMES_PREVIEW)
+}
+function goToJogos(providerCode) {
+  router.push({ path: '/main/jogos/', query: providerCode ? { provider: providerCode } : {} })
+}
+const isLoggedIn = ref(!!localStorage.getItem('token'))
+function checkLogin() {
+  isLoggedIn.value = !!localStorage.getItem('token')
+}
 const showAppBanner = ref(true)
 const showJackpot = ref(true)
 const tickerGanhos = [
@@ -297,26 +346,18 @@ function formatMinaTimer(sec) {
 }
 const minaTimerFormatted = computed(() => formatMinaTimer(minaTimerSeconds.value))
 
-const rankingList = [
-  { pos: 4, user: '43****12', amount: '219.363,04' },
-  { pos: 5, user: '41****88', amount: '218.102,45' },
-  { pos: 6, user: '47****33', amount: '216.890,12' },
-  { pos: 7, user: '44****56', amount: '215.234,78' },
-  { pos: 8, user: '48****91', amount: '214.567,22' }
-]
+const rankingListRest = computed(() => (rankingList.value || []).slice(3))
 
-const providers = [
-  { name: 'CP GAMES', logo: 'CP' },
-  { name: 'PRAGMATIC', logo: 'PP' },
-  { name: 'CQ9', logo: 'CQ9' },
-  { name: 'PG SOFT', logo: 'PG' },
-  { name: 'EVOLUTION', logo: 'EV' },
-  { name: 'EVOPLAY', logo: 'EVO' },
-  { name: 'JILI', logo: 'JL' },
-  { name: 'NETENT', logo: 'NE' },
-  { name: 'SPADE', logo: 'SP' },
-  { name: 'HABANERO', logo: 'HB' }
-]
+const providersForDisplay = computed(() => {
+  const list = catalogProviders.value.map(p => ({
+    code: p.code,
+    name: p.name,
+    logo: p.code.length <= 3 ? p.code : p.code.slice(0, 2)
+  }))
+  const selected = homeProviders.value
+  if (!selected || selected.length === 0) return list
+  return list.filter(p => selected.includes(p.code))
+})
 
 function openSupport() {
   window.open('https://wa.me/', '_blank')
@@ -344,7 +385,10 @@ function launchGame(providerCode, gameCode) {
 }
 
 onMounted(() => {
+  checkLogin()
+  if (isLoggedIn.value) refresh()
   loadCatalog()
+  loadRanking()
   if (localStorage.getItem('a73_app_banner_hidden') === '1') {
     showAppBanner.value = false
   }
@@ -355,6 +399,11 @@ onMounted(() => {
     if (minaTimerSeconds.value > 0) minaTimerSeconds.value--
     else minaTimerSeconds.value = 32 * 60 + 20
   }, 1000)
+})
+
+onIonViewWillEnter(() => {
+  checkLogin()
+  if (isLoggedIn.value) refresh()
 })
 
 onUnmounted(() => {
@@ -377,8 +426,22 @@ function closeJackpot() {
 }
 
 function installApp() {
-  if (window.__webAppInstall) window.__webAppInstall()
+  if (window.__deferredPrompt) {
+    window.__deferredPrompt.prompt()
+    window.__deferredPrompt.userChoice.then(() => { window.__deferredPrompt = null })
+  } else if (window.__webAppInstall) {
+    window.__webAppInstall()
+  } else {
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
+    if (isIOS) {
+      alert('Toque em Compartilhar e depois em "Adicionar à Tela de Início" para instalar o app.')
+    } else {
+      alert('Use o menu do navegador (⋮) e selecione "Instalar app" ou "Adicionar à tela inicial".')
+    }
+  }
 }
+function downloadAndroid() { installApp() }
+function downloadIos() { installApp() }
 
 function closeBanner() {
   showAppBanner.value = false
@@ -472,6 +535,31 @@ function closeBanner() {
 .registro-plus {
   color: #fef08a;
   font-weight: 800;
+}
+.btn-perfil {
+  --background: rgba(59, 52, 102, 0.9);
+  --color: #fff;
+  --border-width: 1px;
+  --border-style: solid;
+  --border-color: rgba(167, 139, 250, 0.6);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+.btn-perfil ion-icon {
+  vertical-align: middle;
+}
+.header-balance {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 14px;
+  margin-right: 8px;
+  background: rgba(59, 52, 102, 0.9);
+  border: 1px solid rgba(167, 139, 250, 0.6);
+  border-radius: 12px;
+  color: #22c55e;
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
 }
 
 .inicio-content {
@@ -616,6 +704,12 @@ function closeBanner() {
   font-size: 0.75rem;
   font-weight: 600;
   color: #fff;
+}
+.hex-provider-logo {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #fbbf24;
+  margin-bottom: 4px;
 }
 .hex-icon-ion {
   font-size: 36px;
@@ -938,6 +1032,7 @@ function closeBanner() {
   90% { transform: translateY(-3px) translateX(1px) rotate(0.5deg); }
 }
 .mina-misteriosa-card {
+  cursor: pointer;
   position: fixed;
   top: 450px;
   left: 12px;
@@ -1066,13 +1161,40 @@ function closeBanner() {
 .games-provider-block {
   margin-bottom: 24px;
 }
+.games-provider-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
 .games-provider-title {
-  font-size: 1rem;
+  font-size: 1.1rem;
   font-weight: 700;
-  color: var(--primary, #f59e0b);
-  margin: 0 0 12px 0;
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--border, #2a2a3a);
+  color: #FDD835;
+  margin: 0;
+}
+.games-ver-todos-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  background: var(--primary, #f59e0b);
+  color: #000;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.games-ver-todos-btn ion-icon {
+  font-size: 1rem;
+}
+.games-provider-line {
+  height: 1px;
+  background: linear-gradient(90deg, var(--border, #2a2a3a), transparent);
+  margin-bottom: 12px;
 }
 .games-grid {
   display: grid;
@@ -1217,6 +1339,29 @@ function closeBanner() {
   border-top: 1px solid rgba(251,191,36,0.3);
   padding-top: 12px;
 }
+.ranking-list-scroll-view {
+  overflow: hidden;
+  max-height: 180px;
+}
+.ranking-list-scroll-track {
+  animation: ranking-scroll-up 15s linear infinite;
+}
+.ranking-list-scroll-track:hover {
+  animation-play-state: paused;
+}
+.ranking-list-scroll-group {
+  display: block;
+}
+@keyframes ranking-scroll-up {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(-50%); }
+}
+.ranking-list-empty {
+  padding: 16px;
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
 .ranking-list-header {
   display: grid;
   grid-template-columns: 50px 1fr 90px;
@@ -1236,20 +1381,24 @@ function closeBanner() {
 }
 .rank-avatar-sm { font-size: 1rem; margin-right: 4px; }
 
-/* Provedores e Pagamentos */
+/* Provedores e Pagamentos - carrossel animado */
 .providers-section {
   margin: 0 16px 24px;
   padding: 20px 0;
 }
-.providers-carousel {
+.providers-carousel-wrap {
+  overflow: hidden;
+  padding: 12px 0;
+}
+.providers-carousel-track {
   display: flex;
   gap: 8px;
-  padding: 12px 16px;
-  overflow-x: auto;
-  scrollbar-width: none;
-  -webkit-overflow-scrolling: touch;
+  width: max-content;
+  animation: providers-carousel-scroll 20s linear infinite;
 }
-.providers-carousel::-webkit-scrollbar { display: none; }
+.providers-carousel-track:hover {
+  animation-play-state: paused;
+}
 .provider-card {
   flex: 0 0 75px;
   min-width: 75px;
@@ -1260,6 +1409,15 @@ function closeBanner() {
   background: var(--color-bg-100);
   border-radius: 12px;
   border: 1px solid var(--border);
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.provider-card:active {
+  transform: scale(0.97);
+}
+@keyframes providers-carousel-scroll {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
 }
 .provider-logo {
   font-size: 1.2rem;

@@ -36,7 +36,7 @@
         <div class="perfil-balance-section">
           <div class="perfil-balance-wrap">
             <span class="perfil-balance-label">Saldo</span>
-            <span class="perfil-balance-value">R$ {{ balance }}</span>
+            <span class="perfil-balance-value">R$ {{ balanceFormatted }}</span>
             <ion-icon name="refresh" class="perfil-refresh" @click="refreshBalance" />
           </div>
           <span class="perfil-bonus">O bônus recebido hoje: {{ bonusToday }}</span>
@@ -156,16 +156,17 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useAfiliado } from '@/composables/useAfiliado'
 import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButton, IonIcon,
   onIonViewWillEnter
 } from '@ionic/vue'
 
 const router = useRouter()
+const { balanceFormatted, refresh } = useAfiliado()
 const account = computed(() => localStorage.getItem('account') || '')
 const userId = ref('4180019537')
 const isLoggedIn = ref(!!localStorage.getItem('token'))
-const balance = ref('0,00')
 const bonusToday = ref('0,00')
 const currentWager = ref('0,00')
 const requiredWager = ref('100,00')
@@ -180,14 +181,20 @@ function onConfirmarSenhaFundo() {
 function checkLogin() {
   isLoggedIn.value = !!localStorage.getItem('token')
 }
-onMounted(checkLogin)
-onIonViewWillEnter(checkLogin)
+onMounted(() => {
+  checkLogin()
+  if (isLoggedIn.value) refresh()
+})
+onIonViewWillEnter(() => {
+  checkLogin()
+  if (isLoggedIn.value) refresh()
+})
 
 function copyId() {
   navigator.clipboard?.writeText(userId.value)
 }
 function refreshBalance() {
-  // placeholder
+  refresh()
 }
 function openSupport() {
   window.open('https://wa.me/', '_blank')

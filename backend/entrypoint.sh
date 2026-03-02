@@ -1,20 +1,21 @@
 #!/bin/sh
 set -e
 
-# Aguarda PostgreSQL e executa migrações (até 60s)
-echo "Aguardando PostgreSQL e aplicando migrações..."
-for i in $(seq 1 60); do
+# Migrações Prisma - rodam automaticamente em todo deploy (Coolify, Docker, etc.)
+echo "[entrypoint] Aplicando migrações Prisma..."
+for i in 1 2 3 4 5 6 7 8 9 10; do
   if npx prisma migrate deploy; then
-    echo "Migrações aplicadas com sucesso."
+    echo "[entrypoint] Migrações aplicadas com sucesso."
     break
   fi
-  if [ $i -eq 60 ]; then
-    echo "Timeout. Tentando db push como fallback..."
+  if [ "$i" -eq 10 ]; then
+    echo "[entrypoint] migrate deploy falhou após 10 tentativas. Tentando db push..."
     npx prisma db push --accept-data-loss || true
   else
-    sleep 1
+    echo "[entrypoint] Aguardando PostgreSQL... tentativa $i/10"
+    sleep 2
   fi
 done
 
-echo "Iniciando servidor..."
+echo "[entrypoint] Iniciando servidor..."
 exec node server.js

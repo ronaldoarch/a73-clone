@@ -1,5 +1,16 @@
 # Deploy no Coolify com PostgreSQL
 
+## Migrações automáticas
+
+O backend executa **`prisma migrate deploy`** automaticamente ao iniciar, via `entrypoint.sh`:
+
+1. Aguarda o PostgreSQL estar disponível (até 60s)
+2. Aplica as migrações pendentes
+3. Se `migrate deploy` falhar (ex: banco já existente), tenta `db push` como fallback
+4. Inicia o servidor Node
+
+**Importante:** No Coolify, **não defina** um "Custom Start Command" ou "Entrypoint" para o backend — deixe o padrão do Dockerfile para que as migrações rodem.
+
 ## Deploy apenas do Frontend (padrão)
 
 Se você faz deploy só do repositório como **Application**, o frontend sobe sozinho (sem backend).

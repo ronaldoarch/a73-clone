@@ -5,7 +5,7 @@
         <ion-buttons slot="start">
           <div class="menu-header-logo-wrap">
             <img :src="logoUrl" alt="A73" class="menu-header-logo" />
-            <span class="menu-header-brand">A73.com</span>
+            <span class="menu-header-brand">{{ siteName }}</span>
           </div>
         </ion-buttons>
         <ion-buttons slot="end">
@@ -78,7 +78,7 @@ import jackpotBg from '@/assets/bg-36-ByTDysgk.png'
 import { useSettings } from '@/composables/useSettings'
 import { useAfiliado } from '@/composables/useAfiliado'
 
-const { logoUrl } = useSettings()
+const { logoUrl, siteName } = useSettings()
 const { balanceFormatted, refresh } = useAfiliado()
 const router = useRouter()
 const jackpotValue = ref(151095524.11)

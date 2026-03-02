@@ -12,8 +12,8 @@
       <ion-toolbar class="header-toolbar header-gradient">
         <ion-buttons slot="start">
           <div class="header-logo-wrap">
-            <img :src="logoUrl" alt="A73" class="header-logo" />
-            <span class="header-promo-badge">PROMO</span>
+            <img :src="logoUrl" alt="" class="header-logo" />
+            <span class="header-site-name">{{ siteName }}</span>
           </div>
         </ion-buttons>
         <ion-buttons slot="end">
@@ -300,7 +300,7 @@ import { useRanking } from '@/composables/useRanking'
 import { igamewinApi } from '@/api/igamewin'
 
 const router = useRouter()
-const { logoUrl, bannerUrl } = useSettings()
+const { logoUrl, bannerUrl, siteName } = useSettings()
 const { balanceFormatted, refresh } = useAfiliado()
 const { top3: rankingTop3, list: rankingList, loading: rankingLoading, load: loadRanking } = useRanking()
 const { providers: catalogProviders, gamesByProvider: catalogGamesByProvider, homeProviders, loading: catalogLoading, error: catalogError, load: loadCatalog } = useGamesCatalog()
@@ -493,24 +493,22 @@ function closeBanner() {
 }
 .header-logo-wrap {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
+  align-items: center;
+  gap: 10px;
+}
+.header-site-name {
+  font-family: var(--font-smooch);
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #ff972f;
+  text-shadow: 0 0 8px rgba(255, 151, 47, 0.5);
 }
 .header-logo {
-  height: 36px;
+  height: 52px;
   width: auto;
-  max-width: 80px;
+  max-width: 120px;
   object-fit: contain;
   border-radius: 10px;
-}
-.header-promo-badge {
-  font-size: 0.6rem;
-  font-weight: 700;
-  color: #fff;
-  background: #22c55e;
-  padding: 2px 6px;
-  border-radius: 4px;
 }
 .btn-entrar {
   --background: rgba(59, 52, 102, 0.9);

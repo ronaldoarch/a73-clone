@@ -1,20 +1,25 @@
 /**
- * Settings da plataforma (logo, banner, app) - carregados do backend
+ * Settings da plataforma (logo, banner, siteName, pageTitle) - carregados do backend
  */
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { apiUrl } from '@/config/api'
 
 const logoUrl = ref('/s5/app-icon/1222508/LOGO.jpg')
 const bannerUrl = ref('/s5/1770954153806/9999.jpg')
+const siteName = ref('A73.com')
+const pageTitle = ref('A73')
 
 export function useSettings() {
   async function load() {
     try {
-      const res = await fetch(apiUrl('/api/settings'))
+      const res = await fetch(apiUrl('/api/settings'), { cache: 'no-store' })
       const data = await res.json()
       const fix = (url) => url ? apiUrl(url) + (url.includes('?') ? '' : '?t=' + Date.now()) : url
       if (data.logo) logoUrl.value = fix(data.logo)
       if (data.banner) bannerUrl.value = fix(data.banner)
+      if (data.siteName) siteName.value = data.siteName
+      if (data.pageTitle) pageTitle.value = data.pageTitle
+      if (typeof document !== 'undefined') document.title = pageTitle.value
     } catch (e) {
       // mantém defaults
     }
@@ -22,9 +27,15 @@ export function useSettings() {
 
   onMounted(load)
 
+  watch(pageTitle, (v) => {
+    if (typeof document !== 'undefined' && v) document.title = v
+  })
+
   return {
     logoUrl,
     bannerUrl,
+    siteName,
+    pageTitle,
     load
   }
 }

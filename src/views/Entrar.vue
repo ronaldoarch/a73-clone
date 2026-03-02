@@ -100,6 +100,29 @@
           </button>
         </div>
 
+        <!-- CPF e Nome (obrigatórios para PIX) -->
+        <h3 class="deposit-section-title">Dados para PIX</h3>
+        <div class="deposit-field">
+          <label class="deposit-label">CPF (apenas números)</label>
+          <input
+            v-model="depositCpf"
+            type="text"
+            class="deposit-input"
+            placeholder="00000000000"
+            maxlength="14"
+            inputmode="numeric"
+          />
+        </div>
+        <div class="deposit-field">
+          <label class="deposit-label">Nome completo</label>
+          <input
+            v-model="depositNome"
+            type="text"
+            class="deposit-input"
+            placeholder="Nome como no documento"
+          />
+        </div>
+
         <!-- Botão depositar -->
         <ion-button class="deposit-now-btn" expand="block" @click="doDeposit">
           Depositar Agora
@@ -133,6 +156,8 @@ const presetAmounts = [10, 30, 50, 100, 500, 1000, 5000, 10000, 50000]
 const selectedAmount = ref(10)
 const minAmount = 10
 const maxAmount = 50000
+const depositCpf = ref('')
+const depositNome = ref('')
 
 const amountDisplay = computed(() => {
   return `${selectedAmount.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
@@ -183,14 +208,28 @@ function copyPixCode() {
   }
 }
 
+function validarCpf(cpf) {
+  const d = String(cpf).replace(/\D/g, '')
+  return d.length === 11
+}
+
 async function doDeposit() {
   const valor = selectedAmount.value
   if (!localStorage.getItem('token')) {
     toast.error('Faça login para depositar')
     return
   }
+  const cpf = String(depositCpf.value).replace(/\D/g, '')
+  if (!validarCpf(cpf)) {
+    toast.error('Informe um CPF válido (11 dígitos)')
+    return
+  }
+  if (!depositNome.value?.trim()) {
+    toast.error('Informe seu nome completo')
+    return
+  }
   try {
-    const data = await afiliadoApi.depositoPix(valor)
+    const data = await afiliadoApi.depositoPix({ valor, cpf, nome: depositNome.value.trim() })
     if (!data?.ok) {
       toast.error(data?.error?.message || 'Erro ao gerar PIX')
       return
@@ -388,6 +427,32 @@ function openSupport() {
   box-shadow: 0 0 12px rgba(168, 85, 247, 0.3);
 }
 
+.deposit-field {
+  margin-bottom: 16px;
+}
+.deposit-label {
+  display: block;
+  color: #fff;
+  font-size: 0.9rem;
+  margin-bottom: 8px;
+}
+.deposit-input {
+  width: 100%;
+  background: var(--color-bg-100);
+  border: 1px solid rgba(168, 85, 247, 0.4);
+  border-radius: 10px;
+  padding: 14px 16px;
+  color: #fff;
+  font-size: 1rem;
+  box-sizing: border-box;
+}
+.deposit-input::placeholder {
+  color: rgba(255,255,255,0.5);
+}
+.deposit-input:focus {
+  outline: none;
+  border-color: #a855f7;
+}
 .deposit-now-btn {
   --background: #84cc16;
   --background-hover: #a3e635;

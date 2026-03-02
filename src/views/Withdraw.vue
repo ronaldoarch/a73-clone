@@ -71,12 +71,14 @@
         </div>
 
         <div class="withdraw-field">
-          <label class="withdraw-label">Chave PIX</label>
+          <label class="withdraw-label">CPF (apenas números)</label>
           <input
             v-model="cpfId"
             type="text"
             class="withdraw-input"
-            placeholder="CPF, e-mail ou telefone"
+            placeholder="00000000000"
+            maxlength="14"
+            inputmode="numeric"
           />
         </div>
 
@@ -141,8 +143,9 @@ async function retirarAgora() {
     toast.error('Informe o nome')
     return
   }
-  if (!cpfId.value?.trim()) {
-    toast.error('Informe o CPF')
+  const cpf = String(cpfId.value).replace(/\D/g, '')
+  if (cpf.length !== 11) {
+    toast.error('Informe um CPF válido (11 dígitos)')
     return
   }
   loading.value = true
@@ -151,7 +154,7 @@ async function retirarAgora() {
       valor: v,
       metodo: metodo.value,
       nome: nome.value.trim(),
-      cpfId: cpfId.value.trim()
+      cpfId: cpf
     })
     if (r?.ok) {
       toast.success(`Saque de R$ ${formatVal(v)} solicitado!`)

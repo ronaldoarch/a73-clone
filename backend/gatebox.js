@@ -58,9 +58,14 @@ export async function gateboxCreatePix({ externalId, amount, document, name, ema
     const body = {
       externalId: String(externalId),
       amount: parseFloat(amount),
-      document: String(document || '').replace(/\D/g, ''),
-      name: String(name || ''),
       expire: Math.min(expire, 86400)
+    }
+    if (document && name) {
+      const doc = String(document).replace(/\D/g, '')
+      if (doc.length >= 11) {
+        body.document = doc
+        body.name = String(name).slice(0, 100)
+      }
     }
     if (email) body.email = String(email)
     if (phone) body.phone = String(phone)

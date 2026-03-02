@@ -361,10 +361,13 @@ app.get('/api/afiliado', authMiddleware, async (req, res) => {
 // POST depósito PIX (Gatebox) - gera QR e cria Deposit pendente
 app.post('/api/deposito/pix', authMiddleware, async (req, res) => {
   try {
-    const { valor } = req.body?.json || req.body || {}
+    const { valor, cpf, nome } = req.body?.json || req.body || {}
     const v = parseFloat(valor)
     if (!v || v < 10) return res.json({ error: { message: 'Valor mínimo R$ 10,00' } })
     if (v > 50000) return res.json({ error: { message: 'Valor máximo R$ 50.000,00' } })
+    const doc = String(cpf || '').replace(/\D/g, '')
+    if (doc.length !== 11) return res.json({ error: { message: 'CPF inválido (11 dígitos)' } })
+    if (!nome || !String(nome).trim()) return res.json({ error: { message: 'Nome completo obrigatório' } })
     const user = await prisma.user.findUnique({ where: { id: req.userId } })
     if (!user) return res.status(401).json({ error: { message: 'Usuário não encontrado' } })
     const deposit = await prisma.deposit.create({
@@ -376,13 +379,12 @@ app.post('/api/deposito/pix', authMiddleware, async (req, res) => {
       }
     })
     const externalId = deposit.id
-    const document = String(user.phone || '').replace(/\D/g, '') || '00000000000'
-    const name = String(user.account || 'Cliente').slice(0, 100)
     const result = await gateboxCreatePix({
       externalId,
       amount: v,
-      document,
-      name,
+      document: doc,
+      name: String(nome).trim().slice(0, 100),
+      identification: `Depósito A73 - ${user.account}`,
       description: `Depósito A73 - ${user.account}`,
       expire: 3600
     })

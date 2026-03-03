@@ -194,12 +194,23 @@ export const igamewinApi = {
   },
 
   async gameLaunch(userCode, providerCode, gameCode, lang = 'en') {
-    return callApi('game_launch', {
-      user_code: userCode,
-      provider_code: providerCode,
-      game_code: gameCode || '',
-      lang,
+    const cfg = getConfig()
+    if (cfg.sandbox) {
+      return mockResponse('game_launch', { user_code: userCode, provider_code: providerCode, game_code: gameCode, lang }, cfg)
+    }
+    // Usa endpoint que cria usuário (user_create com is_demo) antes de game_launch - evita "Login Error"
+    const url = apiUrl('/api/igamewin/launch-game')
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        user_code: userCode || 'guest',
+        provider_code: providerCode || '',
+        game_code: gameCode || '',
+        lang,
+      }),
     })
+    return res.json()
   },
 
   async providerList() {

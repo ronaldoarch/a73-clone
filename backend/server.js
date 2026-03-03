@@ -1050,6 +1050,57 @@ app.post('/api/settings/home-providers', async (req, res) => {
   }
 })
 
+// Launch game: cria usuário (user_create com is_demo) antes de game_launch - evita "Login Error"
+app.post('/api/igamewin/launch-game', async (req, res) => {
+  try {
+    const { user_code, provider_code, game_code, lang = 'en' } = req.body || {}
+    const stored = await getIgamewinConfig()
+    if (!stored?.agent_code || !stored?.agent_token) {
+      return res.json({ status: 0, msg: 'IGAMEWIN_NOT_CONFIGURED' })
+    }
+    const userCode = user_code || 'guest'
+    const isDemo = stored.is_demo ?? true
+
+    // 1. user_create (obrigatório antes de game_launch) - modo samples usa is_demo: true
+    const createRes = await fetch(IGAMEWIN_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        method: 'user_create',
+        agent_code: stored.agent_code,
+        agent_token: stored.agent_token,
+        user_code: userCode,
+        is_demo: isDemo
+      })
+    })
+    const createData = await createRes.json()
+    // DUPLICATED_USER = usuário já existe, ok para prosseguir
+    if (createData.status === 0 && createData.msg !== 'DUPLICATED_USER') {
+      return res.json(createData)
+    }
+
+    // 2. game_launch
+    const launchRes = await fetch(IGAMEWIN_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        method: 'game_launch',
+        agent_code: stored.agent_code,
+        agent_token: stored.agent_token,
+        user_code: userCode,
+        provider_code: provider_code || '',
+        game_code: game_code || '',
+        lang
+      })
+    })
+    const launchData = await launchRes.json()
+    res.json(launchData)
+  } catch (e) {
+    console.error('igamewin launch-game:', e)
+    res.status(502).json({ status: 0, msg: 'Proxy error' })
+  }
+})
+
 // Proxy iGameWin API (evita CORS em produção)
 // Usa credenciais do backend (Settings) quando salvas; senão usa o body da requisição
 app.post('/api/igamewin', async (req, res) => {

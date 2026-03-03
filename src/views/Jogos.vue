@@ -151,10 +151,23 @@ const filteredGames = computed(() => {
 
 function launchGame(providerCode, gameCode) {
   const userCode = localStorage.getItem('account') || 'guest'
+  // Abre janela em branco imediatamente (síncrono) para preservar gesto do usuário e evitar bloqueio de popup
+  const w = window.open('', '_blank')
+  if (w) {
+    w.document.write('<html><body style="margin:0;display:flex;align-items:center;justify-content:center;height:100vh;background:#0f0f14;color:#fff;font-family:sans-serif;font-size:1.1rem">Carregando jogo...</body></html>')
+  }
   igamewinApi.gameLaunch(userCode, providerCode, gameCode).then((data) => {
     if (data?.status === 1 && data?.launch_url) {
-      window.open(data.launch_url, '_blank', 'noopener,noreferrer')
+      if (w) {
+        w.location.href = data.launch_url
+      } else {
+        window.location.href = data.launch_url
+      }
+    } else if (w) {
+      w.close()
     }
+  }).catch(() => {
+    if (w) w.close()
   })
 }
 

@@ -89,9 +89,19 @@
           <div v-if="usuariosLoading" class="card-label">Carregando usuários...</div>
           <div v-else class="table-wrap">
             <table>
-              <thead><tr><th>Usuário</th><th>Telefone</th><th>Saldo</th><th>Depósitos</th><th>Apostas</th><th>Registro</th></tr></thead>
+              <thead><tr><th>Usuário</th><th>Telefone</th><th>Saldo</th><th>Depósitos</th><th>Apostas</th><th>Registro</th><th>Ação</th></tr></thead>
               <tbody>
-                <tr v-for="u in usuarios" :key="u.id"><td>{{ u.account }}</td><td>{{ u.phone }}</td><td>R$ {{ formatBr(u.balance) }}</td><td>R$ {{ formatBr(u.valorDeposito) }}</td><td>R$ {{ formatBr(u.apostaAcumulada) }}</td><td>{{ u.createdAt }}</td></tr>
+                <tr v-for="u in usuarios" :key="u.id">
+                  <td>{{ u.account }}</td>
+                  <td>{{ u.phone }}</td>
+                  <td>R$ {{ formatBr(u.balance) }}</td>
+                  <td>R$ {{ formatBr(u.valorDeposito) }}</td>
+                  <td>R$ {{ formatBr(u.apostaAcumulada) }}</td>
+                  <td>{{ u.createdAt }}</td>
+                  <td>
+                    <button type="button" class="btn btn-primary btn-sm" @click="openModalBonus(u)">Adicionar bônus</button>
+                  </td>
+                </tr>
               </tbody>
             </table>
             <div v-if="usuarios.length === 0" class="admin-empty">Nenhum usuário encontrado.</div>
@@ -100,12 +110,32 @@
 
         <!-- Depósitos -->
         <section v-show="activeSection === 'depositos'" class="admin-section">
+          <div class="admin-list-toolbar">
+            <select v-model="depositosStatusFilter" class="admin-select" @change="loadDepositos">
+              <option value="">Todos</option>
+              <option value="pendente">Pendentes</option>
+              <option value="concluido">Concluídos</option>
+            </select>
+            <button type="button" class="btn btn-primary" :disabled="depositosLoading" @click="loadDepositos">{{ depositosLoading ? 'Carregando...' : 'Atualizar' }}</button>
+          </div>
           <div v-if="depositosLoading" class="card-label">Carregando depósitos...</div>
           <div v-else class="table-wrap">
             <table>
-              <thead><tr><th>Usuário</th><th>Valor</th><th>Status</th><th>Data</th></tr></thead>
+              <thead><tr><th>Usuário</th><th>Valor</th><th>Status</th><th>Data</th><th>Ação</th></tr></thead>
               <tbody>
-                <tr v-for="d in depositos" :key="d.id"><td>{{ d.user }}</td><td>R$ {{ formatBr(d.valor) }}</td><td><span :class="['badge', d.status === 'concluido' ? 'badge-success' : 'badge-pending']">{{ d.status || 'concluido' }}</span></td><td>{{ d.createdAt }}</td></tr>
+                <tr v-for="d in depositos" :key="d.id">
+                  <td>{{ d.user }}</td>
+                  <td>R$ {{ formatBr(d.valor) }}</td>
+                  <td><span :class="['badge', d.status === 'concluido' ? 'badge-success' : d.status === 'erro' ? 'badge-danger' : 'badge-pending']">{{ d.status || 'concluido' }}</span></td>
+                  <td>{{ d.createdAt }}</td>
+                  <td>
+                    <template v-if="d.status === 'pendente'">
+                      <input v-model.number="depositoBonusMap[d.id]" type="number" min="0" step="0.01" placeholder="Bônus" class="deposito-bonus-input" />
+                      <button type="button" class="btn btn-primary btn-sm" :disabled="depositoApproveLoading === d.id" @click="aprovarDeposito(d.id)">Aprovar</button>
+                    </template>
+                    <span v-else>-</span>
+                  </td>
+                </tr>
               </tbody>
             </table>
             <div v-if="depositos.length === 0" class="admin-empty">Nenhum depósito encontrado.</div>
@@ -596,6 +626,28 @@
       </div>
     </div>
 
+    <!-- Modal Adicionar Bônus -->
+    <div v-if="modalBonusOpen" class="modal-overlay" @click.self="closeModalBonus">
+      <div class="modal">
+        <h3>Adicionar bônus - {{ bonusUser?.account }}</h3>
+        <p class="card-label">Adicione saldo bônus ao usuário. O valor será creditado no saldo para jogos.</p>
+        <div class="form-group">
+          <label>Valor (R$)</label>
+          <input v-model.number="bonusAmount" type="number" min="0.01" step="0.01" placeholder="0,00" />
+        </div>
+        <div class="form-group">
+          <label>Motivo (opcional)</label>
+          <input v-model="bonusMotivo" type="text" placeholder="Ex: Bônus promocional" />
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" @click="closeModalBonus">Cancelar</button>
+          <button type="button" class="btn btn-primary" :disabled="bonusLoading || !bonusAmount || bonusAmount <= 0" @click="saveBonus">
+            {{ bonusLoading ? 'Adicionando...' : 'Adicionar bônus' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- Modal Afiliado -->
     <div v-if="modalAfiliadoOpen" class="modal-overlay" @click.self="closeModalAfiliado">
       <div class="modal">
@@ -629,7 +681,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, h, onMounted } from 'vue'
+import { ref, reactive, computed, watch, h, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { IonPage } from '@ionic/vue'
 import { igamewinApi } from '@/api/igamewin'
@@ -702,6 +754,9 @@ const usuariosLoading = ref(false)
 const usuariosSearch = ref('')
 const depositos = ref([])
 const depositosLoading = ref(false)
+const depositosStatusFilter = ref('')
+const depositoBonusMap = reactive({})
+const depositoApproveLoading = ref(null)
 const saques = ref([])
 const saquesLoading = ref(false)
 const saquesStatusFilter = ref('pendente')
@@ -895,13 +950,72 @@ async function loadUsuarios() {
 async function loadDepositos() {
   depositosLoading.value = true
   try {
-    const r = await adminFetch('/api/admin/depositos')
+    const q = depositosStatusFilter.value ? '?status=' + depositosStatusFilter.value : ''
+    const r = await adminFetch('/api/admin/depositos' + q)
     const data = await r.json()
     depositos.value = data.list || []
   } catch (e) {
     depositos.value = []
   } finally {
     depositosLoading.value = false
+  }
+}
+
+async function aprovarDeposito(id) {
+  depositoApproveLoading.value = id
+  try {
+    const bonus = depositoBonusMap[id] ?? 0
+    const r = await adminFetch('/api/admin/depositos/' + id + '/approve', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ bonusAmount: bonus })
+    })
+    const data = await r.json()
+    if (data?.ok) {
+      const idx = depositos.value.findIndex(d => d.id === id)
+      if (idx >= 0) depositos.value[idx].status = 'concluido'
+      delete depositoBonusMap[id]
+    } else {
+      alert(data?.error || 'Erro ao aprovar')
+    }
+  } catch (e) {
+    alert(e.message || 'Erro ao aprovar')
+  } finally {
+    depositoApproveLoading.value = null
+  }
+}
+
+function openModalBonus(u) {
+  bonusUser.value = u
+  bonusAmount.value = 0
+  bonusMotivo.value = ''
+  modalBonusOpen.value = true
+}
+function closeModalBonus() {
+  modalBonusOpen.value = false
+  bonusUser.value = null
+}
+async function saveBonus() {
+  if (!bonusUser.value || !bonusAmount.value || bonusAmount.value <= 0) return
+  bonusLoading.value = true
+  try {
+    const r = await adminFetch('/api/admin/usuarios/' + bonusUser.value.id + '/add-bonus', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amount: bonusAmount.value, motivo: bonusMotivo.value || undefined })
+    })
+    const data = await r.json()
+    if (data?.ok) {
+      const idx = usuarios.value.findIndex(u => u.id === bonusUser.value.id)
+      if (idx >= 0) usuarios.value[idx].balance = (usuarios.value[idx].balance ?? 0) + bonusAmount.value
+      closeModalBonus()
+    } else {
+      alert(data?.error || 'Erro ao adicionar bônus')
+    }
+  } catch (e) {
+    alert(e.message || 'Erro ao adicionar bônus')
+  } finally {
+    bonusLoading.value = false
   }
 }
 
@@ -983,6 +1097,11 @@ const temaPreview = ref(null)
 
 const modalTemaOpen = ref(false)
 const modalAfiliadoOpen = ref(false)
+const modalBonusOpen = ref(false)
+const bonusUser = ref(null)
+const bonusAmount = ref(0)
+const bonusMotivo = ref('')
+const bonusLoading = ref(false)
 const editTemaId = ref('')
 const editAfiliadoId = ref('')
 const formTema = ref({ nome: '', primary: '#f59e0b', primaryHover: '#fbbf24', bg: '#0f0f14', card: '#1a1a24', border: '#2a2a3a', text: '#e5e7eb', textMuted: '#9ca3af', success: '#10b981', danger: '#ef4444', icon: '' })
@@ -1561,6 +1680,7 @@ tr:hover { background: rgba(255,255,255,0.02); }
 .radio-group label { display: flex; align-items: center; gap: 0.5rem; cursor: pointer; margin-bottom: 0.5rem; }
 .radio-group input[type="radio"] { accent-color: var(--primary); }
 .modal-actions { display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 1.25rem; }
+.deposito-bonus-input { width: 70px; margin-right: 0.5rem; padding: 0.25rem 0.5rem; font-size: 0.875rem; }
 .temas-grid { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
 .tema-card { position: relative; }
 .tema-badge { position: absolute; top: 0.75rem; right: 0.75rem; }

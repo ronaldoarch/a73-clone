@@ -166,14 +166,17 @@ async function getAppConfig() {
   } catch (e) { return { depositoMin: 10, saqueMin: 20, saqueMax: 40000, roletaMinWithdraw: 100, roletaBonusDays: 3, roletaDailySpins: 1, bonusPrimeiroDep: 0, bonusPrimeiroDepPercent: 0 } }
 }
 
-/** Confirma depósito PIX e credita saldo (usado por polling e webhook) */
-async function confirmarDepositoPix(deposit) {
+/** Confirma depósito PIX e credita saldo (usado por polling e webhook)
+ * @param {object} deposit - Deposit com user incluído
+ * @param {number} [bonusExtra=0] - Bônus extra em R$ (admin pode adicionar ao aprovar)
+ */
+async function confirmarDepositoPix(deposit, bonusExtra = 0) {
   const af = await ensureAfiliado(deposit.userId, deposit.user?.account || '')
   const cfg = await getAppConfig()
   const bonusPrimeiro = (af.numDepositos ?? 0) === 0
     ? (cfg.bonusPrimeiroDep ?? 0) + (deposit.valor * (cfg.bonusPrimeiroDepPercent ?? 0) / 100)
     : 0
-  const balanceIncrement = deposit.valor + bonusPrimeiro
+  const balanceIncrement = deposit.valor + bonusPrimeiro + (Number(bonusExtra) || 0)
   const rebate = deposit.valor * 0.05
   const niveisVip = [
     { nivel: 0, aposta: 0, bonus: 0 },
@@ -1772,7 +1775,12 @@ app.post('/api/admin/gatebox/test-pix', adminAuthMiddleware, async (req, res) =>
 app.get('/api/admin/depositos', adminAuthMiddleware, async (req, res) => {
   try {
     const limit = Math.min(parseInt(req.query.limit) || 50, 100)
+    const statusFilter = (req.query.status || '').trim().toLowerCase()
+    const where = statusFilter && ['pendente', 'concluido', 'erro'].includes(statusFilter)
+      ? { status: statusFilter }
+      : {}
     const list = await prisma.deposit.findMany({
+      where,
       orderBy: { createdAt: 'desc' },
       take: limit,
       include: { user: { select: { account: true } } }
@@ -1788,6 +1796,50 @@ app.get('/api/admin/depositos', adminAuthMiddleware, async (req, res) => {
   } catch (e) {
     console.error('admin depositos:', e)
     return res.status(500).json({ list: [], error: e.message })
+  }
+})
+
+// POST aprovar depósito pendente manualmente (admin) - opcional: bonusAmount em R$
+app.post('/api/admin/depositos/:id/approve', adminAuthMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params
+    const { bonusAmount = 0 } = req.body || {}
+    const deposit = await prisma.deposit.findUnique({
+      where: { id },
+      include: { user: { select: { account: true } } }
+    })
+    if (!deposit) return res.status(404).json({ ok: false, error: 'Depósito não encontrado' })
+    if (deposit.status !== 'pendente') {
+      return res.status(400).json({ ok: false, error: 'Apenas depósitos pendentes podem ser aprovados' })
+    }
+    const bonus = Math.max(0, parseFloat(bonusAmount) || 0)
+    await confirmarDepositoPix(deposit, bonus)
+    return res.json({ ok: true })
+  } catch (e) {
+    console.error('admin depositos approve:', e)
+    return res.status(500).json({ ok: false, error: e.message })
+  }
+})
+
+// POST adicionar saldo bônus a usuário específico (admin)
+app.post('/api/admin/usuarios/:id/add-bonus', adminAuthMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params
+    const { amount, motivo } = req.body || {}
+    const v = parseFloat(amount)
+    if (!v || v <= 0) return res.status(400).json({ ok: false, error: 'Valor inválido' })
+    const user = await prisma.user.findUnique({ where: { id }, include: { afiliado: true } })
+    if (!user) return res.status(404).json({ ok: false, error: 'Usuário não encontrado' })
+    const af = await ensureAfiliado(user.id, user.account)
+    await prisma.afiliadoData.update({
+      where: { userId: id },
+      data: { balance: { increment: v }, updatedAt: new Date() }
+    })
+    console.log('Admin add-bonus:', { userId: id, account: user.account, amount: v, motivo: motivo || '' })
+    return res.json({ ok: true, newBalance: (af.balance ?? 0) + v })
+  } catch (e) {
+    console.error('admin add-bonus:', e)
+    return res.status(500).json({ ok: false, error: e.message })
   }
 })
 

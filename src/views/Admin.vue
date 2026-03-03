@@ -337,7 +337,7 @@
                   Copiar
                 </button>
               </div>
-              <span class="form-hint">Cole no iGameWin → Update Agent → Site EndPoint (ex: https://api.35m.site)</span>
+              <span class="form-hint">Cole no iGameWin → Update Agent → Site EndPoint: use a URL do backend (ex: https://api.35m.site)</span>
             </div>
             <div class="api-jogos-config">
               <div class="form-group">

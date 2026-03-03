@@ -95,7 +95,8 @@ O 502 significa que o nginx do frontend não consegue alcançar o backend. Verif
 
 ### iGameWin Seamless (Site API)
 - O backend expõe `POST /gold_api` para modo Seamless
-- Configure na iGameWin a URL: `https://api.seudominio.com/gold_api`
+- Configure na iGameWin → Update Agent → Site EndPoint: **URL do backend** (ex: `https://api.35m.site`)
+- O iGameWin adiciona `/gold_api` automaticamente
 - Variáveis obrigatórias para Seamless:
   - `IGAMEWIN_AGENT_CODE`: código do agent (ex: Midaslabs)
   - `IGAMEWIN_AGENT_SECRET`: segredo do agent (diferente do agent_token)

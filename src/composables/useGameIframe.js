@@ -20,9 +20,12 @@ export function useGameIframe() {
       if (data?.status === 1 && data?.launch_url) {
         gameUrl.value = data.launch_url
       } else {
-        const msg = data?.msg === 'IGAMEWIN_NOT_CONFIGURED'
-          ? 'Configure as credenciais iGameWin no Admin → API de Jogos'
-          : (data?.msg || 'Não foi possível abrir o jogo')
+        let msg = data?.msg || 'Não foi possível abrir o jogo'
+        if (data?.msg === 'IGAMEWIN_NOT_CONFIGURED') {
+          msg = 'Configure as credenciais iGameWin no Admin → API de Jogos'
+        } else if (data?.msg === 'IGAMEWIN_DEMO_URL_404' && data?.hint) {
+          msg = data.hint
+        }
         toast.error(msg)
       }
     }).catch(() => {

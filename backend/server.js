@@ -1206,14 +1206,27 @@ app.post('/api/igamewin/launch-game', async (req, res) => {
     }
     if (returnUrl) launchBody.return_url = returnUrl
     if (siteUrl) launchBody.site_url = siteUrl
+    console.log('igamewin game_launch REQUEST:', { provider_code: launchBody.provider_code, game_code: launchBody.game_code, is_demo: isDemo, user_code: userCode })
     const launchRes = await fetch(IGAMEWIN_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(launchBody)
     })
     const launchData = await launchRes.json()
+    console.log('igamewin game_launch RESPONSE:', { status: launchData.status, msg: launchData.msg, launch_url: launchData.launch_url ? launchData.launch_url.slice(0, 100) + '...' : null })
     if (launchData.status !== 1) {
       console.warn('igamewin launch-game:', launchData.msg || launchData.status)
+    } else if (launchData.launch_url) {
+      const url = String(launchData.launch_url || '')
+      if (url.includes('igamewin.com/demo') && !url.includes('/demo/')) {
+        console.warn('igamewin launch-game: iGameWin retornou URL demo (404). Possível causa: is_demo=true no user_create. Tente desmarcar "Modo Demo" no Admin.', { isDemo, url })
+        return res.json({
+          status: 0,
+          msg: 'IGAMEWIN_DEMO_URL_404',
+          hint: 'O iGameWin retornou URL de demonstração. Tente desmarcar "Modo Demo/Samples" no Admin → API de Jogos. Se persistir, contate o suporte iGameWin.'
+        })
+      }
+      console.log('igamewin launch-game OK:', { provider_code, game_code, launch_url: url?.slice?.(0, 80) + '...' })
     }
     res.json(launchData)
   } catch (e) {

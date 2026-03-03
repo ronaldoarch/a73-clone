@@ -390,6 +390,7 @@
                 <input v-model="igameConfig.is_demo" type="checkbox" @change="saveIgameConfig" />
                 Modo Demo/Samples (user_create com is_demo)
               </label>
+              <span class="form-hint" style="display:block;margin-top:0.25rem;">Se o jogo abrir 404: desmarque "Modo Demo" — com is_demo=true o iGameWin pode retornar URL demo inválida em vez da URL real do jogo.</span>
               <div class="form-group">
                 <label>API Mode</label>
                 <select v-model="igameConfig.api_mode" @change="saveIgameConfig" class="api-jogos-select">

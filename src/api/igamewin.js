@@ -116,10 +116,16 @@ function mockResponse(method, body, cfg) {
         ],
       }
     case 'game_launch':
+      // Sandbox: igamewin.com/demo retorna 404. Usamos data URL com mensagem amigável.
       return {
         status: 1,
         msg: 'SUCCESS',
-        launch_url: 'https://igamewin.com/demo',
+        launch_url: 'data:text/html;charset=utf-8,' + encodeURIComponent(
+          '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
+          '<style>body{font-family:system-ui;background:#0f0f14;color:#e5e7eb;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;padding:1rem;text-align:center}' +
+          'h1{color:#f59e0b;margin-bottom:1rem}.msg{max-width:320px;line-height:1.6;opacity:.9}</style></head><body>' +
+          '<div><h1>Modo demonstração</h1><p class="msg">Para jogar de verdade, desative o sandbox no Admin → API de Jogos e configure as credenciais iGameWin.</p></div></body></html>'
+        ),
       }
     case 'control_rtp':
       return { status: 1, changed_rtp: body.rtp ?? rtp }

@@ -254,6 +254,12 @@ const storage = multer.diskStorage({
 })
 const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } })
 
+// Normaliza telefone para só dígitos (evita "11 99999-9999" vs "11999999999")
+function normalizeAccount(v) {
+  if (!v) return ''
+  return String(v).replace(/\D/g, '')
+}
+
 // tRPC-style user.login
 app.post('/api/frontend/trpc/user.login', async (req, res) => {
   try {
@@ -262,7 +268,13 @@ app.post('/api/frontend/trpc/user.login', async (req, res) => {
     if (!login || !password) {
       return res.json({ error: { message: 'Telefone e senha obrigatórios' } })
     }
-    const user = await prisma.user.findUnique({ where: { account: login } })
+    let user = await prisma.user.findUnique({ where: { account: login } })
+    if (!user) {
+      const loginNorm = normalizeAccount(login)
+      if (loginNorm.length >= 10) {
+        user = await prisma.user.findFirst({ where: { account: loginNorm } })
+      }
+    }
     if (!user) {
       return res.json({ error: { message: 'Usuário não encontrado' } })
     }
@@ -300,11 +312,11 @@ app.post('/api/frontend/trpc/user.register', async (req, res) => {
     if (password !== confirmPassword) {
       return res.json({ error: { message: 'As senhas não coincidem' } })
     }
-    const phoneClean = String(acc).replace(/\D/g, '')
+    const phoneClean = normalizeAccount(acc)
     if (phoneClean.length < 10) {
       return res.json({ error: { message: 'Telefone inválido (mínimo 10 dígitos)' } })
     }
-    const exists = await prisma.user.findUnique({ where: { account: acc } })
+    const exists = await prisma.user.findUnique({ where: { account: phoneClean } })
     if (exists) {
       return res.json({ error: { message: 'Conta já cadastrada' } })
     }
@@ -316,13 +328,13 @@ app.post('/api/frontend/trpc/user.register', async (req, res) => {
     const hash = await bcrypt.hash(password, 10)
     const user = await prisma.user.create({
       data: {
-        account: acc,
-        phone: acc,
+        account: phoneClean,
+        phone: phoneClean,
         password: hash,
         indicatorId
       }
     })
-    const pidNovo = generatePid(acc)
+    const pidNovo = generatePid(phoneClean)
     await prisma.afiliadoData.create({
       data: {
         userId: user.id,
@@ -846,10 +858,19 @@ const handleSeamless = async (req, res) => {
     const isDemo = stored?.is_demo ?? true
 
     if (method === 'user_balance') {
-      const af = await prisma.afiliadoData.findFirst({
+      let af = await prisma.afiliadoData.findFirst({
         where: { user: { account: user_code } },
         include: { user: true }
       })
+      if (!af && user_code !== 'guest') {
+        const codeNorm = normalizeAccount(user_code)
+        if (codeNorm.length >= 10) {
+          af = await prisma.afiliadoData.findFirst({
+            where: { user: { account: codeNorm } },
+            include: { user: true }
+          })
+        }
+      }
       const balance = af?.balance ?? 0
       return res.json({ status: 1, user_balance: fmt(balance) })
     }
@@ -874,11 +895,23 @@ const handleSeamless = async (req, res) => {
       else if (txnType === 'credit') delta = winReais
       else delta = winReais - betReais
 
-      const af = await prisma.afiliadoData.findFirst({
+      let af = await prisma.afiliadoData.findFirst({
         where: { user: { account: user_code } },
         include: { user: true }
       })
+      if (!af && user_code !== 'guest') {
+        const codeNorm = normalizeAccount(user_code)
+        if (codeNorm.length >= 10) {
+          af = await prisma.afiliadoData.findFirst({
+            where: { user: { account: codeNorm } },
+            include: { user: true }
+          })
+        }
+      }
       if (!af) {
+        if (user_code === 'guest' && isDemo) {
+          return res.json({ status: 1, user_balance: 0 })
+        }
         return res.json({ status: 0, msg: 'INVALID_USER', user_balance: 0 })
       }
 

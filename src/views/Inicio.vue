@@ -215,10 +215,10 @@
             <span>Membro</span>
             <span>Quantia</span>
           </div>
-          <div class="ranking-list-scroll-view" v-if="rankingListRest.length">
+          <div class="ranking-list-scroll-view" v-if="rankingList.length">
             <div class="ranking-list-scroll-track">
               <div class="ranking-list-scroll-group" v-for="g in 2" :key="g">
-                <div class="ranking-list-row" v-for="(r, i) in rankingListRest" :key="g + '-' + i">
+                <div class="ranking-list-row" v-for="(r, i) in rankingList" :key="g + '-' + i">
                   <span class="rank-pos">{{ String(r.pos).padStart(2, '0') }}</span>
                   <span class="rank-member"><span class="rank-avatar-sm">👤</span> {{ r.user }}</span>
                   <span class="rank-qty">{{ r.amount }}</span>
@@ -348,8 +348,6 @@ function formatMinaTimer(sec) {
   return [h, m, s].map(v => String(v).padStart(2, '0')).join(':')
 }
 const minaTimerFormatted = computed(() => formatMinaTimer(minaTimerSeconds.value))
-
-const rankingListRest = computed(() => (rankingList.value || []).slice(3))
 
 const providersForDisplay = computed(() => {
   const list = catalogProviders.value.map(p => ({

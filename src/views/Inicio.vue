@@ -379,25 +379,22 @@ function runJackpotBurst() {
 
 function launchGame(providerCode, gameCode) {
   const userCode = localStorage.getItem('account') || 'guest'
-  // noopener evita que o jogo detecte popup e bloqueie interação
-  const w = window.open('', '_blank', 'noopener,noreferrer')
-  if (w) {
-    w.document.write('<html><body style="margin:0;display:flex;align-items:center;justify-content:center;height:100vh;background:#0f0f14;color:#fff;font-family:sans-serif;font-size:1.1rem">Carregando jogo...</body></html>')
-  }
+  toast.show('Carregando jogo...')
   igamewinApi.gameLaunch(userCode, providerCode, gameCode).then((data) => {
     if (data?.status === 1 && data?.launch_url) {
-      if (w) {
-        w.location.href = data.launch_url
-      } else {
-        window.location.href = data.launch_url
-      }
+      // Link com target="_blank" abre em nova aba (evita about:blank e bloqueio de popup)
+      const a = document.createElement('a')
+      a.href = data.launch_url
+      a.target = '_blank'
+      a.rel = 'noopener noreferrer'
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
     } else {
-      if (w) w.close()
       const msg = data?.msg === 'IGAMEWIN_NOT_CONFIGURED' ? 'Configure as credenciais iGameWin no Admin → API de Jogos' : (data?.msg || 'Não foi possível abrir o jogo')
       toast.error(msg)
     }
   }).catch(() => {
-    if (w) w.close()
     toast.error('Erro ao carregar o jogo')
   })
 }

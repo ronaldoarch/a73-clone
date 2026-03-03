@@ -329,6 +329,16 @@
                 </div>
               </div>
             </div>
+            <div class="api-jogos-gold-url">
+              <label>Site EndPoint (iGameWin adiciona /gold_api automaticamente)</label>
+              <div class="api-jogos-url-row">
+                <input :value="goldApiBaseUrl" type="text" readonly class="api-jogos-url-input" />
+                <button type="button" class="btn btn-outline" @click="copyGoldApiBaseUrl">
+                  Copiar
+                </button>
+              </div>
+              <span class="form-hint">Cole no iGameWin → Update Agent → Site EndPoint (ex: https://api.35m.site)</span>
+            </div>
             <div class="api-jogos-config">
               <div class="form-group">
                 <label>Agent Code</label>
@@ -709,6 +719,20 @@ const webhookUrl = computed(() => {
   const base = typeof window !== 'undefined' ? window.location.origin : ''
   return base ? `${base.replace(/\/$/, '')}/api/webhook/gatebox` : '/api/webhook/gatebox'
 })
+
+const goldApiBaseUrl = computed(() => {
+  const u = apiUrl('/gold_api')
+  const full = u.startsWith('http') ? u : (typeof window !== 'undefined' ? window.location.origin + u : u)
+  return full.replace(/\/gold_api\/?$/, '').replace(/\/$/, '') || full
+})
+
+function copyGoldApiBaseUrl() {
+  navigator.clipboard.writeText(goldApiBaseUrl.value).then(() => {
+    igameSaveMsg.value = 'URL copiada!'
+    igameSaveError.value = false
+    setTimeout(() => { igameSaveMsg.value = '' }, 2000)
+  })
+}
 
 async function loadDashboard() {
   dashboardLoading.value = true
@@ -1554,6 +1578,10 @@ tr:hover { background: rgba(255,255,255,0.02); }
 .api-jogos-rtp-row { display: flex; align-items: center; gap: 0.5rem; }
 .api-jogos-add-row { display: flex; gap: 0.5rem; align-items: center; }
 .api-jogos-input { width: 120px; padding: 0.5rem 0.75rem; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 0.9rem; }
+.api-jogos-gold-url { margin-bottom: 1rem; }
+.api-jogos-gold-url label { display: block; margin-bottom: 0.5rem; font-size: 0.875rem; color: var(--text-muted); }
+.api-jogos-url-row { display: flex; gap: 0.5rem; align-items: center; }
+.api-jogos-url-input { flex: 1; padding: 0.5rem 0.75rem; background: var(--bg-dark, #1a1a2e); border: 1px solid var(--border); border-radius: 6px; color: #fff; font-size: 0.85rem; }
 .api-jogos-config { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border); }
 .api-jogos-check { display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0; cursor: pointer; font-size: 0.875rem; color: var(--text-muted); }
 .api-jogos-check input { accent-color: var(--primary); }

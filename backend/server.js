@@ -817,6 +817,9 @@ async function getIgamewinConfig() {
 app.post('/gold_api', async (req, res) => {
   try {
     const { method, agent_code, agent_secret, user_code } = req.body || {}
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('gold_api:', { method, user_code: user_code ? `${String(user_code).slice(0, 4)}***` : null })
+    }
     const stored = await getIgamewinConfig()
     const expectedCode = stored?.agent_code || process.env.IGAMEWIN_AGENT_CODE || 'Midaslabs'
     const expectedSecret = stored?.agent_secret || process.env.IGAMEWIN_AGENT_SECRET || ''
@@ -827,26 +830,33 @@ app.post('/gold_api', async (req, res) => {
       return res.json({ status: 0, msg: 'INVALID_PARAMETER', user_balance: 0 })
     }
 
+    // Saldo em reais (4, 3.50) - exibição correta no jogo
+    const fmt = (v) => Math.round(Number(v) * 100) / 100
+
     if (method === 'user_balance') {
       const af = await prisma.afiliadoData.findFirst({
         where: { user: { account: user_code } },
         include: { user: true }
       })
       const balance = af?.balance ?? 0
-      return res.json({ status: 1, user_balance: Math.round(balance * 100) / 100 })
+      return res.json({ status: 1, user_balance: fmt(balance) })
     }
 
     if (method === 'transaction') {
       const { agent_balance, user_balance: reportedBalance, game_type, slot } = req.body || {}
       const slotData = slot || req.body?.live || req.body?.sport || {}
       const txnType = slotData.txn_type || 'debit_credit'
-      const betMoney = Number(slotData.bet_money ?? slotData.bet ?? 0) || 0
-      const winMoney = Number(slotData.win_money ?? slotData.win ?? 0) || 0
+      const toReais = (v) => {
+        const n = Number(v) || 0
+        return n > 100 ? n / 100 : n
+      }
+      const betReais = toReais(slotData.bet_money ?? slotData.bet ?? 0)
+      const winReais = toReais(slotData.win_money ?? slotData.win ?? 0)
 
       let delta = 0
-      if (txnType === 'debit') delta = -betMoney
-      else if (txnType === 'credit') delta = winMoney
-      else delta = winMoney - betMoney
+      if (txnType === 'debit') delta = -betReais
+      else if (txnType === 'credit') delta = winReais
+      else delta = winReais - betReais
 
       const af = await prisma.afiliadoData.findFirst({
         where: { user: { account: user_code } },
@@ -859,14 +869,14 @@ app.post('/gold_api', async (req, res) => {
       const currentBalance = af.balance ?? 0
       const newBalance = currentBalance + delta
       if (newBalance < 0) {
-        return res.json({ status: 0, msg: 'INSUFFICIENT_USER_FUNDS', user_balance: Math.round(currentBalance * 100) / 100 })
+        return res.json({ status: 0, msg: 'INSUFFICIENT_USER_FUNDS', user_balance: fmt(currentBalance) })
       }
 
       await prisma.afiliadoData.update({
         where: { id: af.id },
         data: { balance: newBalance, updatedAt: new Date() }
       })
-      return res.json({ status: 1, user_balance: Math.round(newBalance * 100) / 100 })
+      return res.json({ status: 1, user_balance: fmt(newBalance) })
     }
 
     return res.json({ status: 0, msg: 'INVALID_METHOD', user_balance: 0 })

@@ -884,7 +884,8 @@ const handleSeamless = async (req, res) => {
     if (method === 'transaction') {
       const { game_type, slot } = req.body || {}
       const slotData = slot || req.body?.live || req.body?.sport || {}
-      const txnId = slotData.txn_id || slotData.transaction_id
+      const rawTxnId = slotData.txn_id ?? slotData.transaction_id
+      const txnId = rawTxnId != null ? String(rawTxnId) : null
       if (txnId) {
         const existing = await prisma.gameTxnLog.findUnique({ where: { txnId } })
         if (existing) {

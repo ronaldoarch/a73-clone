@@ -379,7 +379,7 @@ function launchGame(providerCode, gameCode) {
   const userCode = localStorage.getItem('account') || 'guest'
   igamewinApi.gameLaunch(userCode, providerCode, gameCode).then((data) => {
     if (data?.status === 1 && data?.launch_url) {
-      router.push({ path: '/main/jogo/', query: { url: encodeURIComponent(data.launch_url) } })
+      window.location.href = data.launch_url
     }
   })
 }

@@ -179,7 +179,7 @@ async function confirmarDepositoPix(deposit) {
     bonusVipReclamar += prox.bonus
   }
   await prisma.$transaction([
-    prisma.deposit.update({ where: { id: deposit.id }, data: { status: 'concluido', updatedAt: new Date() } }),
+    prisma.deposit.update({ where: { id: deposit.id }, data: { status: 'concluido' } }),
     prisma.afiliadoData.update({
       where: { userId: deposit.userId },
       data: {

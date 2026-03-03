@@ -110,12 +110,13 @@
 
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButton, IonButtons, IonIcon } from '@ionic/vue'
 import { useGamesCatalog } from '@/composables/useGamesCatalog'
 import { igamewinApi } from '@/api/igamewin'
 
 const route = useRoute()
+const router = useRouter()
 const { providers: catalogProviders, gamesByProvider: catalogGamesByProvider, loading: catalogLoading, load: loadCatalog } = useGamesCatalog()
 
 const searchQuery = ref('')
@@ -153,7 +154,7 @@ function launchGame(providerCode, gameCode) {
   const userCode = localStorage.getItem('account') || 'guest'
   igamewinApi.gameLaunch(userCode, providerCode, gameCode).then((data) => {
     if (data?.status === 1 && data?.launch_url) {
-      window.open(data.launch_url, '_blank')
+      router.push({ path: '/main/jogo/', query: { url: encodeURIComponent(data.launch_url) } })
     }
   })
 }

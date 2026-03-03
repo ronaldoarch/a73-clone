@@ -1,5 +1,5 @@
 /**
- * Ranking de lucro (apostaAcumulada) - busca do backend GET /api/ranking
+ * Ranking de lucro (lucro real nos jogos) - busca do backend GET /api/ranking
  */
 import { ref } from 'vue'
 import { apiUrl } from '@/config/api'

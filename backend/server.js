@@ -1323,7 +1323,7 @@ app.post('/api/igamewin', async (req, res) => {
   }
 })
 
-// GET ranking de lucro (apostaAcumulada) - top usuários
+// GET ranking de lucro (lucro real nos jogos = soma de delta do GameTxnLog)
 function maskAccount(account) {
   if (!account || account.length < 5) return '****'
   return account.slice(0, 2) + '****' + account.slice(-2)
@@ -1335,16 +1335,25 @@ function formatAmountBr(val) {
 app.get('/api/ranking', async (req, res) => {
   try {
     const limit = Math.min(parseInt(req.query.limit) || 20, 50)
-    const afiliados = await prisma.afiliadoData.findMany({
-      where: { apostaAcumulada: { gt: 0 } },
-      orderBy: { apostaAcumulada: 'desc' },
-      take: limit,
-      include: { user: { select: { account: true } } }
+    const agg = await prisma.gameTxnLog.groupBy({
+      by: ['userId'],
+      _sum: { delta: true }
     })
-    const list = afiliados.map((af, i) => ({
+    const sorted = agg
+      .map(({ userId, _sum }) => ({ userId, lucro: _sum?.delta ?? 0 }))
+      .filter((x) => x.lucro > 0)
+      .sort((a, b) => b.lucro - a.lucro)
+      .slice(0, limit)
+    const userIds = sorted.map((x) => x.userId)
+    const users = await prisma.user.findMany({
+      where: { id: { in: userIds } },
+      select: { id: true, account: true }
+    })
+    const userMap = Object.fromEntries(users.map((u) => [u.id, u]))
+    const list = sorted.map((item, i) => ({
       pos: i + 1,
-      user: maskAccount(af.user?.account),
-      amount: formatAmountBr(af.apostaAcumulada)
+      user: maskAccount(userMap[item.userId]?.account),
+      amount: formatAmountBr(item.lucro)
     }))
     return res.json({ top3: list.slice(0, 3), list })
   } catch (e) {

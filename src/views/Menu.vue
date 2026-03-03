@@ -4,7 +4,7 @@
       <ion-toolbar class="menu-header-toolbar">
         <ion-buttons slot="start">
           <div class="menu-header-logo-wrap">
-            <img :src="logoUrl" alt="A73" class="menu-header-logo" />
+            <img :src="logoUrl" alt="A73" class="menu-header-logo" @error="e => (e.target.src = '/s5/app-icon/1222508/LOGO.jpg')" />
             <span class="menu-header-brand">{{ siteName }}</span>
           </div>
         </ion-buttons>

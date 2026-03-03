@@ -511,7 +511,7 @@
               <h3>Logo / Ícone</h3>
               <p class="card-label" style="margin-bottom: 1rem;">Favicon e ícones do app</p>
               <div class="preview-box">
-                <img v-if="logoUrl" :src="logoUrl" alt="Logo" />
+                <img v-if="logoUrl" :src="logoUrl" alt="Logo" @error="e => (e.target.src = '/s5/app-icon/1222508/LOGO.jpg')" />
                 <span v-else class="placeholder">Sem logo</span>
               </div>
               <form @submit.prevent="uploadLogo">
@@ -525,7 +525,7 @@
               <h3>Banner principal</h3>
               <p class="card-label" style="margin-bottom: 1rem;">Imagem para redes sociais</p>
               <div class="preview-box banner-preview">
-                <img v-if="bannerUrl" :src="bannerUrl" alt="Banner" />
+                <img v-if="bannerUrl" :src="bannerUrl" alt="Banner" @error="e => (e.target.src = '/s5/1770954153806/9999.jpg')" />
                 <span v-else class="placeholder">Sem banner</span>
               </div>
               <form @submit.prevent="uploadBanner">

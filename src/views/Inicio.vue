@@ -12,7 +12,7 @@
       <ion-toolbar class="header-toolbar header-gradient">
         <ion-buttons slot="start">
           <div class="header-logo-wrap">
-            <img :src="logoUrl" alt="" class="header-logo" />
+            <img :src="logoUrl" alt="" class="header-logo" @error="e => (e.target.src = '/s5/app-icon/1222508/LOGO.jpg')" />
             <span class="header-site-name">{{ siteName }}</span>
           </div>
         </ion-buttons>
@@ -48,7 +48,7 @@
       <div class="banner-section banner-carousel">
         <div class="banner-neon-frame">
           <div class="banner-slide active">
-            <img :src="bannerUrl" alt="Banner A73" class="banner-img" />
+            <img :src="bannerUrl" alt="Banner A73" class="banner-img" @error="e => (e.target.src = '/s5/1770954153806/9999.jpg')" />
             <div class="banner-overlay">
               <span class="banner-text-main">COM AMIGOS COMPARTILHE R$100</span>
               <ion-button size="small" color="warning" class="banner-saque-btn">SAQUE RÁPIDO</ion-button>

@@ -842,9 +842,9 @@ async function getIgamewinConfig() {
 const handleSeamless = async (req, res) => {
   try {
     const { method, agent_code, agent_secret, user_code } = req.body || {}
-    if (process.env.NODE_ENV !== 'production') {
-      console.log('gold_api:', { method, user_code: user_code ? `${String(user_code).slice(0, 4)}***` : null })
-    }
+    // Log para diagnóstico: qual URL o jogo está chamando
+    const calledUrl = `${req.protocol}://${req.get('host') || req.headers.host}${req.originalUrl || req.url}`
+    console.log('gold_api chamado:', { url: calledUrl, method, user_code: user_code ? `${String(user_code).slice(0, 4)}***` : null })
     const stored = await getIgamewinConfig()
     const expectedCode = stored?.agent_code || process.env.IGAMEWIN_AGENT_CODE || 'Midaslabs'
     const expectedSecret = stored?.agent_secret || process.env.IGAMEWIN_AGENT_SECRET || ''
@@ -1190,6 +1190,8 @@ app.post('/api/igamewin/launch-game', async (req, res) => {
     const returnUrl = apiMode === 'transfer' && apiBase
       ? `${apiBase.replace(/\/$/, '')}/api/igamewin/game-return?user_code=${encodeURIComponent(userCode)}`
       : undefined
+    // site_url: URL base para gold_api (sem /gold_api) - alguns jogos PG Soft precisam disso na launch
+    const siteUrl = apiBase ? apiBase.replace(/\/$/, '').replace(/\/gold_api\/?$/, '') : undefined
     const launchBody = {
       method: 'game_launch',
       agent_code: stored.agent_code,
@@ -1200,6 +1202,7 @@ app.post('/api/igamewin/launch-game', async (req, res) => {
       lang
     }
     if (returnUrl) launchBody.return_url = returnUrl
+    if (siteUrl) launchBody.site_url = siteUrl
     const launchRes = await fetch(IGAMEWIN_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

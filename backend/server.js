@@ -1109,7 +1109,9 @@ app.post('/api/igamewin/launch-game', async (req, res) => {
     if (!stored?.agent_code || !stored?.agent_token) {
       return res.json({ status: 0, msg: 'IGAMEWIN_NOT_CONFIGURED' })
     }
-    const userCode = user_code || 'guest'
+    // user_code: normaliza (só dígitos para telefone, ou guest) - iGameWin pode rejeitar espaços/caracteres
+    const raw = String(user_code || 'guest').trim()
+    const userCode = raw === 'guest' ? 'guest' : (normalizeAccount(raw) || raw)
     const isDemo = stored.is_demo ?? true
 
     // 1. user_create (obrigatório antes de game_launch) - modo samples usa is_demo: true
@@ -1130,7 +1132,7 @@ app.post('/api/igamewin/launch-game', async (req, res) => {
       return res.json(createData)
     }
 
-    // 2. game_launch
+    // 2. game_launch - game_mode: seamless para usar gold_api (evita Login Error)
     const launchRes = await fetch(IGAMEWIN_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1141,7 +1143,8 @@ app.post('/api/igamewin/launch-game', async (req, res) => {
         user_code: userCode,
         provider_code: provider_code || '',
         game_code: game_code || '',
-        lang
+        lang,
+        game_mode: 'seamless'
       })
     })
     const launchData = await launchRes.json()

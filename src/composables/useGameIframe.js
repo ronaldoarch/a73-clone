@@ -4,9 +4,11 @@
 import { ref, shallowRef } from 'vue'
 import { igamewinApi } from '@/api/igamewin'
 import { useToast } from '@/composables/useToast'
+import { useAfiliado } from '@/composables/useAfiliado'
 
 export function useGameIframe() {
   const toast = useToast()
+  const { refresh } = useAfiliado()
   const gameUrl = shallowRef(null)
   const gameLoading = ref(false)
 
@@ -37,6 +39,7 @@ export function useGameIframe() {
 
   function closeGame() {
     gameUrl.value = null
+    refresh() // Atualiza saldo após fechar o jogo (gold_api alterou no backend)
   }
 
   return { gameUrl, gameLoading, openGame, closeGame }

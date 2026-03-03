@@ -924,18 +924,15 @@ const handleSeamless = async (req, res) => {
       }
 
       const currentBalance = af.balance ?? 0
-      let newBalance = currentBalance
-      if (!isDemo) {
-        newBalance = currentBalance + delta
-        if (newBalance < 0) {
-          console.warn('gold_api INSUFFICIENT_USER_FUNDS:', { user_code: user_code ? `${String(user_code).slice(0, 4)}***` : null, currentBalance, delta })
-          return res.json({ status: 0, msg: 'INSUFFICIENT_USER_FUNDS', user_balance: fmt(currentBalance) })
-        }
-        await prisma.afiliadoData.update({
-          where: { id: af.id },
-          data: { balance: newBalance, updatedAt: new Date() }
-        })
+      let newBalance = currentBalance + delta
+      if (!isDemo && newBalance < 0) {
+        console.warn('gold_api INSUFFICIENT_USER_FUNDS:', { user_code: user_code ? `${String(user_code).slice(0, 4)}***` : null, currentBalance, delta })
+        return res.json({ status: 0, msg: 'INSUFFICIENT_USER_FUNDS', user_balance: fmt(currentBalance) })
       }
+      await prisma.afiliadoData.update({
+        where: { id: af.id },
+        data: { balance: newBalance, updatedAt: new Date() }
+      })
 
       if (txnId) {
         await prisma.gameTxnLog.create({

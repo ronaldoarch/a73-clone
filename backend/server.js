@@ -1132,7 +1132,7 @@ app.post('/api/igamewin/launch-game', async (req, res) => {
       return res.json(createData)
     }
 
-    // 2. game_launch - game_mode: seamless para usar gold_api (evita Login Error)
+    // 2. game_launch (game_mode removido - pode não ser suportado e causar Login Error)
     const launchRes = await fetch(IGAMEWIN_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1143,11 +1143,13 @@ app.post('/api/igamewin/launch-game', async (req, res) => {
         user_code: userCode,
         provider_code: provider_code || '',
         game_code: game_code || '',
-        lang,
-        game_mode: 'seamless'
+        lang
       })
     })
     const launchData = await launchRes.json()
+    if (launchData.status !== 1) {
+      console.warn('igamewin launch-game:', launchData.msg || launchData.status)
+    }
     res.json(launchData)
   } catch (e) {
     console.error('igamewin launch-game:', e)

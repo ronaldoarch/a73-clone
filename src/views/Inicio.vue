@@ -379,8 +379,8 @@ function runJackpotBurst() {
 
 function launchGame(providerCode, gameCode) {
   const userCode = localStorage.getItem('account') || 'guest'
-  // Abre janela em branco imediatamente (síncrono) para preservar gesto do usuário e evitar bloqueio de popup
-  const w = window.open('', '_blank')
+  // noopener evita que o jogo detecte popup e bloqueie interação
+  const w = window.open('', '_blank', 'noopener,noreferrer')
   if (w) {
     w.document.write('<html><body style="margin:0;display:flex;align-items:center;justify-content:center;height:100vh;background:#0f0f14;color:#fff;font-family:sans-serif;font-size:1.1rem">Carregando jogo...</body></html>')
   }

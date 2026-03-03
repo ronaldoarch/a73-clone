@@ -101,3 +101,8 @@ O 502 significa que o nginx do frontend não consegue alcançar o backend. Verif
   - `IGAMEWIN_AGENT_CODE`: código do agent (ex: Midaslabs)
   - `IGAMEWIN_AGENT_SECRET`: segredo do agent (diferente do agent_token)
 - O `user_code` deve corresponder ao `account` do usuário no sistema
+
+### Login Error / botões não funcionam no jogo
+- Verifique no painel iGameWin: API Type = "Seamless Mode", Site EndPoint = URL do backend
+- Confirme que Agent Secret está preenchido e correto
+- Se persistir: contate o suporte iGameWin com os logs do backend (igamewin launch-game)

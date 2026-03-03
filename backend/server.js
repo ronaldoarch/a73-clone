@@ -811,10 +811,9 @@ async function getIgamewinConfig() {
 }
 
 // ========== iGameWin Seamless API (Site API) ==========
-// Endpoint que a iGameWin chama em modo Seamless. Configure a URL com iGameWin:
-// https://seu-dominio.com/gold_api
-// Usa agent_code e agent_secret do Settings (Admin) ou env
-app.post('/gold_api', async (req, res) => {
+// iGameWin chama: POST /gold_api ou POST /api/games/seamless
+// Site EndPoint no painel: https://api.35m.site (iGameWin adiciona /gold_api)
+const handleSeamless = async (req, res) => {
   try {
     const { method, agent_code, agent_secret, user_code } = req.body || {}
     if (process.env.NODE_ENV !== 'production') {
@@ -830,8 +829,8 @@ app.post('/gold_api', async (req, res) => {
       return res.json({ status: 0, msg: 'INVALID_PARAMETER', user_balance: 0 })
     }
 
-    // Saldo em reais (4, 3.50) - exibição correta no jogo
     const fmt = (v) => Math.round(Number(v) * 100) / 100
+    const isDemo = stored?.is_demo ?? true
 
     if (method === 'user_balance') {
       const af = await prisma.afiliadoData.findFirst({
@@ -843,16 +842,20 @@ app.post('/gold_api', async (req, res) => {
     }
 
     if (method === 'transaction') {
-      const { agent_balance, user_balance: reportedBalance, game_type, slot } = req.body || {}
+      const { game_type, slot } = req.body || {}
       const slotData = slot || req.body?.live || req.body?.sport || {}
-      const txnType = slotData.txn_type || 'debit_credit'
-      const toReais = (v) => {
-        const n = Number(v) || 0
-        return n > 100 ? n / 100 : n
+      const txnId = slotData.txn_id || slotData.transaction_id
+      if (txnId) {
+        const existing = await prisma.gameTxnLog.findUnique({ where: { txnId } })
+        if (existing) {
+          return res.json({ status: 1, user_balance: fmt(existing.balanceAfter) })
+        }
       }
+
+      const txnType = slotData.txn_type || 'debit_credit'
+      const toReais = (v) => { const n = Number(v) || 0; return n > 100 ? n / 100 : n }
       const betReais = toReais(slotData.bet_money ?? slotData.bet ?? 0)
       const winReais = toReais(slotData.win_money ?? slotData.win ?? 0)
-
       let delta = 0
       if (txnType === 'debit') delta = -betReais
       else if (txnType === 'credit') delta = winReais
@@ -867,15 +870,36 @@ app.post('/gold_api', async (req, res) => {
       }
 
       const currentBalance = af.balance ?? 0
-      const newBalance = currentBalance + delta
-      if (newBalance < 0) {
-        return res.json({ status: 0, msg: 'INSUFFICIENT_USER_FUNDS', user_balance: fmt(currentBalance) })
+      let newBalance = currentBalance
+      if (!isDemo) {
+        newBalance = currentBalance + delta
+        if (newBalance < 0) {
+          return res.json({ status: 0, msg: 'INSUFFICIENT_USER_FUNDS', user_balance: fmt(currentBalance) })
+        }
+        await prisma.afiliadoData.update({
+          where: { id: af.id },
+          data: { balance: newBalance, updatedAt: new Date() }
+        })
       }
 
-      await prisma.afiliadoData.update({
-        where: { id: af.id },
-        data: { balance: newBalance, updatedAt: new Date() }
-      })
+      if (txnId) {
+        await prisma.gameTxnLog.create({
+          data: {
+            txnId,
+            userId: af.userId,
+            userCode: user_code,
+            gameType: game_type,
+            provider: slotData.provider_code,
+            gameCode: slotData.game_code,
+            txnType,
+            betReais,
+            winReais,
+            delta,
+            balanceBefore: currentBalance,
+            balanceAfter: newBalance
+          }
+        })
+      }
       return res.json({ status: 1, user_balance: fmt(newBalance) })
     }
 
@@ -884,7 +908,10 @@ app.post('/gold_api', async (req, res) => {
     console.error('gold_api error:', e)
     res.status(500).json({ status: 0, msg: 'INTERNAL_ERROR', user_balance: 0 })
   }
-})
+}
+
+app.post('/gold_api', handleSeamless)
+app.post('/api/games/seamless', handleSeamless)
 
 // GET/POST iGameWin config (Admin) - credenciais salvas no backend
 app.get('/api/settings/igamewin', async (req, res) => {

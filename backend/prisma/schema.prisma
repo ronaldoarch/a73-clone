@@ -89,6 +89,23 @@ model RoletaBonusLog {
   createdAt DateTime @default(now())
 }
 
+model GameTxnLog {
+  id         String   @id @default(cuid())
+  txnId      String   @unique  // txn_id da iGameWin - idempotência
+  userId     String
+  userCode   String   // account
+  gameType   String?  // slot, live, sport
+  provider   String?
+  gameCode   String?
+  txnType    String?  // debit, credit, debit_credit
+  betReais   Float    @default(0)
+  winReais   Float    @default(0)
+  delta      Float    @default(0)
+  balanceBefore Float @default(0)
+  balanceAfter  Float @default(0)
+  createdAt  DateTime @default(now())
+}
+
 model Withdrawal {
   id        String   @id @default(cuid())
   userId    String

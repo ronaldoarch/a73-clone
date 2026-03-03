@@ -849,9 +849,11 @@ const handleSeamless = async (req, res) => {
     const expectedCode = stored?.agent_code || process.env.IGAMEWIN_AGENT_CODE || 'Midaslabs'
     const expectedSecret = stored?.agent_secret || process.env.IGAMEWIN_AGENT_SECRET || ''
     if (agent_code !== expectedCode || !expectedSecret || agent_secret !== expectedSecret) {
+      console.warn('gold_api INVALID_AGENT:', { agent_code: agent_code ? '***' : null, expectedCode })
       return res.json({ status: 0, msg: 'INVALID_AGENT', user_balance: 0 })
     }
     if (!user_code) {
+      console.warn('gold_api INVALID_PARAMETER: user_code vazio')
       return res.json({ status: 0, msg: 'INVALID_PARAMETER', user_balance: 0 })
     }
 
@@ -913,6 +915,7 @@ const handleSeamless = async (req, res) => {
         if (user_code === 'guest' && isDemo) {
           return res.json({ status: 1, user_balance: 0 })
         }
+        console.warn('gold_api INVALID_USER:', { user_code: user_code ? `${String(user_code).slice(0, 4)}***` : null })
         return res.json({ status: 0, msg: 'INVALID_USER', user_balance: 0 })
       }
 
@@ -921,6 +924,7 @@ const handleSeamless = async (req, res) => {
       if (!isDemo) {
         newBalance = currentBalance + delta
         if (newBalance < 0) {
+          console.warn('gold_api INSUFFICIENT_USER_FUNDS:', { user_code: user_code ? `${String(user_code).slice(0, 4)}***` : null, currentBalance, delta })
           return res.json({ status: 0, msg: 'INSUFFICIENT_USER_FUNDS', user_balance: fmt(currentBalance) })
         }
         await prisma.afiliadoData.update({
@@ -950,6 +954,7 @@ const handleSeamless = async (req, res) => {
       return res.json({ status: 1, user_balance: fmt(newBalance) })
     }
 
+    console.warn('gold_api INVALID_METHOD:', method)
     return res.json({ status: 0, msg: 'INVALID_METHOD', user_balance: 0 })
   } catch (e) {
     console.error('gold_api error:', e)

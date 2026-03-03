@@ -11,7 +11,8 @@
         :src="url"
         class="game-iframe"
         allowfullscreen
-        allow="payment; fullscreen"
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen; payment; gamepad"
+        referrerpolicy="no-referrer-when-downgrade"
       ></iframe>
     </div>
   </Teleport>

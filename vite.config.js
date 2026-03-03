@@ -25,7 +25,6 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         globIgnores: [
           '**/hot-platform-36-gold.svg',
-          '**/index.html',
           '**/assets/index-*.js'
         ],
         maximumFileSizeToCacheInBytes: 20 * 1024 * 1024 // 20 MB - assets legados podem ser grandes

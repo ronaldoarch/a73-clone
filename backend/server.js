@@ -41,10 +41,23 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')))
 app.post('/api/webhook/gatebox', async (req, res) => {
   const body = req.body || {}
   const eventType = (body.type || body.eventType || body.event || '').toUpperCase()
-  const externalId = body.externalId || body.data?.externalId || body.transactionId || body.id ||
+  let externalId = body.externalId || body.data?.externalId || body.transactionId || body.id ||
     body.conciliationId || body.conciliation_id || body.reference || body.pixChargeIdConciliation
-  if (process.env.NODE_ENV !== 'production') {
-    console.log('Webhook Gatebox:', { eventType, externalId, keys: Object.keys(body) })
+  if (!externalId && body.invoice) {
+    const inv = body.invoice
+    externalId = inv.externalId || inv.id || inv.reference || inv.conciliationId
+  }
+  if (!externalId && body.transaction) {
+    const tx = body.transaction
+    externalId = tx.externalId || tx.id || tx.reference || tx.conciliationId || tx.transactionId
+  }
+  if (!externalId) {
+    const flat = JSON.stringify(body)
+    const cuidMatch = flat.match(/"c[a-z0-9]{24}"/)
+    if (cuidMatch) externalId = cuidMatch[0].replace(/^"|"$/g, '')
+  }
+  if (!externalId || process.env.NODE_ENV !== 'production') {
+    console.log('Webhook Gatebox:', { eventType, externalId, keys: Object.keys(body), invoice: body.invoice ? Object.keys(body.invoice) : null, transaction: body.transaction ? Object.keys(body.transaction) : null })
   }
   res.status(200).json({ ok: true })
   try {

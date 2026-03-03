@@ -41,6 +41,9 @@
                 <div class="pix-pending-msg">
                   <ion-spinner name="crescent" />
                   Aguardando pagamento...
+                  <ion-button size="small" fill="outline" class="pix-verify-btn" :disabled="pixVerifying" @click="verificarPagamento">
+                    {{ pixVerifying ? 'Verificando...' : 'Já paguei' }}
+                  </ion-button>
                 </div>
               </template>
             </template>
@@ -213,6 +216,7 @@ const pixExternalId = ref('')
 const pixValorDisplay = ref('')
 const pixStatus = ref('pendente')
 const pixCopyRef = ref(null)
+const pixVerifying = ref(false)
 let pixPollInterval = null
 
 function formatAmount(val) {
@@ -297,10 +301,20 @@ async function doDeposit() {
     }
     pixModalOpen.value = true
     if (pixPollInterval) clearInterval(pixPollInterval)
-    pixPollInterval = setInterval(pollPixStatus, 2000)
+    pixPollInterval = setInterval(pollPixStatus, 1000)
     pollPixStatus()
   } catch (e) {
     toast.error(e?.message || 'Erro ao gerar PIX. Verifique se o Gatebox está configurado.')
+  }
+}
+
+async function verificarPagamento() {
+  if (!pixExternalId.value || pixVerifying.value) return
+  pixVerifying.value = true
+  try {
+    await pollPixStatus()
+  } finally {
+    pixVerifying.value = false
   }
 }
 
@@ -308,7 +322,8 @@ async function pollPixStatus() {
   if (!pixExternalId.value) return
   try {
     const data = await afiliadoApi.depositoPixStatus(pixExternalId.value)
-    if (data?.status === 'concluido') {
+    const status = String(data?.status || '').toLowerCase()
+    if (status === 'concluido') {
       pixStatus.value = 'concluido'
       if (pixPollInterval) {
         clearInterval(pixPollInterval)
@@ -624,10 +639,16 @@ function openSupport() {
 }
 .pix-pending-msg {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   color: #fbbf24;
   margin-top: 16px;
+}
+.pix-verify-btn {
+  margin-left: 8px;
+  --color: #fbbf24;
+  --border-color: #fbbf24;
 }
 .pix-error-msg {
   display: flex;

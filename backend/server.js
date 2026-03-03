@@ -32,6 +32,19 @@ const corsOpts = {
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }
+// CORS permissivo para /gold_api - iGameWin chama de iframe de outro domínio (evita ERROR_GET_BALANCE_END_POINT)
+// Deve rodar ANTES do cors global para não ser bloqueado por FRONTEND_URL
+app.use((req, res, next) => {
+  if (req.path === '/gold_api' || req.path === '/api/games/seamless') {
+    const origin = req.headers.origin || '*'
+    res.setHeader('Access-Control-Allow-Origin', origin)
+    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
+    if (req.method === 'OPTIONS') return res.sendStatus(204)
+  }
+  next()
+})
+
 app.use(cors(corsOpts))
 app.options('*', cors(corsOpts))
 app.use(express.json())
@@ -913,8 +926,8 @@ const handleSeamless = async (req, res) => {
 app.post('/gold_api', handleSeamless)
 app.post('/api/games/seamless', handleSeamless)
 
-// GET/POST iGameWin config (Admin) - credenciais salvas no backend
-app.get('/api/settings/igamewin', async (req, res) => {
+// GET/POST iGameWin config (Admin) - credenciais salvas no backend - requer auth admin
+app.get('/api/settings/igamewin', adminAuthMiddleware, async (req, res) => {
   try {
     const cfg = await getIgamewinConfig()
     return res.json(cfg || { agent_code: '', agent_token: '', agent_secret: '', sandbox: true, is_demo: true })
@@ -923,17 +936,22 @@ app.get('/api/settings/igamewin', async (req, res) => {
   }
 })
 
-app.post('/api/settings/igamewin', async (req, res) => {
+app.post('/api/settings/igamewin', adminAuthMiddleware, async (req, res) => {
   try {
     const { agent_code, agent_token, agent_secret, sandbox, is_demo } = req.body || {}
+    const existing = await getIgamewinConfig()
+    // Se agent_secret/agent_token vazios, mantém o existente (evita apagar ao salvar só outros campos)
+    const finalSecret = (agent_secret != null && String(agent_secret).trim() !== '') ? String(agent_secret).trim() : (existing?.agent_secret || '')
+    const finalToken = (agent_token != null && String(agent_token).trim() !== '') ? String(agent_token).trim() : (existing?.agent_token || '')
+    const finalCode = agent_code != null ? String(agent_code).trim() : (existing?.agent_code || '')
     await prisma.setting.upsert({
       where: { id: 'igamewin' },
       create: {
         id: 'igamewin',
-        value: { agent_code: agent_code || '', agent_token: agent_token || '', agent_secret: agent_secret || '', sandbox: sandbox ?? true, is_demo: is_demo ?? true }
+        value: { agent_code: finalCode, agent_token: finalToken, agent_secret: finalSecret, sandbox: sandbox ?? true, is_demo: is_demo ?? true }
       },
       update: {
-        value: { agent_code: agent_code || '', agent_token: agent_token || '', agent_secret: agent_secret || '', sandbox: sandbox ?? true, is_demo: is_demo ?? true }
+        value: { agent_code: finalCode, agent_token: finalToken, agent_secret: finalSecret, sandbox: sandbox ?? true, is_demo: is_demo ?? true }
       }
     })
     catalogCache = null

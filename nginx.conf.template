@@ -37,7 +37,8 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
     }
-    location /uploads {
+    # ^~ evita que a regex de cache (\.jpeg$) capture /uploads e tente servir do disco
+    location ^~ /uploads {
         proxy_pass ${BACKEND_URL};
         proxy_http_version 1.1;
         proxy_ssl_verify off;

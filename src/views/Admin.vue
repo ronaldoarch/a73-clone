@@ -337,7 +337,7 @@
                   Copiar
                 </button>
               </div>
-              <span class="form-hint">Cole no iGameWin → Update Agent → Site EndPoint: use a URL do backend (ex: https://api.35m.site)</span>
+              <span class="form-hint">Cole no iGameWin → Update Agent → Site EndPoint. Se aparecer ERROR_GET_BALANCE_END_POINT, confira esta URL e as credenciais (Agent Secret).</span>
             </div>
             <div class="api-jogos-config">
               <div class="form-group">
@@ -978,13 +978,13 @@ const igameSaveError = ref(false)
 
 async function loadIgamewinConfigFromBackend() {
   try {
-    const r = await fetch(apiUrl('/api/settings/igamewin'))
+    const r = await adminFetch('/api/settings/igamewin')
     const data = await r.json()
     if (data?.agent_code || data?.agent_token || data?.agent_secret) {
       igameConfig.value = { ...igamewinApi.getConfig(), ...data }
       igamewinApi.saveConfig(igameConfig.value)
     }
-  } catch (e) { /* ignore */ }
+  } catch (e) { /* ignore - ex: não logado */ }
 }
 const addBalanceAmount = ref(10000)
 const showRtpModal = ref(false)
@@ -1177,7 +1177,7 @@ async function saveIgameConfig() {
   igameSaveMsg.value = ''
   igameSaveError.value = false
   try {
-    const r = await fetch(apiUrl('/api/settings/igamewin'), {
+    const r = await adminFetch('/api/settings/igamewin', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -1259,6 +1259,7 @@ async function adminLogin() {
     if (data?.token) {
       localStorage.setItem(ADMIN_TOKEN_KEY, data.token)
       adminLoggedIn.value = true
+      loadIgamewinConfigFromBackend()
     } else {
       adminLoginError.value = data?.error?.message || 'Credenciais inválidas'
     }

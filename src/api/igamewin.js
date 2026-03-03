@@ -17,8 +17,8 @@ function getIgamewinUrl() {
 const STORAGE_KEY = 'a73_igamewin_config'
 
 const defaultConfig = () => ({
-  agent_code: 'Midaslabs',
-  agent_token: '092b6406e28211f0b8f1bc2411881493',
+  agent_code: '',
+  agent_token: '',
   agent_secret: '',
   agent_balance: 0,
   agent_rtp: 70,

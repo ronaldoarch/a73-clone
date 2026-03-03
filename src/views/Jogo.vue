@@ -45,10 +45,15 @@ const route = useRoute()
 const { balanceFormatted, refresh } = useAfiliado()
 
 const gameUrl = computed(() => {
-  const url = route.query.url
+  let url = route.query.url
   if (!url || typeof url !== 'string') return ''
   try {
-    return decodeURIComponent(url)
+    while (url.includes('%')) {
+      const decoded = decodeURIComponent(url)
+      if (decoded === url) break
+      url = decoded
+    }
+    return url
   } catch {
     return url
   }
@@ -60,6 +65,9 @@ function abrirNovaAba() {
 
 onMounted(() => {
   if (localStorage.getItem('token')) refresh()
+  if (gameUrl.value && gameUrl.value.startsWith('http')) {
+    window.location.replace(gameUrl.value)
+  }
 })
 </script>
 

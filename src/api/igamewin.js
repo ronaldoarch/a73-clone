@@ -201,11 +201,8 @@ export const igamewinApi = {
   },
 
   async gameLaunch(userCode, providerCode, gameCode, lang = 'en') {
-    const cfg = getConfig()
-    if (cfg.sandbox) {
-      return mockResponse('game_launch', { user_code: userCode, provider_code: providerCode, game_code: gameCode, lang }, cfg)
-    }
-    // Usa endpoint que cria usuário (user_create com is_demo) antes de game_launch - evita "Login Error"
+    // Sempre chama o backend - a config real está no servidor (Admin salva lá).
+    // O sandbox do localStorage não afeta o launch de jogos no site principal.
     const url = apiUrl('/api/igamewin/launch-game')
     const res = await fetch(url, {
       method: 'POST',

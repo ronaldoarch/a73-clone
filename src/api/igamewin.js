@@ -202,8 +202,8 @@ export const igamewinApi = {
 
   async gameLaunch(userCode, providerCode, gameCode, lang = 'en') {
     // Sempre chama o backend - a config real está no servidor (Admin salva lá).
-    // O sandbox do localStorage não afeta o launch de jogos no site principal.
     const url = apiUrl('/api/igamewin/launch-game')
+    if (typeof window !== 'undefined') console.log('[gameLaunch] Chamando backend:', url, { provider_code: providerCode, game_code: gameCode })
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

@@ -17,6 +17,7 @@ export function useGameIframe() {
     toast.show('Carregando jogo...')
     igamewinApi.gameLaunch(userCode, providerCode, gameCode).then((data) => {
       gameLoading.value = false
+      if (typeof window !== 'undefined') console.log('[openGame] Resposta:', data?.status, data?.launch_url ? 'URL recebida' : 'sem URL', data?.msg)
       if (data?.status === 1 && data?.launch_url) {
         gameUrl.value = data.launch_url
       } else {

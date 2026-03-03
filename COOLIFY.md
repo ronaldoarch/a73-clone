@@ -103,7 +103,16 @@ O 502 significa que o nginx do frontend não consegue alcançar o backend. Verif
   - `IGAMEWIN_AGENT_SECRET`: segredo do agent (diferente do agent_token)
 - O `user_code` deve corresponder ao `account` do usuário no sistema
 
+### iGameWin Transfer Mode
+- No Admin → API de Jogos, selecione **API Mode: Transfer**
+- Configure no painel iGameWin: API Type = "Transfer Mode"
+- O agent precisa ter saldo no iGameWin (funding via painel)
+- Ao abrir o jogo: `user_deposit` transfere o saldo do usuário para o iGameWin
+- Ao fechar o jogo: configure Return URL no painel iGameWin para `https://api.35m.site/api/igamewin/game-return?user_code={user_code}` (o `{user_code}` será substituído pelo iGameWin)
+- O endpoint `game-return` chama `user_withdraw_reset` e credita o saldo de volta no sistema
+
 ### Login Error / botões não funcionam no jogo
-- Verifique no painel iGameWin: API Type = "Seamless Mode", Site EndPoint = URL do backend
-- Confirme que Agent Secret está preenchido e correto
+- **Seamless:** API Type = "Seamless Mode", Site EndPoint = URL do backend
+- **Transfer:** API Type = "Transfer Mode", agent com saldo
+- Confirme que Agent Secret (Seamless) está preenchido e correto
 - Se persistir: contate o suporte iGameWin com os logs do backend (igamewin launch-game)

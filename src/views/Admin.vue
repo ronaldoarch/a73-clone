@@ -360,6 +360,14 @@
                 <input v-model="igameConfig.is_demo" type="checkbox" @change="saveIgameConfig" />
                 Modo Demo/Samples (user_create com is_demo)
               </label>
+              <div class="form-group">
+                <label>API Mode</label>
+                <select v-model="igameConfig.api_mode" @change="saveIgameConfig" class="api-jogos-select">
+                  <option value="seamless">Seamless (gold_api - jogo chama nosso backend)</option>
+                  <option value="transfer">Transfer (user_deposit/withdraw - saldo vai para iGameWin)</option>
+                </select>
+                <span v-if="igameConfig.api_mode === 'transfer'" class="form-hint">Configure "Transfer Mode" no painel iGameWin. O agent precisa ter saldo. Return URL: {{ gameReturnUrl }}</span>
+              </div>
               <div class="api-jogos-save-row">
                 <button type="button" class="btn btn-primary" @click="saveIgameConfig">
                   Salvar credenciais
@@ -728,6 +736,11 @@ const goldApiBaseUrl = computed(() => {
   const u = apiUrl('/gold_api')
   const full = u.startsWith('http') ? u : (typeof window !== 'undefined' ? window.location.origin + u : u)
   return full.replace(/\/gold_api\/?$/, '').replace(/\/$/, '') || full
+})
+
+const gameReturnUrl = computed(() => {
+  const base = goldApiBaseUrl.value
+  return base ? `${base}/api/igamewin/game-return?user_code={user_code}` : ''
 })
 
 function copyGoldApiBaseUrl() {
@@ -1190,6 +1203,7 @@ async function saveIgameConfig() {
         agent_secret: igameConfig.value.agent_secret ?? '',
         sandbox: igameConfig.value.sandbox,
         is_demo: igameConfig.value.is_demo,
+        api_mode: igameConfig.value.api_mode || 'seamless',
       }),
     })
     const data = await r.json()
@@ -1583,6 +1597,7 @@ tr:hover { background: rgba(255,255,255,0.02); }
 .api-jogos-rtp-row { display: flex; align-items: center; gap: 0.5rem; }
 .api-jogos-add-row { display: flex; gap: 0.5rem; align-items: center; }
 .api-jogos-input { width: 120px; padding: 0.5rem 0.75rem; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 0.9rem; }
+.api-jogos-select { width: 100%; max-width: 400px; padding: 0.5rem 0.75rem; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 0.9rem; }
 .api-jogos-gold-url { margin-bottom: 1rem; }
 .api-jogos-gold-url label { display: block; margin-bottom: 0.5rem; font-size: 0.875rem; color: var(--text-muted); }
 .api-jogos-url-row { display: flex; gap: 0.5rem; align-items: center; }

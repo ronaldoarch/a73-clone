@@ -829,6 +829,7 @@ async function getIgamewinConfig() {
         agent_secret: v.agent_secret || '',
         sandbox: v.sandbox ?? true,
         is_demo: v.is_demo ?? true,
+        api_mode: v.api_mode || 'seamless', // 'seamless' | 'transfer'
       }
     }
   } catch (e) { /* ignore */ }
@@ -963,30 +964,31 @@ app.post('/api/games/seamless', handleSeamless)
 app.get('/api/settings/igamewin', adminAuthMiddleware, async (req, res) => {
   try {
     const cfg = await getIgamewinConfig()
-    const base = cfg || { agent_code: '', agent_token: '', agent_secret: '', sandbox: true, is_demo: true }
+    const base = cfg || { agent_code: '', agent_token: '', agent_secret: '', sandbox: true, is_demo: true, api_mode: 'seamless' }
     base.site_endpoint = process.env.API_PUBLIC_URL || process.env.BACKEND_PUBLIC_URL || ''
     return res.json(base)
   } catch (e) {
-    return res.json({ agent_code: '', agent_token: '', agent_secret: '', sandbox: true, is_demo: true, site_endpoint: process.env.API_PUBLIC_URL || process.env.BACKEND_PUBLIC_URL || '' })
+    return res.json({ agent_code: '', agent_token: '', agent_secret: '', sandbox: true, is_demo: true, api_mode: 'seamless', site_endpoint: process.env.API_PUBLIC_URL || process.env.BACKEND_PUBLIC_URL || '' })
   }
 })
 
 app.post('/api/settings/igamewin', adminAuthMiddleware, async (req, res) => {
   try {
-    const { agent_code, agent_token, agent_secret, sandbox, is_demo } = req.body || {}
+    const { agent_code, agent_token, agent_secret, sandbox, is_demo, api_mode } = req.body || {}
     const existing = await getIgamewinConfig()
     // Se agent_secret/agent_token vazios, mantém o existente (evita apagar ao salvar só outros campos)
     const finalSecret = (agent_secret != null && String(agent_secret).trim() !== '') ? String(agent_secret).trim() : (existing?.agent_secret || '')
     const finalToken = (agent_token != null && String(agent_token).trim() !== '') ? String(agent_token).trim() : (existing?.agent_token || '')
     const finalCode = agent_code != null ? String(agent_code).trim() : (existing?.agent_code || '')
+    const mode = (api_mode === 'transfer' || api_mode === 'seamless') ? api_mode : (existing?.api_mode || 'seamless')
     await prisma.setting.upsert({
       where: { id: 'igamewin' },
       create: {
         id: 'igamewin',
-        value: { agent_code: finalCode, agent_token: finalToken, agent_secret: finalSecret, sandbox: sandbox ?? true, is_demo: is_demo ?? true }
+        value: { agent_code: finalCode, agent_token: finalToken, agent_secret: finalSecret, sandbox: sandbox ?? true, is_demo: is_demo ?? true, api_mode: mode }
       },
       update: {
-        value: { agent_code: finalCode, agent_token: finalToken, agent_secret: finalSecret, sandbox: sandbox ?? true, is_demo: is_demo ?? true }
+        value: { agent_code: finalCode, agent_token: finalToken, agent_secret: finalSecret, sandbox: sandbox ?? true, is_demo: is_demo ?? true, api_mode: mode }
       }
     })
     catalogCache = null
@@ -1104,6 +1106,7 @@ app.post('/api/settings/home-providers', async (req, res) => {
 })
 
 // Launch game: cria usuário (user_create com is_demo) antes de game_launch - evita "Login Error"
+// Modo transfer: user_deposit antes de game_launch (transfere saldo para iGameWin)
 app.post('/api/igamewin/launch-game', async (req, res) => {
   try {
     const { user_code, provider_code, game_code, lang = 'en' } = req.body || {}
@@ -1115,6 +1118,7 @@ app.post('/api/igamewin/launch-game', async (req, res) => {
     const raw = String(user_code || 'guest').trim()
     const userCode = raw === 'guest' ? 'guest' : (normalizeAccount(raw) || raw)
     const isDemo = stored.is_demo ?? true
+    const apiMode = stored.api_mode || 'seamless'
 
     // 1. user_create (obrigatório antes de game_launch) - modo samples usa is_demo: true
     const createRes = await fetch(IGAMEWIN_URL, {
@@ -1134,19 +1138,65 @@ app.post('/api/igamewin/launch-game', async (req, res) => {
       return res.json(createData)
     }
 
-    // 2. game_launch (game_mode removido - pode não ser suportado e causar Login Error)
+    // 2. Modo transfer: user_deposit com saldo do usuário antes de game_launch
+    if (apiMode === 'transfer' && userCode !== 'guest') {
+      let af = await prisma.afiliadoData.findFirst({
+        where: { user: { account: userCode } },
+        include: { user: true }
+      })
+      if (!af) {
+        const codeNorm = normalizeAccount(userCode)
+        if (codeNorm.length >= 10) {
+          af = await prisma.afiliadoData.findFirst({
+            where: { user: { account: codeNorm } },
+            include: { user: true }
+          })
+        }
+      }
+      const balance = af?.balance ?? 0
+      if (balance > 0) {
+        const depositRes = await fetch(IGAMEWIN_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            method: 'user_deposit',
+            agent_code: stored.agent_code,
+            agent_token: stored.agent_token,
+            user_code: userCode,
+            amount: balance
+          })
+        })
+        const depositData = await depositRes.json()
+        if (depositData.status !== 1) {
+          return res.json({ status: 0, msg: depositData.msg || 'DEPOSIT_FAILED' })
+        }
+        // Debita saldo local (agora está no iGameWin)
+        await prisma.afiliadoData.update({
+          where: { id: af.id },
+          data: { balance: 0, updatedAt: new Date() }
+        })
+      }
+    }
+
+    // 3. game_launch (modo transfer: return_url para devolver saldo ao fechar)
+    const apiBase = process.env.API_PUBLIC_URL || process.env.BACKEND_PUBLIC_URL || ''
+    const returnUrl = apiMode === 'transfer' && apiBase
+      ? `${apiBase.replace(/\/$/, '')}/api/igamewin/game-return?user_code=${encodeURIComponent(userCode)}`
+      : undefined
+    const launchBody = {
+      method: 'game_launch',
+      agent_code: stored.agent_code,
+      agent_token: stored.agent_token,
+      user_code: userCode,
+      provider_code: provider_code || '',
+      game_code: game_code || '',
+      lang
+    }
+    if (returnUrl) launchBody.return_url = returnUrl
     const launchRes = await fetch(IGAMEWIN_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        method: 'game_launch',
-        agent_code: stored.agent_code,
-        agent_token: stored.agent_token,
-        user_code: userCode,
-        provider_code: provider_code || '',
-        game_code: game_code || '',
-        lang
-      })
+      body: JSON.stringify(launchBody)
     })
     const launchData = await launchRes.json()
     if (launchData.status !== 1) {
@@ -1156,6 +1206,73 @@ app.post('/api/igamewin/launch-game', async (req, res) => {
   } catch (e) {
     console.error('igamewin launch-game:', e)
     res.status(502).json({ status: 0, msg: 'Proxy error' })
+  }
+})
+
+// Modo transfer: quando o jogo fecha, chama user_withdraw_reset e credita saldo de volta
+// URL de retorno: configure no painel iGameWin ou use ?return_url= no game_launch se suportado
+app.get('/api/igamewin/game-return', async (req, res) => {
+  try {
+    const userCode = String(req.query.user_code || '').trim()
+    if (!userCode || userCode === 'guest') {
+      return res.redirect(process.env.FRONTEND_URL || '/')
+    }
+    const stored = await getIgamewinConfig()
+    if (!stored?.agent_code || !stored?.agent_token || stored.api_mode !== 'transfer') {
+      return res.redirect(process.env.FRONTEND_URL || '/')
+    }
+    // 1. Obter saldo do usuário no iGameWin antes do withdraw
+    const moneyRes = await fetch(IGAMEWIN_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        method: 'money_info',
+        agent_code: stored.agent_code,
+        agent_token: stored.agent_token,
+        user_code: userCode
+      })
+    })
+    const moneyData = await moneyRes.json()
+    const balanceToCredit = Number(moneyData?.user?.balance ?? moneyData?.user_balance ?? 0) || 0
+    // 2. user_withdraw_reset - devolve saldo do usuário para o agent
+    await fetch(IGAMEWIN_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        method: 'user_withdraw_reset',
+        agent_code: stored.agent_code,
+        agent_token: stored.agent_token,
+        user_code: userCode
+      })
+    })
+    // 3. Creditar saldo de volta no nosso sistema
+    if (balanceToCredit > 0) {
+      let af = await prisma.afiliadoData.findFirst({
+        where: { user: { account: userCode } },
+        include: { user: true }
+      })
+      if (!af) {
+        const codeNorm = normalizeAccount(userCode)
+        if (codeNorm.length >= 10) {
+          af = await prisma.afiliadoData.findFirst({
+            where: { user: { account: codeNorm } },
+            include: { user: true }
+          })
+        }
+      }
+      if (af) {
+        await prisma.afiliadoData.update({
+          where: { id: af.id },
+          data: { balance: { increment: balanceToCredit }, updatedAt: new Date() }
+        })
+      }
+    }
+    const frontUrl = (process.env.FRONTEND_URL || '').replace(/\/$/, '') || '/'
+    return res.redirect(frontUrl + '/main/inicio/')
+  } catch (e) {
+    console.error('igamewin game-return:', e)
+    const frontUrl = (process.env.FRONTEND_URL || '').replace(/\/$/, '') || '/'
+    return res.redirect(frontUrl + '/main/inicio/')
   }
 })
 

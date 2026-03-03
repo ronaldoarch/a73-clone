@@ -24,6 +24,7 @@ const defaultConfig = () => ({
   agent_rtp: 70,
   sandbox: true,
   is_demo: true, // Modo demo/samples: user_create com is_demo=true (doc iGameWin)
+  api_mode: 'seamless', // 'seamless' | 'transfer'
 })
 
 function getConfig() {

@@ -50,6 +50,12 @@ server {
         try_files $uri /index.html;
     }
 
+    # Bloqueia acesso a .git e outros paths sensíveis (segurança)
+    location ~ /\. {
+        deny all;
+        return 404;
+    }
+
     # Favicon - evita 404 (retorna 204 se não existir)
     location = /favicon.ico {
         try_files $uri =204;

@@ -297,9 +297,11 @@ import { useSettings } from '@/composables/useSettings'
 import { useAfiliado } from '@/composables/useAfiliado'
 import { useGamesCatalog } from '@/composables/useGamesCatalog'
 import { useRanking } from '@/composables/useRanking'
+import { useToast } from '@/composables/useToast'
 import { igamewinApi } from '@/api/igamewin'
 
 const router = useRouter()
+const toast = useToast()
 const { logoUrl, bannerUrl, siteName } = useSettings()
 const { balanceFormatted, refresh } = useAfiliado()
 const { top3: rankingTop3, list: rankingList, loading: rankingLoading, load: loadRanking } = useRanking()
@@ -389,11 +391,14 @@ function launchGame(providerCode, gameCode) {
       } else {
         window.location.href = data.launch_url
       }
-    } else if (w) {
-      w.close()
+    } else {
+      if (w) w.close()
+      const msg = data?.msg === 'IGAMEWIN_NOT_CONFIGURED' ? 'Configure as credenciais iGameWin no Admin → API de Jogos' : (data?.msg || 'Não foi possível abrir o jogo')
+      toast.error(msg)
     }
   }).catch(() => {
     if (w) w.close()
+    toast.error('Erro ao carregar o jogo')
   })
 }
 

@@ -113,9 +113,11 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButton, IonButtons, IonIcon } from '@ionic/vue'
 import { useGamesCatalog } from '@/composables/useGamesCatalog'
+import { useToast } from '@/composables/useToast'
 import { igamewinApi } from '@/api/igamewin'
 
 const route = useRoute()
+const toast = useToast()
 const { providers: catalogProviders, gamesByProvider: catalogGamesByProvider, loading: catalogLoading, load: loadCatalog } = useGamesCatalog()
 
 const searchQuery = ref('')
@@ -163,11 +165,14 @@ function launchGame(providerCode, gameCode) {
       } else {
         window.location.href = data.launch_url
       }
-    } else if (w) {
-      w.close()
+    } else {
+      if (w) w.close()
+      const msg = data?.msg === 'IGAMEWIN_NOT_CONFIGURED' ? 'Configure as credenciais iGameWin no Admin → API de Jogos' : (data?.msg || 'Não foi possível abrir o jogo')
+      toast.error(msg)
     }
   }).catch(() => {
     if (w) w.close()
+    toast.error('Erro ao carregar o jogo')
   })
 }
 

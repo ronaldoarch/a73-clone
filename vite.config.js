@@ -24,9 +24,8 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         globIgnores: [
-          '**/hot-platform-36-gold.svg',
-          '**/assets/index-*.js',
-          '**/index.html'  // Sempre buscar do network para evitar JS 404 após deploy
+          '**/hot-platform-36-gold.svg'
+          // index.html e index-*.js no precache (navigateFallback exige) - cada deploy gera novo SW
         ],
         maximumFileSizeToCacheInBytes: 20 * 1024 * 1024 // 20 MB - assets legados podem ser grandes
       }

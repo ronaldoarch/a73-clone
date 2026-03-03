@@ -55,31 +55,27 @@
           </button>
         </div>
 
-        <h3 class="withdraw-section-title">Método de Retirada</h3>
-        <button type="button" class="withdraw-method-btn" :class="{ active: metodo === 'cpf' }" @click="metodo = 'cpf'">
-          CPF
-        </button>
+        <h3 class="withdraw-section-title">Dados para PIX (via Gatebox)</h3>
 
         <div class="withdraw-field">
-          <label class="withdraw-label">Nome</label>
+          <label class="withdraw-label">Nome completo do recebedor</label>
           <input
             v-model="nome"
             type="text"
             class="withdraw-input"
-            placeholder="Por favor, insira seu nome"
+            placeholder="Nome como cadastrado no PIX"
           />
         </div>
 
         <div class="withdraw-field">
-          <label class="withdraw-label">CPF (apenas números)</label>
+          <label class="withdraw-label">Chave PIX</label>
           <input
-            v-model="cpfId"
+            v-model="chavePix"
             type="text"
             class="withdraw-input"
-            placeholder="00000000000"
-            maxlength="14"
-            inputmode="numeric"
+            placeholder="CPF (11 dígitos), e-mail, telefone ou chave aleatória"
           />
+          <p class="withdraw-hint">Informe a chave PIX onde deseja receber o valor</p>
         </div>
 
         <ion-button class="withdraw-submit-btn" expand="block" @click="retirarAgora" :disabled="loading">
@@ -108,8 +104,7 @@ const loading = ref(false)
 const isLoggedIn = computed(() => !!localStorage.getItem('token'))
 const amount = ref('')
 const nome = ref('')
-const cpfId = ref('')
-const metodo = ref('cpf')
+const chavePix = ref('')
 
 const quickAmounts = computed(() => {
   const min = saqueMin.value ?? 20
@@ -150,24 +145,37 @@ async function retirarAgora() {
     return
   }
   if (!nome.value?.trim()) {
-    toast.error('Informe o nome')
+    toast.error('Informe o nome completo')
     return
   }
-  const cpf = String(cpfId.value).replace(/\D/g, '')
-  if (cpf.length !== 11) {
-    toast.error('Informe um CPF válido (11 dígitos)')
+  const chave = String(chavePix.value || '').trim()
+  if (!chave) {
+    toast.error('Informe a chave PIX')
     return
   }
+  const chaveLimpa = chave.replace(/\D/g, '')
+  if (chaveLimpa.length === 11 || chaveLimpa.length === 14) {
+    // CPF (11) ou CNPJ (14) - OK
+  } else if (chave.includes('@')) {
+    if (chave.length < 5 || !chave.includes('.')) {
+      toast.error('Informe um e-mail válido')
+      return
+    }
+  } else if (chave.length < 10) {
+    toast.error('Chave PIX inválida (mín. 10 caracteres para telefone ou chave aleatória)')
+    return
+  }
+  const cpfIdEnviar = (chaveLimpa.length === 11 || chaveLimpa.length === 14) ? chaveLimpa : chave
   loading.value = true
   try {
     const r = await afiliadoApi.saque({
       valor: v,
-      metodo: metodo.value,
+      metodo: 'pix',
       nome: nome.value.trim(),
-      cpfId: cpf
+      cpfId: cpfIdEnviar
     })
     if (r?.ok) {
-      toast.success(`Saque de R$ ${formatVal(v)} solicitado!`)
+      toast.success(`PIX de R$ ${formatVal(v)} enviado com sucesso!`)
       amount.value = ''
       await refresh()
     }
@@ -349,6 +357,11 @@ onIonViewWillEnter(() => {
 .withdraw-input:focus {
   outline: none;
   border-color: #a3e635;
+}
+.withdraw-hint {
+  color: #9ca3af;
+  font-size: 0.8rem;
+  margin: 6px 0 0 0;
 }
 .withdraw-submit-btn {
   --background: linear-gradient(90deg, #a3e635, #84cc16);

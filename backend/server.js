@@ -1496,7 +1496,7 @@ app.post('/api/roleta/spin', authMiddleware, async (req, res) => {
   }
 })
 
-// ========== Saque (Withdraw) ==========
+// ========== Saque (Withdraw) - Automático via Gatebox ==========
 app.post('/api/saque', authMiddleware, async (req, res) => {
   try {
     const cfg = await getAppConfig()
@@ -1504,10 +1504,15 @@ app.post('/api/saque', authMiddleware, async (req, res) => {
     const v = parseFloat(valor)
     if (!v || v < cfg.saqueMin) return res.json({ error: { message: `Valor mínimo R$ ${cfg.saqueMin.toFixed(2)}` } })
     if (v > cfg.saqueMax) return res.json({ error: { message: `Valor máximo R$ ${cfg.saqueMax.toFixed(2).replace('.', ',')}` } })
-    const af = await ensureAfiliado(req.userId, (await prisma.user.findUnique({ where: { id: req.userId } }))?.account || '')
+    const chavePix = String(cpfId || '').trim()
+    if (!chavePix) return res.json({ error: { message: 'Chave PIX é obrigatória' } })
+    if (!String(nome || '').trim()) return res.json({ error: { message: 'Nome do recebedor é obrigatório' } })
+    const user = await prisma.user.findUnique({ where: { id: req.userId } })
+    const af = await ensureAfiliado(req.userId, user?.account || '')
     const saldo = af.balance ?? 0
     if (saldo < v) return res.json({ error: { message: 'Saldo insuficiente' } })
-    await prisma.$transaction([
+
+    const [, withdrawal] = await prisma.$transaction([
       prisma.afiliadoData.update({
         where: { userId: req.userId },
         data: {
@@ -1521,13 +1526,51 @@ app.post('/api/saque', authMiddleware, async (req, res) => {
         data: {
           userId: req.userId,
           valor: v,
-          metodo: metodo || 'cpf',
+          metodo: metodo || 'pix',
           nome: nome || null,
-          cpfId: cpfId || null,
+          cpfId: chavePix,
           status: 'pendente'
         }
       })
     ])
+
+    let key = chavePix
+    if (/^\d+$/.test(key) && (key.length === 11 || key.length === 14)) {
+      key = key.replace(/\D/g, '')
+    }
+    const name = String(nome || user?.account || 'Cliente').trim()
+
+    const refundAndFail = async (errorMsg) => {
+      await prisma.$transaction([
+        prisma.withdrawal.update({ where: { id: withdrawal.id }, data: { status: 'recusado', updatedAt: new Date() } }),
+        prisma.afiliadoData.update({
+          where: { userId: req.userId },
+          data: { balance: { increment: v }, valorSaque: { decrement: v }, numSaques: { decrement: 1 }, updatedAt: new Date() }
+        })
+      ])
+      return res.json({ error: { message: errorMsg } })
+    }
+
+    let withdrawResult
+    try {
+      withdrawResult = await gateboxWithdraw({
+        externalId: withdrawal.id,
+        key,
+        name,
+        amount: v,
+        documentNumber: /^\d{11}$|^\d{14}$/.test(key) ? key : undefined,
+        description: `Saque A73 - ${user?.account || req.userId}`
+      })
+    } catch (gateboxErr) {
+      console.error('Gatebox withdraw error:', gateboxErr)
+      return refundAndFail('Erro de conexão com o gateway. Tente novamente.')
+    }
+
+    if (!withdrawResult.ok) {
+      return refundAndFail(withdrawResult.error || 'Erro ao enviar PIX. Tente novamente ou entre em contato com o suporte.')
+    }
+
+    await prisma.withdrawal.update({ where: { id: withdrawal.id }, data: { status: 'concluido', updatedAt: new Date() } })
     return res.json({ result: { data: { json: { ok: true, valor: v, saldoRestante: saldo - v } } } })
   } catch (e) {
     console.error('saque:', e)
@@ -1632,15 +1675,18 @@ app.patch('/api/admin/saques/:id', adminAuthMiddleware, async (req, res) => {
       ])
       return res.json({ ok: true, status })
     }
-    const key = String(w.cpfId || '').trim()
-    const name = String(w.nome || w.user?.account || 'Cliente').trim()
+    let key = String(w.cpfId || '').trim()
     if (!key) return res.status(400).json({ ok: false, error: 'Chave PIX não informada no saque' })
+    if (/^\d+$/.test(key) && (key.length === 11 || key.length === 14)) {
+      key = key.replace(/\D/g, '')
+    }
+    const name = String(w.nome || w.user?.account || 'Cliente').trim()
     const withdrawResult = await gateboxWithdraw({
       externalId: id,
       key,
       name,
       amount: w.valor,
-      documentNumber: /^\d+$/.test(key) ? key : undefined,
+      documentNumber: /^\d{11}$|^\d{14}$/.test(key) ? key : undefined,
       description: `Saque A73 - ${w.user?.account || w.userId}`
     })
     if (!withdrawResult.ok) {

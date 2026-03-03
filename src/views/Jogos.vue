@@ -93,7 +93,7 @@
               v-for="g in filteredGames"
               :key="g.game_code"
               class="jogos-game-card"
-              @click="launchGame(g.providerCode, g.game_code)"
+              @click="openGame(g.providerCode, g.game_code)"
             >
               <div class="jogos-game-banner">
                 <img v-if="g.banner" :src="g.banner" :alt="g.game_name" loading="lazy" />
@@ -105,6 +105,7 @@
         </div>
       </div>
     </ion-content>
+    <GameIframeModal :url="gameUrl" @close="closeGame" />
   </ion-page>
 </template>
 
@@ -113,11 +114,11 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButton, IonButtons, IonIcon } from '@ionic/vue'
 import { useGamesCatalog } from '@/composables/useGamesCatalog'
-import { useToast } from '@/composables/useToast'
-import { igamewinApi } from '@/api/igamewin'
+import { useGameIframe } from '@/composables/useGameIframe'
+import GameIframeModal from '@/components/GameIframeModal.vue'
 
 const route = useRoute()
-const toast = useToast()
+const { gameUrl, openGame, closeGame } = useGameIframe()
 const { providers: catalogProviders, gamesByProvider: catalogGamesByProvider, loading: catalogLoading, load: loadCatalog } = useGamesCatalog()
 
 const searchQuery = ref('')
@@ -150,28 +151,6 @@ const filteredGames = computed(() => {
   }
   return games
 })
-
-function launchGame(providerCode, gameCode) {
-  const userCode = localStorage.getItem('account') || 'guest'
-  toast.show('Carregando jogo...')
-  igamewinApi.gameLaunch(userCode, providerCode, gameCode).then((data) => {
-    if (data?.status === 1 && data?.launch_url) {
-      // Link com target="_blank" abre em nova aba (evita about:blank e bloqueio de popup)
-      const a = document.createElement('a')
-      a.href = data.launch_url
-      a.target = '_blank'
-      a.rel = 'noopener noreferrer'
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-    } else {
-      const msg = data?.msg === 'IGAMEWIN_NOT_CONFIGURED' ? 'Configure as credenciais iGameWin no Admin → API de Jogos' : (data?.msg || 'Não foi possível abrir o jogo')
-      toast.error(msg)
-    }
-  }).catch(() => {
-    toast.error('Erro ao carregar o jogo')
-  })
-}
 
 watch(() => route.query.provider, (code) => {
   if (code && catalogProviders.value.some(p => p.code === code)) {

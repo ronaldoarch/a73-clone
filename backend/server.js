@@ -38,7 +38,7 @@ app.use((req, res, next) => {
   if (req.path === '/gold_api' || req.path === '/api/games/seamless') {
     const origin = req.headers.origin || '*'
     res.setHeader('Access-Control-Allow-Origin', origin)
-    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
     if (req.method === 'OPTIONS') return res.sendStatus(204)
   }
@@ -957,6 +957,8 @@ const handleSeamless = async (req, res) => {
   }
 }
 
+// GET /gold_api - teste de disponibilidade (como LuxBet)
+app.get('/gold_api', (req, res) => res.json({ status: 1, msg: 'OK' }))
 app.post('/gold_api', handleSeamless)
 app.post('/api/games/seamless', handleSeamless)
 

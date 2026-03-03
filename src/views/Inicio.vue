@@ -169,7 +169,7 @@
                 v-for="g in getGamesToShow(prov.code)"
                 :key="g.game_code"
                 class="game-card"
-                @click="launchGame(prov.code, g.game_code)"
+                @click="openGame(prov.code, g.game_code)"
               >
                 <div class="game-card-banner">
                   <img v-if="g.banner" :src="g.banner" :alt="g.game_name" loading="lazy" />
@@ -281,6 +281,7 @@
         <img src="/images/intro.png" alt="A73" class="intro-img" />
       </div>
     </ion-content>
+    <GameIframeModal :url="gameUrl" @close="closeGame" />
   </ion-page>
 </template>
 
@@ -297,11 +298,11 @@ import { useSettings } from '@/composables/useSettings'
 import { useAfiliado } from '@/composables/useAfiliado'
 import { useGamesCatalog } from '@/composables/useGamesCatalog'
 import { useRanking } from '@/composables/useRanking'
-import { useToast } from '@/composables/useToast'
-import { igamewinApi } from '@/api/igamewin'
+import { useGameIframe } from '@/composables/useGameIframe'
+import GameIframeModal from '@/components/GameIframeModal.vue'
 
 const router = useRouter()
-const toast = useToast()
+const { gameUrl, openGame, closeGame } = useGameIframe()
 const { logoUrl, bannerUrl, siteName } = useSettings()
 const { balanceFormatted, refresh } = useAfiliado()
 const { top3: rankingTop3, list: rankingList, loading: rankingLoading, load: loadRanking } = useRanking()
@@ -375,28 +376,6 @@ function runJackpotBurst() {
     jackpotBurstInterval = null
     jackpotPauseTimeout = setTimeout(runJackpotBurst, 5000)
   }, 2000)
-}
-
-function launchGame(providerCode, gameCode) {
-  const userCode = localStorage.getItem('account') || 'guest'
-  toast.show('Carregando jogo...')
-  igamewinApi.gameLaunch(userCode, providerCode, gameCode).then((data) => {
-    if (data?.status === 1 && data?.launch_url) {
-      // Link com target="_blank" abre em nova aba (evita about:blank e bloqueio de popup)
-      const a = document.createElement('a')
-      a.href = data.launch_url
-      a.target = '_blank'
-      a.rel = 'noopener noreferrer'
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-    } else {
-      const msg = data?.msg === 'IGAMEWIN_NOT_CONFIGURED' ? 'Configure as credenciais iGameWin no Admin → API de Jogos' : (data?.msg || 'Não foi possível abrir o jogo')
-      toast.error(msg)
-    }
-  }).catch(() => {
-    toast.error('Erro ao carregar o jogo')
-  })
 }
 
 onMounted(() => {

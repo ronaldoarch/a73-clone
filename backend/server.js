@@ -963,9 +963,11 @@ app.post('/api/games/seamless', handleSeamless)
 app.get('/api/settings/igamewin', adminAuthMiddleware, async (req, res) => {
   try {
     const cfg = await getIgamewinConfig()
-    return res.json(cfg || { agent_code: '', agent_token: '', agent_secret: '', sandbox: true, is_demo: true })
+    const base = cfg || { agent_code: '', agent_token: '', agent_secret: '', sandbox: true, is_demo: true }
+    base.site_endpoint = process.env.API_PUBLIC_URL || process.env.BACKEND_PUBLIC_URL || ''
+    return res.json(base)
   } catch (e) {
-    return res.json({ agent_code: '', agent_token: '', agent_secret: '', sandbox: true, is_demo: true })
+    return res.json({ agent_code: '', agent_token: '', agent_secret: '', sandbox: true, is_demo: true, site_endpoint: process.env.API_PUBLIC_URL || process.env.BACKEND_PUBLIC_URL || '' })
   }
 })
 

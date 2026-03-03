@@ -82,6 +82,7 @@ O 502 significa que o nginx do frontend não consegue alcançar o backend. Verif
 | FRONTEND_URL           | URL do frontend para CORS (ex: `https://lwsggkg88g0skg848880cg00.agenciamidas.com`). Várias: separar por vírgula |
 | IGAMEWIN_AGENT_CODE    | Código do agent (Seamless)                      |
 | IGAMEWIN_AGENT_SECRET  | Segredo do agent (Seamless, diferente do token)|
+| API_PUBLIC_URL         | URL pública do backend (ex: `https://api.35m.site`) - usado no Admin para Site EndPoint do iGameWin |
 
 ### Frontend (build)
 | Variável       | Descrição                                      |

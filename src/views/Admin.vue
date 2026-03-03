@@ -337,7 +337,7 @@
                   Copiar
                 </button>
               </div>
-              <span class="form-hint">Cole no iGameWin → Update Agent → Site EndPoint. Se aparecer ERROR_GET_BALANCE_END_POINT, confira esta URL e as credenciais (Agent Secret).</span>
+              <span class="form-hint">Cole no iGameWin → Update Agent → Site EndPoint. Para mostrar a URL do backend (api.35m.site), configure API_PUBLIC_URL no Coolify.</span>
             </div>
             <div class="api-jogos-config">
               <div class="form-group">
@@ -721,6 +721,10 @@ const webhookUrl = computed(() => {
 })
 
 const goldApiBaseUrl = computed(() => {
+  const fromBackend = igameConfig.value?.site_endpoint
+  if (fromBackend && typeof fromBackend === 'string' && fromBackend.startsWith('http')) {
+    return fromBackend.replace(/\/gold_api\/?$/, '').replace(/\/$/, '') || fromBackend
+  }
   const u = apiUrl('/gold_api')
   const full = u.startsWith('http') ? u : (typeof window !== 'undefined' ? window.location.origin + u : u)
   return full.replace(/\/gold_api\/?$/, '').replace(/\/$/, '') || full

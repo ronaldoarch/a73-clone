@@ -282,6 +282,7 @@
       </div>
     </ion-content>
     <GameIframeModal :url="gameUrl" @close="closeGame" />
+    <RoletaNovosModal :show="showRoletaNovosModal" @close="closeRoletaNovos" />
   </ion-page>
 </template>
 
@@ -300,8 +301,15 @@ import { useGamesCatalog } from '@/composables/useGamesCatalog'
 import { useRanking } from '@/composables/useRanking'
 import { useGameIframe } from '@/composables/useGameIframe'
 import GameIframeModal from '@/components/GameIframeModal.vue'
+import RoletaNovosModal from '@/components/RoletaNovosModal.vue'
 
 const router = useRouter()
+const showRoletaNovosModal = ref(false)
+
+function closeRoletaNovos() {
+  showRoletaNovosModal.value = false
+  sessionStorage.removeItem('showRoletaNovos')
+}
 const { gameUrl, openGame, closeGame } = useGameIframe()
 const { logoUrl, bannerUrl, siteName } = useSettings()
 const { balanceFormatted, refresh } = useAfiliado()
@@ -379,6 +387,9 @@ function runJackpotBurst() {
 onMounted(() => {
   checkLogin()
   if (isLoggedIn.value) refresh()
+  if (sessionStorage.getItem('showRoletaNovos') === '1') {
+    showRoletaNovosModal.value = true
+  }
   loadCatalog()
   loadRanking()
   if (localStorage.getItem('a73_app_banner_hidden') === '1') {

@@ -7,3 +7,38 @@ __pycache__/
 *.egg-info/
 .venv/
 venv/
+
+# Dependencies
+node_modules/
+
+# Build
+dist/
+dist-ssr/
+*.local
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Editor
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+._*
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# Backend uploads
+backend/uploads/

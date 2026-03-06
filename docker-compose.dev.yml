@@ -1,0 +1,21 @@
+# PostgreSQL local para desenvolvimento
+# Uso: docker compose -f docker-compose.dev.yml up -d
+services:
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=a73
+      - POSTGRES_PASSWORD=a73
+      - POSTGRES_DB=a73db
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U a73 -d a73db"]
+      interval: 2s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres_dev_data:

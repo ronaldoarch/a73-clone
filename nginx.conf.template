@@ -1,0 +1,72 @@
+server {
+    listen 80;
+    server_name localhost;
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # Gzip
+    gzip on;
+    gzip_types text/plain text/css application/json application/javascript text/xml application/xml;
+
+    # Proxy /api, /uploads e /gold_api para o backend (evita CORS quando frontend e backend em domínios diferentes)
+    # /gold_api: iGameWin Seamless chama POST /gold_api quando o jogo roda (user_balance, transaction)
+    # Configure BACKEND_URL no Coolify (ex: https://jkcgkgks00ggggo4g0kow8ws.agenciamidas.com)
+    location /gold_api {
+        proxy_pass ${BACKEND_URL};
+        proxy_http_version 1.1;
+        proxy_ssl_verify off;
+        proxy_ssl_server_name on;
+        proxy_connect_timeout 60s;
+        proxy_read_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_set_header Host ${BACKEND_HOST};
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+    location /api {
+        proxy_pass ${BACKEND_URL};
+        proxy_http_version 1.1;
+        proxy_ssl_verify off;
+        proxy_ssl_server_name on;
+        proxy_connect_timeout 60s;
+        proxy_read_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_set_header Host ${BACKEND_HOST};
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+    # ^~ evita que a regex de cache (\.jpeg$) capture /uploads e tente servir do disco
+    location ^~ /uploads {
+        proxy_pass ${BACKEND_URL};
+        proxy_http_version 1.1;
+        proxy_ssl_verify off;
+        proxy_ssl_server_name on;
+        proxy_set_header Host ${BACKEND_HOST};
+    }
+
+    # SPA - fallback para index.html (sem $uri/ para evitar 403 em /main/inicio/ etc)
+    location / {
+        try_files $uri /index.html;
+    }
+
+    # Bloqueia acesso a .git e outros paths sensíveis (segurança)
+    location ~ /\. {
+        deny all;
+        return 404;
+    }
+
+    # Favicon - evita 404 (retorna 204 se não existir)
+    location = /favicon.ico {
+        try_files $uri =204;
+        log_not_found off;
+        access_log off;
+    }
+
+    # Cache para assets
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2)$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+}

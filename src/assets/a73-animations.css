@@ -1,0 +1,69 @@
+/* A73 - Animações e efeitos visuais */
+
+/* Confetti */
+@keyframes a73-confetti-fall {
+  0% {
+    transform: translate(0, 0) rotate(0deg);
+    opacity: 0.9;
+  }
+  100% {
+    transform: translate(var(--tx), var(--ty)) rotate(720deg);
+    opacity: 0;
+  }
+}
+
+/* Shimmer em botões */
+.a73-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+.a73-shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    110deg,
+    transparent 25%,
+    rgba(255, 255, 255, 0.3) 50%,
+    transparent 75%
+  );
+  background-size: 200% 100%;
+  animation: a73-shimmer 2.5s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes a73-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Pulse no badge */
+.a73-pulse {
+  animation: a73-pulse 2s ease-in-out infinite;
+}
+@keyframes a73-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.15); opacity: 0.9; }
+}
+
+/* Coins flutuantes (decorativo) */
+@keyframes a73-coin-float {
+  0%, 100% { transform: translateY(0) rotate(0deg); opacity: 0.4; }
+  50% { transform: translateY(-20px) rotate(180deg); opacity: 0.7; }
+}
+
+/* Brilho suave em valores */
+.a73-glow-value {
+  animation: a73-glow 2s ease-in-out infinite alternate;
+}
+@keyframes a73-glow {
+  0% { text-shadow: 0 0 8px rgba(251, 191, 36, 0.4); }
+  100% { text-shadow: 0 0 16px rgba(251, 191, 36, 0.8); }
+}
+
+/* Scale no hover/tap de cards */
+.a73-card-hover {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.a73-card-hover:active {
+  transform: scale(0.98);
+}

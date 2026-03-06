@@ -1,0 +1,46 @@
+/**
+ * Composable para abrir jogos iGameWin em iframe (como LuxBet)
+ */
+import { ref, shallowRef } from 'vue'
+import { igamewinApi } from '@/api/igamewin'
+import { useToast } from '@/composables/useToast'
+import { useAfiliado } from '@/composables/useAfiliado'
+
+export function useGameIframe() {
+  const toast = useToast()
+  const { refresh } = useAfiliado()
+  const gameUrl = shallowRef(null)
+  const gameLoading = ref(false)
+
+  function openGame(providerCode, gameCode) {
+    const userCode = localStorage.getItem('account') || 'guest'
+    gameLoading.value = true
+    gameUrl.value = null
+    toast.show('Carregando jogo...')
+    igamewinApi.gameLaunch(userCode, providerCode, gameCode).then((data) => {
+      gameLoading.value = false
+      if (typeof window !== 'undefined') console.log('[openGame] Resposta:', data?.status, data?.launch_url ? 'URL recebida' : 'sem URL', data?.msg)
+      if (data?.status === 1 && data?.launch_url) {
+        gameUrl.value = data.launch_url
+      } else {
+        let msg = data?.msg || 'Não foi possível abrir o jogo'
+        if (data?.msg === 'IGAMEWIN_NOT_CONFIGURED') {
+          msg = 'Configure as credenciais iGameWin no Admin → API de Jogos'
+        } else if (data?.msg === 'IGAMEWIN_DEMO_URL_404' && data?.hint) {
+          msg = data.hint
+        }
+        toast.error(msg)
+      }
+    }).catch(() => {
+      gameLoading.value = false
+      toast.error('Erro ao carregar o jogo')
+    })
+  }
+
+  function closeGame() {
+    gameUrl.value = null
+    refresh() // Atualiza saldo após fechar o jogo (gold_api alterou no backend)
+  }
+
+  return { gameUrl, gameLoading, openGame, closeGame }
+}

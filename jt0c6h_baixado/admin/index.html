@@ -1,0 +1,165 @@
+<!doctype html><html lang="en" translate="no"><head><meta name="description" content="🎰 ENTRA NO A73 AGORA! 🎉
+💰 GANHE ATÉ R$99 💸
+🔄 AMANHÃ TEM MAIS PRÊMIOS! 🎁
+👇 CLIQUE PARA GANHAR AGORA! 👆">
+<meta property="og:description" content="🎰 ENTRA NO A73 AGORA! 🎉
+💰 GANHE ATÉ R$99 💸
+🔄 AMANHÃ TEM MAIS PRÊMIOS! 🎁
+👇 CLIQUE PARA GANHAR AGORA! 👆">
+<meta property="og:image" content="/s5/1770954153806/9999.jpg">
+<meta property="og:image:alt" content="/s5/1770954153806/9999.jpg">
+<meta property="og:image:secure_url" content="/s5/1770954153806/9999.jpg">
+<meta property="og:site_name" content="A73.COM">
+<meta property="og:title" content="A73.COM">
+<meta property="og:type" content="website">
+<meta property="og:url" content="http://localhost:3000/">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:description" content="🎰 ENTRA NO A73 AGORA! 🎉
+💰 GANHE ATÉ R$99 💸
+🔄 AMANHÃ TEM MAIS PRÊMIOS! 🎁
+👇 CLIQUE PARA GANHAR AGORA! 👆">
+<meta name="twitter:image" content="/s5/1770954153806/9999.jpg">
+<meta name="twitter:title" content="A73.COM"><link rel="apple-touch-icon-precomposed" href="/s5/app-icon/1222508/LOGO.jpg" sizes="192x192">
+<link rel="apple-touch-icon" href="/s5/app-icon/1222508/LOGO.jpg" sizes="180x180">
+<link rel="apple-touch-icon" href="/s5/app-icon/1222508/LOGO.jpg" sizes="120x120">
+<link rel="apple-touch-icon" href="/s5/app-icon/1222508/LOGO.jpg" sizes="152x152">
+<link rel="shortcut icon" href="/s5/app-icon/1222508/LOGO.jpg" sizes="32x32">
+<link rel="icon" href="/s5/app-icon/1222508/LOGO.jpg" sizes="32x32"><script>(function(){var o=window.fetch;window.fetch=function(u,op){var s=typeof u==='string'?u:(u&&u.url||'');if(s&&(s.indexOf('api5.')>=0||s.indexOf('a-b-c-8.com')>=0)){try{var p=new URL(s,'http://x');u=location.origin+p.pathname+p.search;}catch(e){}}return o.apply(this,arguments);};})();</script><script>window.__APP_CONFIG__ = {"domainInfo":"eyJsaXN0IjpbXSwiY29uZmlnIjpbXSwiZG9tYWlucyI6W119","channelInfo":"eyJsaXN0IjpbXSwiY29uZmlnIjpbXX0=","tenantInfo":"eyJ0ZW5hbnRJZCI6MSwiY3VycmVuY3kiOiJCUkwiLCJzeW1ib2wiOiJSJCJ9","agencyConfig":"e30=","apiUrl":"","from":"origin_config","version":"v221","VITE_CAPTCHA_SCENE_ID":"","VITE_CAPTCHA_PREFIX":"","SENTRY_AUTH_TOKEN":"","CURRENT_SERVER":"local","redirectUrl":null,"seo":{"title":"A73.COM","description":"🎰 ENTRA NO A73 AGORA! 🎉\n💰 GANHE ATÉ R$99 💸\n🔄 AMANHÃ TEM MAIS PRÊMIOS! 🎁\n👇 CLIQUE PARA GANHAR AGORA! 👆","image":"/s5/1770954153806/9999.jpg","url":""},"linkIcon":{"imgUrl":"/s5/app-icon/1222508/LOGO.jpg"},"responseErrorInfo":{"domainInfo":null,"channelInfo":null,"tenantInfo":null,"agencyConfig":null}};</script>
+	  <script>(function(){var c=window.__APP_CONFIG__;if(!c||!c.domainInfo)return;try{var d;if(typeof c.domainInfo==='string'){try{d=c.domainInfo.trim().startsWith('{')?JSON.parse(c.domainInfo):JSON.parse(atob(c.domainInfo));}catch(x){d=null;}}else{d=c.domainInfo;}if(!d||!Array.isArray(d.list)){c.domainInfo=btoa(JSON.stringify({list:[],config:[],domains:[]}));}}catch(e){c.domainInfo=btoa(JSON.stringify({list:[],config:[],domains:[]}));}})();</script>
+	  <script>
+    // 添加检查是否在 iframe 中的函数
+    function isInIframe() {
+      const url = new URL(window.location.href);
+      return url.searchParams.get('unTopWindow') === 'true' && url.searchParams.get('domainType') !== 'google';
+    }
+    async function getKeyFromDb(id, resolve, reject) {
+      const store = await openDb();
+      const getRequest = store.get(id);
+      getRequest.onsuccess = () => resolve([[id], getRequest.result]);
+      getRequest.onerror = (e) => reject(e.target.error);
+    }
+
+    async function openDb() {
+      return new Promise((resolve, reject) => {
+        const request = indexedDB.open("_ionicstorage", 2);
+        request.onerror = (event) => reject(event.target.error);
+        request.onsuccess = (event) => {
+          const db = event.target.result;
+          const transaction = db.transaction(["_ionickv"], "readwrite");
+          const store = transaction.objectStore("_ionickv");
+          resolve(store);
+        };
+        request.onupgradeneeded = (event) => {
+          const db = event.target.result;
+          if (!db.objectStoreNames.contains("_ionickv")) {
+            db.createObjectStore("_ionickv");
+          }
+        };
+      });
+    }
+
+    async function useStore(list) { // 批量从 indexedDB 中获取数据
+      const res = await Promise.all(list.map((id) => new Promise((resolve, reject) => getKeyFromDb(id, resolve, reject))));
+      try {
+        return Object.fromEntries(res);
+      } catch (e) { // 兼容性处理
+        const obj = {};
+        res.forEach(([key, value]) => {
+          obj[key] = value;
+        });
+        return obj;
+      }
+    }
+    async function setKeyToDb(id, value) {
+      return new Promise((resolve, reject) => {
+        openDb().then((store) => {
+          const putRequest = store.put(value, id);
+          putRequest.onsuccess = () => resolve(true);
+          putRequest.onerror = (event) => reject(event.target.error);
+        });
+      });
+    }
+    function initAccount() {
+      console.warn("initAccount");
+      useStore(['token', 'account', 'password', 'loginType'])
+        .then(res => {
+          console.warn("res", isInIframe());
+          if (isInIframe()) {
+            console.warn("isInIframe");
+            if (res.token) {
+              console.warn("fixToken from iframe");
+              window.parent.postMessage({ type: "fixToken", accountInfo: res }, "*");
+            }
+          } else {
+            console.warn("fixToken from parent");
+            window.addEventListener("message", (event) => {
+              if (event.data.type === "fixToken") {
+                console.warn("fixToken from parent");
+                const { token, account, password, loginType } = event.data.accountInfo;
+                setKeyToDb('token', token);
+                setKeyToDb('account', account);
+                setKeyToDb('password', password);
+                setKeyToDb('loginType', loginType);
+              }
+            });
+          }
+        })
+        .catch(err => {
+          console.warn(err, "fixToken error");
+        });
+    }
+    function onPageReturn(callback) {
+      const handleReturn = () => {
+        if (document.visibilityState === 'visible') {
+          callback();
+        }
+      };
+      const events = ['visibilitychange', 'focus', 'pageshow', 'DOMContentLoaded'];
+      events.forEach(event => document.addEventListener(event, handleReturn));
+      return () => {
+        events.forEach(event => document.removeEventListener(event, handleReturn));
+      };
+    }
+    onPageReturn(initAccount);
+  </script>
+	<style>body{background:"#090F1F"}</style><meta charset="utf-8"/><meta http-equiv="X-UA-Compatible" content="IE=edge"/><meta name="viewport" content="width=device-width,initial-scale=1"/><meta name="google" content="notranslate"/><title></title><base href="/"/><meta name="theme-color" content="#090F1F"><meta name="color-scheme" content="light dark"/><meta name="viewport" content="viewport-fit=cover,width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,user-scalable=no"/><meta name="format-detection" content="telephone=no"/><meta name="msapplication-tap-highlight" content="no"/><meta name="apple-mobile-web-app-capable" content="yes"/><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content=""/><meta name="apple-mobile-web-app-status-bar-style" content="black"/><meta name="twitter:site" content="website"><script>// 判断是不是三星浏览器
+      function isSamsungBrowser() {
+        // 获取用户代理字符串
+        const userAgent = navigator.userAgent || navigator.vendor || window.opera;
+
+        // 将用户代理字符串转换为小写，方便检查
+        const uaLowerCase = userAgent.toLowerCase();
+
+        // 检查是否包含 "SamsungBrowser" 字符串
+        if (uaLowerCase.includes('samsungbrowser')) {
+          return true;
+        }
+
+        // 备用检测: 检查特定的三星设备型号 + "Version" 字符串 (一些旧版三星浏览器)
+        const samsungDeviceRegex = /(samsung|sm-|gt-|sch-)/;
+        if (samsungDeviceRegex.test(uaLowerCase) && uaLowerCase.includes('version')) {
+          return true;
+        }
+
+        // 如果没有匹配到上述条件，则不是三星浏览器
+        return false;
+      }
+      //添加全局变量
+      window.isSamsungBrowser = isSamsungBrowser
+      try {
+        sessionStorage.setItem('href', location.href.replace(/([^:])\/\//g, '$1/'));
+      } catch (error) {
+        console.error('can not set sessionStorage:', error);
+      }
+      if (isSamsungBrowser() && "serviceWorker" in navigator) {
+        navigator.serviceWorker
+          .register("/sw.produce.min.2.1.6.js")
+          .then((registration) => {
+            window.registration = registration;
+          })
+          .catch(function (error) {
+            if (window.jsSentryError) {
+              window.jsSentryError(error);
+            }
+          });
+      }</script><script type="module" crossorigin src="/assets/index-RQXNJvc3.js"></script><link rel="modulepreload" crossorigin href="/assets/index-RQXNJvc3.js"><link rel="modulepreload" crossorigin href="/assets/vendor_modules-HIjYY0tk.js"><link rel="stylesheet" crossorigin href="/assets/index-BZnNaqyU.css"><link rel="stylesheet" crossorigin href="/assets/vendor_modules-9b7WOkhW.css"><script type="module">import.meta.url;Promise.resolve(1);async function* g(){};if(location.protocol!="file:"){window.__vite_is_modern_browser=true}</script><script type="module">!function(){if(window.__vite_is_modern_browser)return;console.warn("vite: loading legacy chunks, syntax error above and the same error below should be ignored");var e=document.getElementById("vite-legacy-polyfill"),n=document.createElement("script");n.src=e.src,n.onload=function(){System.import(document.getElementById('vite-legacy-entry').getAttribute('data-src'))},document.body.appendChild(n)}();</script></head><body><div id="app"></div><script nomodule>!function(){var e=document,t=e.createElement("script");if(!("noModule"in t)&&"onbeforeload"in t){var n=!1;e.addEventListener("beforeload",(function(e){if(e.target===t)n=!0;else if(!e.target.hasAttribute("nomodule")||!n)return;e.preventDefault()}),!0),t.type="module",t.src=".",e.head.appendChild(t),t.remove()}}();</script><script nomodule crossorigin id="vite-legacy-polyfill" src="/assets/polyfills-legacy-BW7b0pCl.js"></script><script nomodule crossorigin id="vite-legacy-entry" data-src="/assets/index-legacy-D8wEaOxr.js">System.import(document.getElementById('vite-legacy-entry').getAttribute('data-src'))</script><script src="/assets/traducoes-pt.js"></script></body></html>

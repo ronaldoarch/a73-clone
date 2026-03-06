@@ -1,0 +1,226 @@
+{
+  "info": {
+    "_postman_id": "a73-igamewin-transfer-api",
+    "name": "iGameWin Transfer API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "iGameWin Transfer API - https://igamewin.com/api/v1"
+  },
+  "variable": [
+    { "key": "API_URL", "value": "https://igamewin.com/api/v1" },
+    { "key": "agent_code", "value": "Midaslabs" },
+    { "key": "agent_token", "value": "092b6406e28211f0b8f1bc2411881493" },
+    { "key": "user_code", "value": "test" }
+  ],
+  "item": [
+    {
+      "name": "1. User",
+      "item": [
+        {
+          "name": "Create New User",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"method\": \"user_create\",\n  \"agent_code\": \"{{agent_code}}\",\n  \"agent_token\": \"{{agent_token}}\",\n  \"user_code\": \"{{user_code}}\"\n}"
+            },
+            "url": "{{API_URL}}"
+          }
+        },
+        {
+          "name": "Create New User (Demo)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"method\": \"user_create\",\n  \"agent_code\": \"{{agent_code}}\",\n  \"agent_token\": \"{{agent_token}}\",\n  \"user_code\": \"{{user_code}}\",\n  \"is_demo\": true\n}"
+            },
+            "url": "{{API_URL}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Balance",
+      "item": [
+        {
+          "name": "Deposit User Balance",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"method\": \"user_deposit\",\n  \"agent_code\": \"{{agent_code}}\",\n  \"agent_token\": \"{{agent_token}}\",\n  \"user_code\": \"{{user_code}}\",\n  \"amount\": 10000\n}"
+            },
+            "url": "{{API_URL}}"
+          }
+        },
+        {
+          "name": "Withdraw User Balance",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"method\": \"user_withdraw\",\n  \"agent_code\": \"{{agent_code}}\",\n  \"agent_token\": \"{{agent_token}}\",\n  \"user_code\": \"{{user_code}}\",\n  \"amount\": 10000\n}"
+            },
+            "url": "{{API_URL}}"
+          }
+        },
+        {
+          "name": "Reset User Balance",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"method\": \"user_withdraw_reset\",\n  \"agent_code\": \"{{agent_code}}\",\n  \"agent_token\": \"{{agent_token}}\",\n  \"user_code\": \"{{user_code}}\"\n}"
+            },
+            "url": "{{API_URL}}"
+          }
+        },
+        {
+          "name": "Reset All Users Balance",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"method\": \"user_withdraw_reset\",\n  \"agent_code\": \"{{agent_code}}\",\n  \"agent_token\": \"{{agent_token}}\",\n  \"all_users\": true\n}"
+            },
+            "url": "{{API_URL}}"
+          }
+        },
+        {
+          "name": "Get Balance (Agent)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"method\": \"money_info\",\n  \"agent_code\": \"{{agent_code}}\",\n  \"agent_token\": \"{{agent_token}}\"\n}"
+            },
+            "url": "{{API_URL}}"
+          }
+        },
+        {
+          "name": "Get Balance (Agent + User)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"method\": \"money_info\",\n  \"agent_code\": \"{{agent_code}}\",\n  \"agent_token\": \"{{agent_token}}\",\n  \"user_code\": \"{{user_code}}\"\n}"
+            },
+            "url": "{{API_URL}}"
+          }
+        },
+        {
+          "name": "Get Balance (All Users)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"method\": \"money_info\",\n  \"agent_code\": \"{{agent_code}}\",\n  \"agent_token\": \"{{agent_token}}\",\n  \"all_users\": true\n}"
+            },
+            "url": "{{API_URL}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Demo",
+      "item": [
+        {
+          "name": "Set Demo",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"method\": \"set_demo\",\n  \"agent_code\": \"{{agent_code}}\",\n  \"agent_token\": \"{{agent_token}}\",\n  \"user_code\": \"{{user_code}}\"\n}"
+            },
+            "url": "{{API_URL}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Game",
+      "item": [
+        {
+          "name": "Launch Game (Slot)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"method\": \"game_launch\",\n  \"agent_code\": \"{{agent_code}}\",\n  \"agent_token\": \"{{agent_token}}\",\n  \"user_code\": \"{{user_code}}\",\n  \"provider_code\": \"PRAGMATIC\",\n  \"game_code\": \"vs20doghouse\",\n  \"lang\": \"en\"\n}"
+            },
+            "url": "{{API_URL}}"
+          }
+        },
+        {
+          "name": "Launch Game (Evolution)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"method\": \"game_launch\",\n  \"agent_code\": \"{{agent_code}}\",\n  \"agent_token\": \"{{agent_token}}\",\n  \"user_code\": \"{{user_code}}\",\n  \"provider_code\": \"EVOLUTION\",\n  \"game_code\": \"nxpkul2hgclallno\",\n  \"lang\": \"en\"\n}"
+            },
+            "url": "{{API_URL}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Catalog",
+      "item": [
+        {
+          "name": "Get Provider List",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"method\": \"provider_list\",\n  \"agent_code\": \"{{agent_code}}\",\n  \"agent_token\": \"{{agent_token}}\"\n}"
+            },
+            "url": "{{API_URL}}"
+          }
+        },
+        {
+          "name": "Get Game List",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"method\": \"game_list\",\n  \"agent_code\": \"{{agent_code}}\",\n  \"agent_token\": \"{{agent_token}}\",\n  \"provider_code\": \"PRAGMATIC\"\n}"
+            },
+            "url": "{{API_URL}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. History",
+      "item": [
+        {
+          "name": "Get Game History",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"method\": \"get_game_log\",\n  \"agent_code\": \"{{agent_code}}\",\n  \"agent_token\": \"{{agent_token}}\",\n  \"user_code\": \"{{user_code}}\",\n  \"game_type\": \"slot\",\n  \"start\": \"2022-09-29 00:00:00\",\n  \"end\": \"2022-09-30 23:59:00\",\n  \"page\": 0,\n  \"perPage\": 1000\n}"
+            },
+            "url": "{{API_URL}}"
+          }
+        }
+      ]
+    }
+  ]
+}

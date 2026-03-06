@@ -1,0 +1,9 @@
+# Dados de usuários (backend auth)
+users.json
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/

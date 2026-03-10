@@ -31,14 +31,16 @@
                 class="roleta-novos-segment"
                 :style="segmentStyle(i)"
               >
-                <template v-if="seg.value !== null">
-                  <img :src="iconSrc(seg.icon)" :alt="seg.label" class="roleta-novos-segment-icon roleta-novos-segment-icon-coin" />
-                  <span class="roleta-novos-segment-value">R$ {{ seg.value }}</span>
-                </template>
-                <template v-else>
-                  <img :src="iconSrc(seg.icon)" :alt="seg.label" class="roleta-novos-segment-icon" />
-                  <span v-if="seg.icon === 'thks'" class="roleta-novos-segment-label">{{ seg.label }}</span>
-                </template>
+                <div class="roleta-novos-segment-inner" :style="itemRotateStyle(i)">
+                  <template v-if="seg.value !== null">
+                    <img :src="iconSrc(seg.icon)" :alt="seg.label" class="roleta-novos-segment-icon roleta-novos-segment-icon-coin" />
+                    <span class="roleta-novos-segment-value">R$ {{ seg.value }}</span>
+                  </template>
+                  <template v-else>
+                    <img :src="iconSrc(seg.icon)" :alt="seg.label" class="roleta-novos-segment-icon" />
+                    <span class="roleta-novos-segment-label">{{ seg.label || 'Presente' }}</span>
+                  </template>
+                </div>
               </div>
             </div>
             <!-- Ponteiro no topo -->
@@ -53,6 +55,7 @@
               <img src="/images/roleta-novos/button.png" alt="" class="roleta-novos-go-img" />
               <span class="roleta-novos-go-text">GO</span>
             </button>
+            <p v-if="spinError" class="roleta-novos-spin-error">{{ spinError }}</p>
           </div>
         </div>
 
@@ -98,21 +101,11 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
 import { IonButton, IonIcon } from '@ionic/vue'
+import { apiUrl } from '@/config/api'
 
-const props = defineProps({
-  show: { type: Boolean, default: false }
-})
-
-const emit = defineEmits(['close'])
-
-const visible = ref(false)
-watch(() => props.show, (v) => { visible.value = v }, { immediate: true })
-
-// 8 segmentos: R$ 3, 9, 99, 22, 45, Thanks, Presente, Presente
-// icon: 'bonus' (moedas), 'thks' (thanks), 'gift_box' (presente)
-const segments = [
+const DEFAULT_SEGMENTS = [
   { label: 'R$ 3,00', value: 3, icon: 'bonus' },
   { label: 'R$ 9,00', value: 9, icon: 'bonus' },
   { label: 'R$ 99,00', value: 99, icon: 'bonus' },
@@ -123,23 +116,70 @@ const segments = [
   { label: 'Presente', value: null, icon: 'gift_box' }
 ]
 
+function mapApiSegmentsToModal(apiSegments) {
+  if (!Array.isArray(apiSegments) || apiSegments.length !== 8) return DEFAULT_SEGMENTS
+  return apiSegments.map((s) => {
+    const label = String(s?.label ?? '')
+    const val = Number(s?.value) ?? 0
+    let icon = 'bonus'
+    if (label && /^\?+$/.test(label)) icon = 'gift_box'
+    else if (val === 0) icon = 'thks'
+    return {
+      label,
+      value: val === 0 ? null : val,
+      icon
+    }
+  })
+}
+
+const props = defineProps({
+  show: { type: Boolean, default: false },
+  segments: { type: Array, default: () => [] }
+})
+
+const emit = defineEmits(['close'])
+
+const visible = ref(false)
+watch(() => props.show, (v) => { visible.value = v }, { immediate: true })
+
+const segments = computed(() => {
+  const fromProp = mapApiSegmentsToModal(props.segments)
+  return fromProp.length === 8 ? fromProp : DEFAULT_SEGMENTS
+})
+
 const iconSrc = (icon) => `/images/roleta-novos/${icon}.png`
 
 const wheelRotation = ref(0)
 const isSpinning = ref(false)
 const showResult = ref(false)
 const resultPrize = ref(0)
+const spinError = ref('')
 
 const resultPrizeFormatted = computed(() =>
   resultPrize.value.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.')
 )
 
-const segmentAngle = 360 / segments.length
+const segmentAngle = computed(() => 360 / (segments.value?.length || 8))
 
 function segmentStyle(index) {
-  const deg = index * segmentAngle
+  const angle = segmentAngle.value
+  const deg = index * angle
   return {
     transform: `rotate(${deg}deg)`
+  }
+}
+
+/** Ajuste por segmento para todos ficarem virados para o centro (GO). Índice 5 (Thanks/emoji feliz) = referência, não alterar. */
+const SEGMENT_OFFSETS = [90, -230, -190, -150, -110, -55, -15, 30]
+
+function itemRotateStyle(index) {
+  const angle = segmentAngle.value
+  const segCenterDeg = index * angle + angle / 2
+  const offset = SEGMENT_OFFSETS[index] ?? -55
+  const rotateToCenter = 180 - segCenterDeg + offset
+  return {
+    transform: `translate(6%, 10%) rotate(${rotateToCenter}deg)`,
+    transformOrigin: '50% 50%'
   }
 }
 
@@ -148,24 +188,56 @@ function close() {
   emit('close')
 }
 
-function doSpin() {
+async function doSpin() {
   if (isSpinning.value) return
+  spinError.value = ''
+  const token = localStorage.getItem('token')
+  if (!token || String(token).startsWith('demo-')) {
+    spinError.value = 'Faça login para participar da roleta de novos usuários.'
+    return
+  }
   isSpinning.value = true
-  const prizeIndex = Math.floor(Math.random() * segments.length)
-  const seg = segments[prizeIndex]
-  const prize = seg.value != null ? seg.value : 0
-  resultPrize.value = prize
+  try {
+    const r = await fetch(apiUrl('/api/roleta-novos/spin'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify({})
+    })
+    const data = await r.json().catch(() => ({}))
+    const errMsg = typeof data?.error === 'string' ? data.error : data?.error?.message
+    if (!r.ok || !data?.ok || errMsg) {
+      spinError.value = errMsg || 'Erro ao girar. Tente novamente.'
+      isSpinning.value = false
+      return
+    }
+    const prizeIndex = data.prizeIndex ?? Math.floor(Math.random() * segments.value.length)
+    const prize = data.prize ?? 0
+    resultPrize.value = prize
 
-  const targetAngle = 360 * 6 + (prizeIndex * segmentAngle + segmentAngle / 2)
-  wheelRotation.value += targetAngle
+    const angle = segmentAngle.value
+    const segCenterDeg = prizeIndex * angle + angle / 2
+    const targetAngle = 360 * 6 + (360 - segCenterDeg)
+    await nextTick()
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        wheelRotation.value += targetAngle
+      })
+    })
 
-  setTimeout(() => {
-    showResult.value = true
-  }, 4200)
+    setTimeout(() => {
+      showResult.value = true
+    }, 4200)
 
-  setTimeout(() => {
+    setTimeout(() => {
+      isSpinning.value = false
+    }, 4200)
+  } catch (e) {
+    spinError.value = e?.message || 'Erro de conexão. Tente novamente.'
     isSpinning.value = false
-  }, 4200)
+  }
 }
 
 function closeResult() {
@@ -271,6 +343,7 @@ function closeResult() {
   overflow: hidden;
   transform-origin: 50% 50%;
   transition: transform 4s cubic-bezier(0.17, 0.67, 0.12, 0.99);
+  will-change: transform;
   background: linear-gradient(135deg, #3b82f6 0%, #93c5fd 50%, #3b82f6 100%);
   box-shadow: inset 0 0 0 4px rgba(255,255,255,0.3), 0 0 20px rgba(0,0,0,0.3);
 }
@@ -288,11 +361,11 @@ function closeResult() {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: flex-start;
-  padding-top: 8%;
-  gap: 2px;
-  background: rgba(59, 130, 246, 0.85);
-  border: 1px solid rgba(255, 255, 255, 0.25);
+  justify-content: center;
+  padding-top: 6%;
+  gap: 0;
+  background: rgba(59, 130, 246, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.3);
   box-sizing: border-box;
   /* 45° wedge: center (0,100%) -> right (100%,100%) -> 45° (70.7%, 0%) */
   clip-path: polygon(0% 100%, 100% 100%, 70.71% 0%);
@@ -300,29 +373,41 @@ function closeResult() {
 .roleta-novos-segment:nth-child(odd) {
   background: rgba(30, 64, 175, 0.9);
 }
+.roleta-novos-segment-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 4px;
+  min-width: 0;
+}
 .roleta-novos-segment-icon {
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   object-fit: contain;
   flex-shrink: 0;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.5));
 }
 .roleta-novos-segment-icon-coin {
-  width: 20px;
-  height: 20px;
+  width: 22px;
+  height: 22px;
 }
 .roleta-novos-segment-value {
-  font-size: 0.6rem;
+  font-size: 0.65rem;
   font-weight: 800;
   color: #fff;
-  text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+  text-shadow: 0 1px 3px rgba(0,0,0,0.8), 0 0 1px rgba(0,0,0,0.9);
   white-space: nowrap;
+  letter-spacing: 0.02em;
 }
 .roleta-novos-segment-label {
-  font-size: 0.5rem;
+  font-size: 0.55rem;
   font-weight: 700;
   color: #fff;
-  text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+  text-shadow: 0 1px 3px rgba(0,0,0,0.8), 0 0 1px rgba(0,0,0,0.9);
   white-space: nowrap;
+  letter-spacing: 0.02em;
 }
 
 .roleta-novos-pointer {
@@ -355,6 +440,20 @@ function closeResult() {
 .roleta-novos-go-btn:disabled {
   cursor: not-allowed;
   opacity: 0.9;
+}
+.roleta-novos-spin-error {
+  position: absolute;
+  bottom: -24px;
+  left: 50%;
+  transform: translateX(-50%);
+  margin: 0;
+  font-size: 0.75rem;
+  color: #ff6b6b;
+  text-align: center;
+  white-space: nowrap;
+  max-width: 90%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .roleta-novos-go-img {
   position: absolute;

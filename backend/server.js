@@ -16,7 +16,11 @@ setPrisma(prisma)
 
 const app = express()
 const PORT = process.env.PORT || 3000
-const JWT_SECRET = process.env.JWT_SECRET || 'a73-secret-change-in-production'
+const JWT_SECRET = process.env.JWT_SECRET
+if (!JWT_SECRET) {
+  console.error('FATAL: JWT_SECRET não definido. Defina a variável de ambiente JWT_SECRET antes de iniciar.')
+  process.exit(1)
+}
 
 // CORS: FRONTEND_URL restringe origens permitidas; se vazio, aceita qualquer
 const FRONTEND_URL = process.env.FRONTEND_URL || ''
@@ -32,12 +36,31 @@ const corsOpts = {
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }
-// CORS permissivo para /gold_api - iGameWin chama de iframe de outro domínio (evita ERROR_GET_BALANCE_END_POINT)
-// Deve rodar ANTES do cors global para não ser bloqueado por FRONTEND_URL
+// CORS para /gold_api e /api/games/seamless - iGameWin chama de iframe de outro domínio.
+// Usa whitelist: IGAMEWIN_ALLOWED_ORIGINS (CSV) + FRONTEND_URL.
+// Se nenhuma variável for definida, bloqueia tudo por segurança.
+const IGAMEWIN_ALLOWED_ORIGINS = (process.env.IGAMEWIN_ALLOWED_ORIGINS || '')
+  .split(',').map(u => u.trim()).filter(Boolean)
+
+function isAllowedSeamlessOrigin(origin) {
+  if (!origin) return false
+  const allowed = [
+    ...IGAMEWIN_ALLOWED_ORIGINS,
+    ...(FRONTEND_URL ? FRONTEND_URL.split(',').map(u => u.trim()).filter(Boolean) : [])
+  ]
+  return allowed.some(u => origin === u || origin.startsWith(u.replace(/\/$/, '') + '/'))
+}
+
 app.use((req, res, next) => {
   if (req.path === '/gold_api' || req.path === '/api/games/seamless') {
-    const origin = req.headers.origin || '*'
-    res.setHeader('Access-Control-Allow-Origin', origin)
+    const origin = req.headers.origin
+    if (origin && isAllowedSeamlessOrigin(origin)) {
+      res.setHeader('Access-Control-Allow-Origin', origin)
+    } else if (!origin) {
+      // Chamada server-to-server sem Origin (permitido)
+      res.setHeader('Access-Control-Allow-Origin', '*')
+    }
+    // Se origin existe mas não está na whitelist, não seta o header (browser bloqueará)
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
     if (req.method === 'OPTIONS') return res.sendStatus(204)
@@ -77,17 +100,38 @@ app.post('/api/webhook/gatebox', async (req, res) => {
     if (!eventType || !['PIX_PAY_IN', 'PIX_PAYIN', 'PAY_IN', 'PIX PAY IN'].includes(eventType.replace(/\s/g, '_'))) return
     if (!externalId) return
     const extStr = String(externalId).trim()
-    let deposit = await prisma.deposit.findFirst({
+
+    // Idempotência: atualiza status para 'processando' atomicamente.
+    // Se outro request já fez isso, updateMany retorna count=0 e abortamos.
+    let claimed = await prisma.deposit.updateMany({
       where: { externalId: extStr, status: 'pendente' },
+      data: { status: 'processando' }
+    })
+    if (claimed.count === 0) {
+      // Tenta pelo id como fallback
+      claimed = await prisma.deposit.updateMany({
+        where: { id: extStr, status: 'pendente' },
+        data: { status: 'processando' }
+      })
+    }
+    if (claimed.count === 0) {
+      console.log('Webhook Gatebox: depósito', extStr, 'já processado ou não encontrado — ignorando')
+      return
+    }
+
+    // Busca o depósito agora em status 'processando' (nosso lock)
+    let deposit = await prisma.deposit.findFirst({
+      where: { externalId: extStr, status: 'processando' },
       include: { user: true }
     })
     if (!deposit) {
       deposit = await prisma.deposit.findFirst({
-        where: { id: extStr, status: 'pendente' },
+        where: { id: extStr, status: 'processando' },
         include: { user: true }
       })
     }
     if (!deposit) return
+
     await confirmarDepositoPix(deposit)
     console.log('Webhook Gatebox: depósito', extStr, 'confirmado')
   } catch (e) {
@@ -1674,8 +1718,40 @@ app.post('/api/saque', authMiddleware, async (req, res) => {
 })
 
 // ========== Admin APIs ==========
+
+// Rate limit in-memory para login admin: máx 10 tentativas por IP em 15 minutos
+const adminLoginAttempts = new Map()
+const ADMIN_RATE_LIMIT_MAX = 10
+const ADMIN_RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000 // 15 min
+
+function checkAdminRateLimit(ip) {
+  const now = Date.now()
+  const entry = adminLoginAttempts.get(ip) || { count: 0, windowStart: now }
+  if (now - entry.windowStart > ADMIN_RATE_LIMIT_WINDOW_MS) {
+    // Janela expirou, reinicia
+    entry.count = 0
+    entry.windowStart = now
+  }
+  entry.count++
+  adminLoginAttempts.set(ip, entry)
+  return entry.count <= ADMIN_RATE_LIMIT_MAX
+}
+
+// Limpeza periódica de entradas antigas (a cada 30 min)
+setInterval(() => {
+  const cutoff = Date.now() - ADMIN_RATE_LIMIT_WINDOW_MS
+  for (const [ip, entry] of adminLoginAttempts.entries()) {
+    if (entry.windowStart < cutoff) adminLoginAttempts.delete(ip)
+  }
+}, 30 * 60 * 1000)
+
 app.post('/api/admin/login', async (req, res) => {
   try {
+    const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.socket.remoteAddress || 'unknown'
+    if (!checkAdminRateLimit(ip)) {
+      return res.status(429).json({ error: { message: 'Muitas tentativas. Aguarde 15 minutos.' } })
+    }
+
     const { user, password } = req.body?.json || req.body || {}
     if (!user || !password) return res.status(400).json({ error: { message: 'Usuário e senha obrigatórios' } })
     const cred = await getAdminCredentials()

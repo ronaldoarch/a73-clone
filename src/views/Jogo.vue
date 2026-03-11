@@ -65,9 +65,9 @@ function abrirNovaAba() {
 
 onMounted(() => {
   if (localStorage.getItem('token')) refresh()
-  if (gameUrl.value && gameUrl.value.startsWith('http')) {
-    window.location.replace(gameUrl.value)
-  }
+  // Nota: o jogo é exibido via iframe no template — não redirecionar com
+  // window.location.replace() pois isso destrói o app Vue e elimina a barra
+  // de saldo e o botão de voltar.
 })
 </script>
 

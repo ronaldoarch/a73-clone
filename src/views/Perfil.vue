@@ -8,20 +8,27 @@
     <ion-content :fullscreen="true" class="perfil-content">
       <!-- Não logado -->
       <div v-if="!isLoggedIn" class="perfil-login-prompt">
-        <p>Faça login para acessar seu perfil.</p>
-        <ion-button expand="block" color="warning" @click="$router.push('/main/login/')">
-          Entrar
-        </ion-button>
-        <ion-button expand="block" fill="outline" @click="$router.push('/main/register/')">
-          Registro R$ +99
-        </ion-button>
+        <div class="perfil-buttons-row">
+          <ion-button mode="md" fill="solid" class="unset-btn perfil-btn-entrar" @click="$router.push('/main/login/')">
+            Entrar
+          </ion-button>
+          <div class="perfil-btn-registro-wrap">
+            <span class="perfil-registro-badge">
+              <span class="perfil-badge-rs">R$</span>
+              <span class="perfil-badge-99">+99</span>
+            </span>
+            <ion-button mode="md" fill="solid" class="unset-btn register perfil-btn-registro" @click="$router.push('/main/register/')">
+              Registro
+            </ion-button>
+          </div>
+        </div>
       </div>
 
       <!-- Logado - Dashboard do perfil -->
       <div v-else class="perfil-dashboard">
-        <!-- Info do usuário -->
+        <!-- Info do usuário (apenas avatar selecionado) -->
         <div class="perfil-user-section">
-          <div class="perfil-avatar">👤</div>
+          <div class="perfil-avatar">{{ selectedAvatar }}</div>
           <div class="perfil-user-info">
             <span class="perfil-phone">{{ account }}</span>
             <span class="perfil-vip-badge">VIP 0</span>
@@ -162,6 +169,9 @@ import {
   onIonViewWillEnter
 } from '@ionic/vue'
 
+const AVATAR_DEFAULT = '👤'
+const selectedAvatar = ref(localStorage.getItem('userAvatar') || AVATAR_DEFAULT)
+
 const router = useRouter()
 const { balanceFormatted, refresh } = useAfiliado()
 const account = computed(() => localStorage.getItem('account') || '')
@@ -182,6 +192,10 @@ function checkLogin() {
   isLoggedIn.value = !!localStorage.getItem('token')
 }
 onMounted(() => {
+  if (!localStorage.getItem('userAvatar')) {
+    localStorage.setItem('userAvatar', AVATAR_DEFAULT)
+    selectedAvatar.value = AVATAR_DEFAULT
+  }
   checkLogin()
   if (isLoggedIn.value) refresh()
 })
@@ -219,11 +233,73 @@ function logout() {
 
 .perfil-login-prompt {
   padding: 32px 20px;
-  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
 }
-.perfil-login-prompt p {
-  color: var(--text);
-  margin-bottom: 20px;
+.perfil-buttons-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+/* unset-btn: reset estilos padrão do Ionic (como no original) */
+.perfil-buttons-row .unset-btn {
+  --border-width: 0;
+  --box-shadow: none;
+}
+.perfil-btn-entrar {
+  --background: #fff;
+  --color: #2d1b4e;
+  --border-radius: 9999px;
+  --box-shadow: none;
+  font-weight: 700;
+  height: 48px;
+  padding-inline: 28px;
+}
+.perfil-btn-registro-wrap {
+  position: relative;
+}
+/* Badge R$ +99: ícone sobreposto no topo do botão, não dentro */
+.perfil-registro-badge {
+  position: absolute;
+  top: -10px;
+  right: 8px;
+  z-index: 10;
+  display: flex;
+  border-radius: 8px 8px 8px 0;
+  overflow: hidden;
+.perfil-registro-badge::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+}
+  box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+  pointer-events: none;
+}
+.perfil-badge-rs {
+  background: #4A1570;
+  color: #EEFF4A;
+  font-size: 0.65rem;
+  font-weight: 800;
+  padding: 4px 6px;
+}
+.perfil-badge-99 {
+  background: #E74C3C;
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 800;
+  padding: 4px 8px;
+}
+.perfil-btn-registro {
+  --background: #EEFF4A;
+  --color: #2d1b4e;
+  --border-radius: 9999px;
+  --box-shadow: none;
+  font-weight: 700;
+  height: 48px;
+  padding-inline: 28px;
 }
 
 .perfil-dashboard {

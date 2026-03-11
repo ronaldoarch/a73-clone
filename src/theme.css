@@ -436,13 +436,17 @@
   --accent-color-yellow: #f59e0b;
   --accent-color-yellow-1: #fbbf24;
   --Dark-BG-color-dark-purple-100: #3b3466;
-  /* theme-36 / ep-* (jt0c6h.com) */
+  /* theme-36 / ep-* (jt0c6h.com - Ionic + Vue stack) */
   --ep-accent-blue: rgb(92, 130, 245);
   --ep-accent-red: rgb(230, 64, 33);
   --ep-accent-orange: rgb(252, 151, 76);
   --ep-accent-green: rgb(83, 193, 84);
   --ep-accent-yellow: rgb(245, 200, 76);
   --ep-font-family: 'Prompt', sans-serif;
+  --ep-color-background-fill-body-default: #4D087B;
+  --ep-color-background-fill-body-secondary: #3b3466;
+  --header-dynamic-bg: linear-gradient(180deg, #670d98 0%, #640c95 100%);
+  --tg-viewport-height: 100dvh;
 }
 
 /* Sobrescreve fontes padrão do Ionic (html.ios e html.md) */

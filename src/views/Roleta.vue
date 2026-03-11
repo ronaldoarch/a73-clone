@@ -20,19 +20,20 @@
         </button>
       </div>
 
-      <!-- Roleta - imagem da roleta com fogo atrás -->
+      <!-- Roleta - imagens da pasta nova roleta -->
       <div class="roleta-wheel-wrap">
-        <!-- Fogo/background (atrás da roleta) -->
-        <img src="/images/roleta-wheel-fire.png" alt="" class="roleta-wheel-fire" />
+        <!-- Background/borda (atrás da roleta) -->
+        <img src="/images/roleta/wheel-border.png" alt="" class="roleta-wheel-fire" />
         <!-- Imagem da roleta (gira) -->
         <div class="roleta-wheel-img-wrap" :class="{ spinning: isSpinning }" :style="wheelStyle">
-          <img src="/images/roleta-wheel.png" alt="Roleta" class="roleta-wheel-img" />
+          <img src="/images/roleta/wheel-panel.svg" alt="Roleta" class="roleta-wheel-img" />
         </div>
         <!-- Pointer -->
         <div class="roleta-pointer">
           <div class="roleta-pointer-gem" />
         </div>
         <div class="roleta-center-btn" @click="doSpin">
+          <img src="/images/roleta/wheel-start-btn.png" alt="" class="roleta-center-btn-img" />
           <span class="roleta-center-num">{{ spinsRemaining }}</span>
         </div>
         <div class="roleta-banner">
@@ -131,7 +132,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, nextTick } from 'vue'
 import { IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButton, IonButtons, IonIcon } from '@ionic/vue'
 import { apiUrl } from '@/config/api'
 import { useToast } from '@/composables/useToast'
@@ -248,8 +249,14 @@ async function doSpin() {
     lastPrizeIndex.value = prizeIndex
     const segmentAngle = 360 / wheelSegments.length
     const imagePos = IMAGE_POSITION_FOR_PRIZE_INDEX[prizeIndex] ?? prizeIndex
-    const targetAngle = 360 * 6 + (imagePos * segmentAngle + segmentAngle / 2)
-    wheelRotation.value += targetAngle
+    const segCenterDeg = imagePos * segmentAngle + segmentAngle / 2
+    const targetAngle = 360 * 6 + (360 - segCenterDeg)
+    await nextTick()
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        wheelRotation.value += targetAngle
+      })
+    })
     resultPrize.value = prize
     resultModalType.value = prize > 0 ? 'win' : 'lose'
     setTimeout(() => { showResultModal.value = true }, 4200)
@@ -325,7 +332,7 @@ onMounted(() => {
   position: absolute;
   top: 50%;
   left: 50%;
-  transform: translate(-50%, -50%);
+  transform: translate(-50%, -50%) rotate(15deg);
   width: 420px;
   height: 420px;
   object-fit: contain;
@@ -376,19 +383,28 @@ onMounted(() => {
   width: 70px;
   height: 70px;
   border-radius: 50%;
-  background: #22c55e;
-  border: 4px solid #fbbf24;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  box-shadow: 0 0 15px rgba(34, 197, 94, 0.6);
   z-index: 15;
+  background: transparent;
+  border: none;
+  padding: 0;
+}
+.roleta-center-btn-img {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 .roleta-center-num {
+  position: relative;
+  z-index: 1;
   color: #fff;
   font-size: 1.8rem;
   font-weight: 900;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.8);
 }
 .roleta-banner {
   margin-top: -8px;

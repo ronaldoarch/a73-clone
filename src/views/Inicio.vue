@@ -19,7 +19,7 @@
         <ion-buttons slot="end">
           <template v-if="!isLoggedIn">
             <ion-button @click="$router.push('/main/login/')" class="btn-entrar">ENTRAR</ion-button>
-            <ion-button @click="$router.push('/main/register/')" class="btn-registro">Registro R$ <span class="registro-plus">+99</span></ion-button>
+            <ion-button @click="$router.push('/main/register/')" class="btn-registro">REGISTRO R$+99</ion-button>
           </template>
           <template v-else>
             <span class="header-balance" @click="$router.push('/main/perfil/')">R$ {{ balanceFormatted }}</span>
@@ -44,18 +44,11 @@
         </div>
       </div>
 
-      <!-- Banner principal / Carrossel - formato VIP neon -->
-      <div class="banner-section banner-carousel">
-        <div class="banner-neon-frame">
-          <div class="banner-slide active">
-            <img :src="bannerUrl" alt="Banner A73" class="banner-img" @error="e => (e.target.src = '/s5/1770954153806/9999.jpg')" />
-            <div class="banner-overlay">
-              <span class="banner-text-main">COM AMIGOS COMPARTILHE R$100</span>
-              <ion-button size="small" color="warning" class="banner-saque-btn">SAQUE RÁPIDO</ion-button>
-            </div>
-          </div>
-        </div>
-      </div>
+      <!-- Banner principal / Carrossel Swiper (estilo jt0c6h) -->
+      <BannerCarousel
+        :slides="bannerSlides"
+        @cta-click="onBannerCta"
+      />
 
       <!-- Segmentos hexagonais (Popular + provedores iGameWin) -->
       <div class="hexagon-row">
@@ -282,7 +275,7 @@
       </div>
     </ion-content>
     <GameIframeModal :url="gameUrl" @close="closeGame" />
-    <RoletaNovosModal :show="showRoletaNovosModal" @close="closeRoletaNovos" />
+    <RoletaNovosModal :show="showRoletaNovosModal" :segments="roletaNovosSegments" @close="closeRoletaNovos" />
   </ion-page>
 </template>
 
@@ -302,16 +295,61 @@ import { useRanking } from '@/composables/useRanking'
 import { useGameIframe } from '@/composables/useGameIframe'
 import GameIframeModal from '@/components/GameIframeModal.vue'
 import RoletaNovosModal from '@/components/RoletaNovosModal.vue'
+import BannerCarousel from '@/components/BannerCarousel.vue'
+import { apiUrl } from '@/config/api'
 
 const router = useRouter()
 const showRoletaNovosModal = ref(false)
+const roletaNovosSegments = ref([])
+
+async function loadRoletaNovosConfig() {
+  try {
+    const r = await fetch(apiUrl('/api/roleta/config'))
+    const data = await r.json()
+    const segs = data.segments
+    if (Array.isArray(segs) && segs.length === 8) {
+      roletaNovosSegments.value = segs
+    } else {
+      roletaNovosSegments.value = []
+    }
+  } catch (_) {
+    roletaNovosSegments.value = []
+  }
+}
+
+async function checkRoletaNovosEligible() {
+  const token = localStorage.getItem('token')
+  if (!token || String(token).startsWith('demo-')) {
+    return true
+  }
+  try {
+    const r = await fetch(apiUrl('/api/roleta-novos/status'), {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+    const data = await r.json()
+    return data.eligible === true
+  } catch (_) {
+    return false
+  }
+}
 
 function closeRoletaNovos() {
   showRoletaNovosModal.value = false
   sessionStorage.removeItem('showRoletaNovos')
+  if (isLoggedIn.value) refresh()
 }
 const { gameUrl, openGame, closeGame } = useGameIframe()
 const { logoUrl, bannerUrl, siteName } = useSettings()
+
+const bannerSlides = computed(() => [
+  { img: bannerUrl.value || '/s5/1770954153806/9999.jpg', alt: 'Banner A73', title: 'COM AMIGOS COMPARTILHE R$100', cta: 'SAQUE RÁPIDO' },
+  { img: '/s5/1770954153806/9999.jpg', alt: 'Promo', title: 'GANHE 1 SAQUE R$650', cta: 'CONVIDAR' },
+  { img: '/images/download.gif', alt: 'VIP', title: 'BÔNUS LOGIN ATÉ R$899', cta: 'ENTRAR' }
+])
+
+function onBannerCta() {
+  router.push('/main/withdraw/')
+}
 const { balanceFormatted, refresh } = useAfiliado()
 const { top3: rankingTop3, list: rankingList, loading: rankingLoading, load: loadRanking } = useRanking()
 const { providers: catalogProviders, gamesByProvider: catalogGamesByProvider, homeProviders, loading: catalogLoading, error: catalogError, load: loadCatalog } = useGamesCatalog()
@@ -384,11 +422,17 @@ function runJackpotBurst() {
   }, 2000)
 }
 
-onMounted(() => {
+onMounted(async () => {
   checkLogin()
   if (isLoggedIn.value) refresh()
+  loadRoletaNovosConfig()
   if (sessionStorage.getItem('showRoletaNovos') === '1') {
-    showRoletaNovosModal.value = true
+    const eligible = await checkRoletaNovosEligible()
+    if (eligible) {
+      showRoletaNovosModal.value = true
+    } else {
+      sessionStorage.removeItem('showRoletaNovos')
+    }
   }
   loadCatalog()
   loadRanking()
@@ -407,6 +451,7 @@ onMounted(() => {
 onIonViewWillEnter(() => {
   checkLogin()
   if (isLoggedIn.value) refresh()
+  loadRoletaNovosConfig()
 })
 
 onUnmounted(() => {
@@ -514,28 +559,31 @@ function closeBanner() {
   border-radius: 10px;
 }
 .btn-entrar {
-  --background: rgba(59, 52, 102, 0.9);
+  --background: #6b4392;
   --color: #fff;
+  --box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
   --border-width: 1px;
   --border-style: solid;
-  --border-color: rgba(167, 139, 250, 0.6);
-  font-family: var(--font-smooch);
-  font-weight: 600;
-  font-size: 0.8rem;
-  text-transform: uppercase;
-  margin-right: 8px;
-}
-.btn-registro {
-  --background: #fbbf24;
-  --color: #fff;
+  --border-color: #886aab;
   font-family: var(--font-smooch);
   font-weight: 700;
-  font-size: 0.8rem;
-  text-transform: uppercase;
+  font-size: 0.9rem;
+  margin-right: 4px;
+  --border-radius: 12px;
+  padding: 10px 20px;
+  min-height: 40px;
 }
-.registro-plus {
-  color: #fef08a;
-  font-weight: 800;
+.btn-registro {
+  --background: #f0c354;
+  --color: #fff;
+  --box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+  --border-width: 0;
+  font-family: var(--font-smooch);
+  font-weight: 700;
+  font-size: 0.9rem;
+  --border-radius: 12px;
+  padding: 10px 20px;
+  min-height: 40px;
 }
 .btn-perfil {
   --background: rgba(59, 52, 102, 0.9);
@@ -581,16 +629,6 @@ function closeBanner() {
   width: max-content;
 }
 .inicio-ticker-item {
-  font-size: 0.8rem;
-  color: #fbbf24;
-  white-space: nowrap;
-  font-weight: 600;
-}
-@keyframes inicio-ticker-scroll {
-  0% { transform: translateX(0); }
-  100% { transform: translateX(-50%); }
-}
-
 .banner-section {
   position: relative;
   width: 100%;
@@ -653,6 +691,16 @@ function closeBanner() {
   font-size: 0.75rem;
   text-transform: uppercase;
   box-shadow: 0 0 15px rgba(236, 72, 153, 0.5);
+}
+
+  font-size: 0.8rem;
+  color: #fbbf24;
+  white-space: nowrap;
+  font-weight: 600;
+}
+@keyframes inicio-ticker-scroll {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
 }
 
 .hexagon-row {

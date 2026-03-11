@@ -29,5 +29,8 @@ onMounted(() => {
     e.preventDefault()
     window.__deferredPrompt = e
   })
+  if (typeof window.__hideAppLoading === 'function') {
+    requestAnimationFrame(() => requestAnimationFrame(() => window.__hideAppLoading()))
+  }
 })
 </script>

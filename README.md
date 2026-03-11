@@ -19,23 +19,47 @@ Réplica do site A73 com **código-fonte editável**, construída com Vue 3 + Io
 
 ```bash
 cd a73-clone
-npm install
+pnpm install
 ```
+
+> **Nota:** O projeto usa **pnpm**. Se usar npm e tiver erro `Cannot read properties of null`, use `pnpm install` ou rode `rm -rf node_modules && pnpm install`.
 
 ## Executar
 
-1. **Inicie o servidor backend** (em outro terminal):
-   ```bash
-   cd /Volumes/midascod/chinesa
-   python3 server.py
-   ```
-   O servidor roda em `http://localhost:3000` e fornece a API tRPC (login, registro) e os assets.
+1. **PostgreSQL** (obrigatório para o backend):
+   - **Com Docker:** `pnpm postgres:up`
+   - **Sem Docker (disco externo):** Rode uma vez `./instalar-postgresql-disco-externo.sh`, depois use:
+     ```bash
+     ./postgresql-start.sh   # inicia
+     ./postgresql-stop.sh    # para (antes de desconectar o disco)
+     ```
 
-2. **Inicie o clone**:
+2. **Backend** (em outro terminal):
    ```bash
+   cd backend
+   npm install
+   npx prisma db push    # cria tabelas no banco (só na primeira vez)
    npm run dev
    ```
-   O clone roda em `http://localhost:3001` e faz proxy das requisições `/api` e `/s5` para o servidor.
+   O backend roda em `http://localhost:3000` e fornece a API (login, registro, jogos, etc.).
+
+3. **Frontend**:
+   ```bash
+   cd a73-clone
+   pnpm run dev
+   ```
+   O frontend roda em `http://localhost:3001` e faz proxy de `/api` para o backend.
+
+### Erros comuns
+
+- **`http proxy error: ECONNREFUSED`** — O backend não está rodando. Inicie o backend (passo 2).
+- **`md.transition-C5IAVRC2.js` não encontrado** — Cache corrompido. Rode: `rm -rf node_modules/.vite && pnpm run dev`
+- **`@rollup/rollup-darwin-arm64` / `ERR_DLOPEN_FAILED`** — Binário corrompido ou conflito. Rode o script de correção:
+  ```bash
+  cd /Volumes/midascod/chinesa
+  chmod +x fix-rollup.sh && ./fix-rollup.sh
+  cd a73-clone && pnpm run dev
+  ```
 
 ## Estrutura
 

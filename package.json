@@ -3,6 +3,14 @@
   "version": "1.0.0",
   "description": "Réplica editável do A73 - Vue 3 + Ionic",
   "type": "module",
+  "overrides": {
+    "rollup": "npm:@rollup/wasm-node@latest"
+  },
+  "pnpm": {
+    "overrides": {
+      "rollup": "npm:@rollup/wasm-node@latest"
+    }
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -16,6 +24,7 @@
     "@ionic/vue-router": "^7.0.0",
     "ionicons": "^7.1.0",
     "qrcode": "^1.5.4",
+    "swiper": "^12.1.2",
     "vue": "^3.4.0",
     "vue-router": "^4.2.0"
   },

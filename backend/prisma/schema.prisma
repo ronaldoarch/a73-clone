@@ -1,6 +1,6 @@
 generator client {
   provider      = "prisma-client-js"
-  binaryTargets = ["native", "debian-openssl-3.0.x"]
+  binaryTargets = ["native", "debian-openssl-3.0.x", "windows"]
 }
 
 datasource db {
@@ -9,16 +9,17 @@ datasource db {
 }
 
 model User {
-  id           String   @id @default(cuid())
-  account      String   @unique
-  phone        String
-  password     String
-  indicatorId  String?  // quem indicou (userId do afiliado)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  afiliado     AfiliadoData?
-  depositos    Deposit[]
-  withdrawals  Withdrawal[]
+  id                 String    @id @default(cuid())
+  account            String    @unique
+  phone              String
+  password           String
+  indicatorId        String?   // quem indicou (userId do afiliado)
+  roletaNovosUsedAt  DateTime? // data em que usou a roleta exclusiva para novos usuários
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  afiliado           AfiliadoData?
+  depositos          Deposit[]
+  withdrawals        Withdrawal[]
 }
 
 model AfiliadoData {

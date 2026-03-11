@@ -2,6 +2,21 @@
   <ion-tabs>
     <ion-router-outlet />
     <ion-tab-bar slot="bottom" class="main-tab-bar">
+      <!-- Tabs ocultos para rotas sem botão visível - evita TypeError a[h] is not a function -->
+      <ion-tab-button tab="login" href="/main/login/" class="tab-hidden" />
+      <ion-tab-button tab="register" href="/main/register/" class="tab-hidden" />
+      <ion-tab-button tab="promo" href="/main/promo/" class="tab-hidden" />
+      <ion-tab-button tab="withdraw" href="/main/withdraw/" class="tab-hidden" />
+      <ion-tab-button tab="saque-senha" href="/main/saque-senha/" class="tab-hidden" />
+      <ion-tab-button tab="centro-mensagens" href="/main/centro-mensagens/" class="tab-hidden" />
+      <ion-tab-button tab="relatorios" href="/main/relatorios/" class="tab-hidden" />
+      <ion-tab-button tab="convidar" href="/main/convidar/" class="tab-hidden" />
+      <ion-tab-button tab="comissao" href="/main/comissao/" class="tab-hidden" />
+      <ion-tab-button tab="taxa-reembolso" href="/main/taxa-reembolso/" class="tab-hidden" />
+      <ion-tab-button tab="misterioso" href="/main/misterioso/" class="tab-hidden" />
+      <ion-tab-button tab="vip" href="/main/vip/" class="tab-hidden" />
+      <ion-tab-button tab="jogos" href="/main/jogos/" class="tab-hidden" />
+      <!-- Tabs visíveis -->
       <ion-tab-button tab="inicio" href="/main/inicio/">
         <ion-icon name="ribbon" />
         <ion-label>Início</ion-label>
@@ -145,6 +160,15 @@ import { IonTabs, IonTabBar, IonTabButton, IonRouterOutlet, IonLabel, IonIcon } 
 }
 .tab-roleta-label {
   display: none;
+}
+/* Tabs ocultos: mantém no DOM para Ionic encontrar, evita TypeError a[h] is not a function */
+.tab-hidden {
+  visibility: hidden;
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  pointer-events: none;
 }
 .tab-roleta-btn .tab-roleta {
   flex-shrink: 0;

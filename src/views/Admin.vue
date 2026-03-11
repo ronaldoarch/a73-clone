@@ -302,6 +302,43 @@
           </div>
         </section>
 
+        <!-- Roleta -->
+        <section v-show="activeSection === 'roleta'" class="admin-section">
+          <div class="card">
+            <h3>Configurações da Roleta</h3>
+            <div v-if="roletaLoading" class="card-label">Carregando...</div>
+            <form v-else @submit.prevent="saveRoleta" class="config-form">
+              <div class="config-grid">
+                <div class="form-group">
+                  <label>Mínimo para saque (R$)</label>
+                  <input v-model.number="roletaConfig.roletaMinWithdraw" type="number" min="1" step="1" />
+                </div>
+                <div class="form-group">
+                  <label>Dias de validade do prêmio</label>
+                  <input v-model.number="roletaConfig.roletaBonusDays" type="number" min="1" max="30" step="1" />
+                </div>
+                <div class="form-group">
+                  <label>Giros por dia</label>
+                  <input v-model.number="roletaConfig.roletaDailySpins" type="number" min="1" max="10" step="1" />
+                </div>
+              </div>
+              <h4 style="margin: 1.5rem 0 1rem;">Segmentos da roleta (8 posições)</h4>
+              <p class="form-hint">Edite o rótulo (ex: 30,00 ou ??? ou 😎) e o valor em R$ (0 = sem prêmio). A ordem define a posição no giro.</p>
+              <div class="roleta-segments-table">
+                <div v-for="(seg, i) in roletaConfig.roletaSegments" :key="i" class="roleta-segment-row">
+                  <span class="roleta-segment-pos">{{ i + 1 }}</span>
+                  <input v-model="seg.label" type="text" placeholder="Rótulo" class="roleta-segment-label" />
+                  <input v-model.number="seg.value" type="number" min="0" step="0.01" placeholder="Valor R$" class="roleta-segment-value" />
+                </div>
+              </div>
+              <div class="config-actions" style="margin-top: 1rem;">
+                <button type="submit" class="btn btn-primary" :disabled="roletaSaving">{{ roletaSaving ? 'Salvando...' : 'Salvar' }}</button>
+                <span v-if="roletaMsg" class="config-msg" :class="{ error: roletaError }">{{ roletaMsg }}</span>
+              </div>
+            </form>
+          </div>
+        </section>
+
         <!-- Tema -->
         <section v-show="activeSection === 'tema'" class="admin-section">
           <div class="card" style="margin-bottom: 1.5rem;">
@@ -574,6 +611,21 @@
               </form>
               <div v-if="bannerMsg" class="upload-msg" :class="{ error: bannerMsgError }">{{ bannerMsg }}</div>
             </div>
+            <div class="card">
+              <h3>Banner de carregamento</h3>
+              <p class="card-label" style="margin-bottom: 1rem;">Imagem exibida na tela de loading ao abrir o app. Se não enviar, usa a logo.</p>
+              <div class="preview-box">
+                <img v-if="loadingBannerUrl" :src="loadingBannerUrl" alt="Banner de carregamento" @error="e => (e.target.src = logoUrl || '/s5/app-icon/1222508/LOGO.jpg')" />
+                <span v-else class="placeholder">Usando logo</span>
+              </div>
+              <form @submit.prevent="uploadLoadingBanner">
+                <input ref="loadingBannerInput" type="file" accept=".jpg,.jpeg,.png,.webp,.gif,.svg" style="display:none" @change="onLoadingBannerSelect" />
+                <button type="button" class="btn btn-primary" @click="triggerLoadingBannerInput">Escolher arquivo</button>
+                <button type="submit" class="btn btn-primary" :disabled="!loadingBannerFile">Enviar</button>
+                <button type="button" class="btn btn-outline" @click="clearLoadingBanner">Restaurar (usar logo)</button>
+              </form>
+              <div v-if="loadingBannerMsg" class="upload-msg" :class="{ error: loadingBannerMsgError }">{{ loadingBannerMsg }}</div>
+            </div>
           </div>
         </section>
       </main>
@@ -698,7 +750,7 @@ const defaultTheme = {
 
 const router = useRouter()
 const route = useRoute()
-const VALID_SECTIONS = ['dashboard', 'usuarios', 'depositos', 'saques', 'afiliados', 'config', 'gatebox', 'jogos', 'provedores', 'tema', 'midia']
+const VALID_SECTIONS = ['dashboard', 'usuarios', 'depositos', 'saques', 'afiliados', 'config', 'roleta', 'gatebox', 'jogos', 'provedores', 'tema', 'midia']
 
 const ADMIN_TOKEN_KEY = 'admin_token'
 const adminLoggedIn = ref(!!localStorage.getItem(ADMIN_TOKEN_KEY))
@@ -734,7 +786,7 @@ function selectSection(id) {
   router.replace({ path: `/admin/${id}` })
 }
 
-const titles = { dashboard: 'Dashboard', usuarios: 'Usuários', depositos: 'Depósitos', saques: 'Saques', afiliados: 'Afiliados', config: 'Configurações', gatebox: 'Gatebox PIX', jogos: 'API de Jogos', provedores: 'Provedores na Home', tema: 'Tema', midia: 'Logo e Banners' }
+const titles = { dashboard: 'Dashboard', usuarios: 'Usuários', depositos: 'Depósitos', saques: 'Saques', afiliados: 'Afiliados', config: 'Configurações', roleta: 'Roleta', gatebox: 'Gatebox PIX', jogos: 'API de Jogos', provedores: 'Provedores na Home', tema: 'Tema', midia: 'Logo e Banners' }
 
 const sections = [
   { id: 'dashboard', label: 'Dashboard', icon: () => h('svg', { fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z' })]) },
@@ -743,6 +795,7 @@ const sections = [
   { id: 'saques', label: 'Saques', icon: () => h('svg', { fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z' })]) },
   { id: 'afiliados', label: 'Afiliados', icon: () => h('svg', { fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M17 20h5v-2a3 3 0 00-5.356-1.857M7 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z' })]) },
   { id: 'config', label: 'Configurações', icon: () => h('svg', { fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z' }), h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M15 12a3 3 0 11-6 0 3 3 0 016 0z' })]) },
+  { id: 'roleta', label: 'Roleta', icon: () => h('svg', { fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z' }), h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M21 12a9 9 0 11-18 0 9 9 0 0118 0z' })]) },
   { id: 'gatebox', label: 'Gatebox PIX', icon: () => h('svg', { fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z' })]) },
   { id: 'jogos', label: 'API de Jogos', icon: () => h('svg', { fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z' }), h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M21 12a9 9 0 11-18 0 9 9 0 0118 0z' })]) },
   { id: 'provedores', label: 'Provedores na Home', icon: () => h('svg', { fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10' })]) },
@@ -774,6 +827,28 @@ const configError = ref(false)
 
 const gateboxConfig = ref({ apiUrl: 'https://api.gatebox.com.br', username: '', password: '' })
 const gateboxLoading = ref(false)
+
+const DEFAULT_ROLETA_SEGMENTS = [
+  { label: '30,00', value: 30 },
+  { label: '100,00', value: 100 },
+  { label: '50,00', value: 50 },
+  { label: '???', value: 20 },
+  { label: '😎', value: 0 },
+  { label: '1.000,00', value: 1000 },
+  { label: '????', value: 10 },
+  { label: '??', value: 5 }
+]
+const fullConfigForRoleta = ref(null)
+const roletaConfig = ref({
+  roletaMinWithdraw: 100,
+  roletaBonusDays: 3,
+  roletaDailySpins: 1,
+  roletaSegments: [...DEFAULT_ROLETA_SEGMENTS]
+})
+const roletaLoading = ref(false)
+const roletaSaving = ref(false)
+const roletaMsg = ref('')
+const roletaError = ref(false)
 const gateboxSaving = ref(false)
 const gateboxMsg = ref('')
 const gateboxError = ref(false)
@@ -874,6 +949,73 @@ async function loadGatebox() {
   } finally {
     gateboxLoading.value = false
   }
+}
+
+async function loadRoleta() {
+  roletaLoading.value = true
+  try {
+    const r = await adminFetch('/api/admin/config')
+    const data = await r.json()
+    fullConfigForRoleta.value = data
+    const segs = Array.isArray(data.roletaSegments) && data.roletaSegments.length === 8
+      ? data.roletaSegments.map(s => ({ label: String(s?.label ?? ''), value: Number(s?.value) ?? 0 }))
+      : DEFAULT_ROLETA_SEGMENTS
+    roletaConfig.value = {
+      roletaMinWithdraw: data.roletaMinWithdraw ?? 100,
+      roletaBonusDays: data.roletaBonusDays ?? 3,
+      roletaDailySpins: data.roletaDailySpins ?? 1,
+      roletaSegments: segs
+    }
+  } catch (e) {
+    fullConfigForRoleta.value = null
+    roletaConfig.value = {
+      roletaMinWithdraw: 100,
+      roletaBonusDays: 3,
+      roletaDailySpins: 1,
+      roletaSegments: [...DEFAULT_ROLETA_SEGMENTS]
+    }
+  } finally {
+    roletaLoading.value = false
+  }
+}
+
+async function saveRoleta() {
+  roletaSaving.value = true
+  roletaMsg.value = ''
+  roletaError.value = false
+  try {
+    const base = fullConfigForRoleta.value || {}
+    const body = {
+      depositoMin: base.depositoMin ?? 10,
+      saqueMin: base.saqueMin ?? 20,
+      saqueMax: base.saqueMax ?? 40000,
+      bonusPrimeiroDep: base.bonusPrimeiroDep ?? 0,
+      bonusPrimeiroDepPercent: base.bonusPrimeiroDepPercent ?? 0,
+      roletaMinWithdraw: roletaConfig.value.roletaMinWithdraw,
+      roletaBonusDays: roletaConfig.value.roletaBonusDays,
+      roletaDailySpins: roletaConfig.value.roletaDailySpins,
+      roletaSegments: roletaConfig.value.roletaSegments
+    }
+    const r = await adminFetch('/api/admin/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    })
+    const data = await r.json()
+    if (data?.ok) {
+      roletaMsg.value = 'Configurações da roleta salvas!'
+      fullConfigForRoleta.value = { ...base, ...roletaConfig.value }
+    } else {
+      roletaMsg.value = data?.error || 'Erro ao salvar'
+      roletaError.value = true
+    }
+  } catch (e) {
+    roletaMsg.value = e.message || 'Erro ao salvar'
+    roletaError.value = true
+  } finally {
+    roletaSaving.value = false
+  }
+  setTimeout(() => { roletaMsg.value = '' }, 4000)
 }
 
 async function saveGatebox() {
@@ -1368,18 +1510,22 @@ onMounted(() => {
   })
 })
 
-const { logoUrl, bannerUrl, siteName, pageTitle, load: loadSettings } = useSettings()
+const { logoUrl, bannerUrl, loadingBannerUrl, siteName, pageTitle, load: loadSettings } = useSettings()
 const brandingForm = ref({ siteName: 'A73.com', pageTitle: 'A73' })
 const brandingMsg = ref('')
 const brandingMsgError = ref(false)
 const logoInput = ref(null)
 const bannerInput = ref(null)
+const loadingBannerInput = ref(null)
 const logoFile = ref(null)
 const bannerFile = ref(null)
+const loadingBannerFile = ref(null)
 const logoMsg = ref('')
 const logoMsgError = ref(false)
 const bannerMsg = ref('')
 const bannerMsgError = ref(false)
+const loadingBannerMsg = ref('')
+const loadingBannerMsgError = ref(false)
 
 async function adminLogin() {
   adminLoginError.value = ''
@@ -1491,11 +1637,17 @@ function triggerBannerInput() {
   const el = bannerInput.value
   if (el && el.click) el.click()
 }
+function triggerLoadingBannerInput() {
+  const el = loadingBannerInput.value
+  if (el && el.click) el.click()
+}
 function onLogoSelect(e) { logoFile.value = e.target.files?.[0] }
 function onBannerSelect(e) { bannerFile.value = e.target.files?.[0] }
+function onLoadingBannerSelect(e) { loadingBannerFile.value = e.target.files?.[0] }
 function showUploadMsg(which, text, isError) {
   if (which === 'logo') { logoMsg.value = text; logoMsgError.value = isError; setTimeout(() => { logoMsg.value = '' }, 4000) }
-  else { bannerMsg.value = text; bannerMsgError.value = isError; setTimeout(() => { bannerMsg.value = '' }, 4000) }
+  else if (which === 'banner') { bannerMsg.value = text; bannerMsgError.value = isError; setTimeout(() => { bannerMsg.value = '' }, 4000) }
+  else { loadingBannerMsg.value = text; loadingBannerMsgError.value = isError; setTimeout(() => { loadingBannerMsg.value = '' }, 4000) }
 }
 async function uploadLogo() {
   if (!logoFile.value) return
@@ -1545,6 +1697,48 @@ async function uploadBanner() {
     showUploadMsg('banner', 'Erro ao enviar: ' + (e.message || 'Verifique a conexão'), true)
   }
 }
+async function uploadLoadingBanner() {
+  if (!loadingBannerFile.value) return
+  const fd = new FormData()
+  fd.append('file', loadingBannerFile.value)
+  try {
+    const headers = {}
+    const token = localStorage.getItem(ADMIN_TOKEN_KEY)
+    if (token) headers['Authorization'] = `Bearer ${token}`
+    const r = await fetch(apiUrl('/api/upload/loading-banner'), { method: 'POST', headers, body: fd })
+    const data = await r.json()
+    if (data.ok) {
+      const ts = '?t=' + Date.now()
+      loadingBannerUrl.value = (data.url.startsWith('http') ? data.url : apiUrl(data.url)) + (data.url.includes('?') ? '' : ts)
+      await loadSettings()
+      showUploadMsg('loadingBanner', 'Banner de carregamento enviado! Atualize a página do site para ver.', false)
+      loadingBannerFile.value = null
+      if (loadingBannerInput.value) loadingBannerInput.value.value = ''
+    } else {
+      showUploadMsg('loadingBanner', data.error || 'Erro', true)
+    }
+  } catch (e) {
+    showUploadMsg('loadingBanner', 'Erro ao enviar: ' + (e.message || 'Verifique a conexão'), true)
+  }
+}
+async function clearLoadingBanner() {
+  try {
+    const headers = {}
+    const token = localStorage.getItem(ADMIN_TOKEN_KEY)
+    if (token) headers['Authorization'] = `Bearer ${token}`
+    const r = await fetch(apiUrl('/api/settings/loading-banner/clear'), { method: 'POST', headers })
+    const data = await r.json()
+    if (data.ok) {
+      loadingBannerUrl.value = logoUrl.value || '/s5/app-icon/1222508/LOGO.jpg'
+      await loadSettings()
+      showUploadMsg('loadingBanner', 'Restaurado para usar a logo.', false)
+    } else {
+      showUploadMsg('loadingBanner', data.error || 'Erro', true)
+    }
+  } catch (e) {
+    showUploadMsg('loadingBanner', 'Erro: ' + (e.message || 'Verifique a conexão'), true)
+  }
+}
 
 async function saveBranding() {
   try {
@@ -1589,6 +1783,7 @@ watch(activeSection, async (s) => {
   if (s === 'saques') loadSaques()
   if (s === 'dashboard') loadDashboard()
   if (s === 'config') loadConfig()
+  if (s === 'roleta') loadRoleta()
   if (s === 'gatebox') loadGatebox()
 })
 
@@ -1633,6 +1828,11 @@ watch(() => route.params.section, (section) => {
 .admin-empty { padding: 2rem; text-align: center; color: var(--text-muted); font-size: 0.9rem; }
 .config-form { margin-top: 1rem; }
 .config-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1.5rem; margin-bottom: 1.5rem; }
+.roleta-segments-table { display: flex; flex-direction: column; gap: 0.75rem; margin-bottom: 1rem; }
+.roleta-segment-row { display: flex; align-items: center; gap: 1rem; }
+.roleta-segment-pos { width: 2rem; font-weight: 600; color: var(--text-muted); }
+.roleta-segment-label { flex: 1; min-width: 0; padding: 0.5rem 0.75rem; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 0.95rem; }
+.roleta-segment-value { width: 6rem; padding: 0.5rem 0.75rem; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 0.95rem; }
 .config-actions { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
 .config-msg { font-size: 0.875rem; color: var(--success); }
 .config-msg.error { color: var(--danger); }

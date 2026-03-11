@@ -12,8 +12,33 @@
     <title>A73</title>
   </head>
   <body>
+    <div id="app-loading" style="position:fixed;inset:0;background:linear-gradient(135deg,#670d98 0%,#640c95 50%,#5B2875 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;transition:opacity 0.3s">
+      <img src="https://upload-us.i-j-2-k.com/s5/app-icon/1222508/LOGO.jpg" alt="" style="width:80px;height:80px;border-radius:16px;margin-bottom:16px;object-fit:contain" onerror="this.style.display='none'" />
+      <div style="width:36px;height:36px;border:3px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:appLoadingSpin 0.8s linear infinite"></div>
+      <style>@keyframes appLoadingSpin{to{transform:rotate(360deg)}}</style>
+    </div>
     <div id="app"></div>
     <script src="/app-config.js"></script>
+    <script>
+      (function() {
+        var base = (typeof window !== 'undefined' && window.__API_BASE__) ? String(window.__API_BASE__).replace(/\/$/, '') : '';
+        fetch(base + '/api/settings').then(function(r) { return r.json(); }).then(function(data) {
+          var img = document.querySelector('#app-loading img');
+          if (img && data.loadingBanner) {
+            var url = data.loadingBanner.startsWith('http') ? data.loadingBanner : base + data.loadingBanner;
+            img.src = url;
+          }
+        }).catch(function() {});
+      })();
+    </script>
     <script type="module" src="/src/main.js"></script>
+    <script>
+      document.addEventListener('DOMContentLoaded', function() {
+        window.__hideAppLoading = function() {
+          var el = document.getElementById('app-loading');
+          if (el) { el.style.opacity = '0'; el.style.pointerEvents = 'none'; setTimeout(function() { el.remove(); }, 300); }
+        };
+      });
+    </script>
   </body>
 </html>

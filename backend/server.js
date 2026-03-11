@@ -148,11 +148,26 @@ async function getAdminCredentials() {
   }
 }
 
+const DEFAULT_ROLETA_SEGMENTS = [
+  { label: '30,00', value: 30 },
+  { label: '100,00', value: 100 },
+  { label: '50,00', value: 50 },
+  { label: '???', value: 20 },
+  { label: '😎', value: 0 },
+  { label: '1.000,00', value: 1000 },
+  { label: '????', value: 10 },
+  { label: '??', value: 5 }
+]
+
 /** Configurações da plataforma (Saque, Roleta, Bônus) */
 async function getAppConfig() {
   try {
     const s = await prisma.setting.findUnique({ where: { id: 'config' } })
     const v = s?.value || {}
+    const segs = v.roletaSegments
+    const roletaSegments = Array.isArray(segs) && segs.length === 8
+      ? segs.map(sg => ({ label: String(sg?.label ?? ''), value: Number(sg?.value) ?? 0 }))
+      : DEFAULT_ROLETA_SEGMENTS
     return {
       depositoMin: v.depositoMin ?? 10,
       saqueMin: v.saqueMin ?? 20,
@@ -161,9 +176,10 @@ async function getAppConfig() {
       roletaBonusDays: v.roletaBonusDays ?? 3,
       roletaDailySpins: v.roletaDailySpins ?? 1,
       bonusPrimeiroDep: v.bonusPrimeiroDep ?? 0,
-      bonusPrimeiroDepPercent: v.bonusPrimeiroDepPercent ?? 0
+      bonusPrimeiroDepPercent: v.bonusPrimeiroDepPercent ?? 0,
+      roletaSegments
     }
-  } catch (e) { return { depositoMin: 10, saqueMin: 20, saqueMax: 40000, roletaMinWithdraw: 100, roletaBonusDays: 3, roletaDailySpins: 1, bonusPrimeiroDep: 0, bonusPrimeiroDepPercent: 0 } }
+  } catch (e) { return { depositoMin: 10, saqueMin: 20, saqueMax: 40000, roletaMinWithdraw: 100, roletaBonusDays: 3, roletaDailySpins: 1, bonusPrimeiroDep: 0, bonusPrimeiroDepPercent: 0, roletaSegments: DEFAULT_ROLETA_SEGMENTS } }
 }
 
 /** Confirma depósito PIX e credita saldo (usado por polling e webhook)
@@ -1363,7 +1379,6 @@ app.get('/api/ranking', async (req, res) => {
 })
 
 // ========== Roleta (Mina Misteriosa) - requer auth ==========
-const ROLETA_PRIZES = [30, 100, 50, 20, 0, 1000, 10, 5] // ordem: 30,100,50,???,mine,1000,????,??
 
 async function getOrCreateRoleta(userId) {
   const cfg = await getAppConfig()
@@ -1412,6 +1427,75 @@ async function addBonusSpinToIndicator(indicatorUserId) {
     console.error('addBonusSpinToIndicator:', e)
   }
 }
+
+app.get('/api/roleta/config', async (req, res) => {
+  try {
+    const cfg = await getAppConfig()
+    return res.json({ segments: cfg.roletaSegments || DEFAULT_ROLETA_SEGMENTS })
+  } catch (e) {
+    return res.json({ segments: DEFAULT_ROLETA_SEGMENTS })
+  }
+})
+
+// Roleta exclusiva para novos usuários (1 giro por usuário, ever)
+app.get('/api/roleta-novos/status', authMiddleware, async (req, res) => {
+  try {
+    const user = await prisma.user.findUnique({ where: { id: req.userId } })
+    const alreadyUsed = !!user?.roletaNovosUsedAt
+    return res.json({ eligible: !alreadyUsed, alreadyUsed })
+  } catch (e) {
+    console.error('roleta-novos status:', e)
+    return res.status(500).json({ error: e.message })
+  }
+})
+
+app.post('/api/roleta-novos/spin', authMiddleware, async (req, res) => {
+  try {
+    const user = await prisma.user.findUnique({ where: { id: req.userId } })
+    if (user?.roletaNovosUsedAt) {
+      return res.json({ ok: false, error: 'Você já utilizou sua chance na roleta de novos usuários.' })
+    }
+    const cfg = await getAppConfig()
+    const bonusDays = cfg.roletaBonusDays ?? 3
+    const segments = cfg.roletaSegments || DEFAULT_ROLETA_SEGMENTS
+    const prizeIndex = Math.floor(Math.random() * segments.length)
+    const prize = Number(segments[prizeIndex]?.value) ?? 0
+    const today = new Date()
+    const expiresAt = prize > 0 ? new Date(Date.now() + bonusDays * 24 * 60 * 60 * 1000) : undefined
+    const r = await getOrCreateRoleta(req.userId)
+    await prisma.$transaction([
+      prisma.user.update({
+        where: { id: req.userId },
+        data: { roletaNovosUsedAt: today }
+      }),
+      prisma.roletaBonus.update({
+        where: { userId: req.userId },
+        data: {
+          bonusBalance: { increment: prize },
+          lastSpinDate: today,
+          ...(expiresAt && { bonusExpiresAt: expiresAt }),
+          updatedAt: today
+        }
+      }),
+      prisma.roletaBonusLog.create({
+        data: {
+          userId: req.userId,
+          valor: prize,
+          descricao: prize > 0 ? 'Ganhou na roleta (novos usuários)' : 'Sem prêmio (roleta novos)'
+        }
+      })
+    ])
+    return res.json({
+      ok: true,
+      prize,
+      prizeIndex,
+      bonusBalance: r.bonusBalance + prize
+    })
+  } catch (e) {
+    console.error('roleta-novos spin:', e)
+    return res.status(500).json({ ok: false, error: e.message })
+  }
+})
 
 app.get('/api/roleta', authMiddleware, async (req, res) => {
   try {
@@ -1469,8 +1553,9 @@ app.post('/api/roleta/spin', authMiddleware, async (req, res) => {
     }
     const cfg = await getAppConfig()
     const bonusDays = cfg.roletaBonusDays ?? 3
-    const prizeIndex = Math.floor(Math.random() * ROLETA_PRIZES.length)
-    const prize = ROLETA_PRIZES[prizeIndex]
+    const segments = cfg.roletaSegments || DEFAULT_ROLETA_SEGMENTS
+    const prizeIndex = Math.floor(Math.random() * segments.length)
+    const prize = Number(segments[prizeIndex]?.value) ?? 0
     const today = new Date()
     const expiresAt = prize > 0 ? new Date(Date.now() + bonusDays * 24 * 60 * 60 * 1000) : undefined
     await prisma.$transaction([
@@ -1742,20 +1827,10 @@ app.get('/api/admin/usuarios', adminAuthMiddleware, async (req, res) => {
 
 app.get('/api/admin/config', adminAuthMiddleware, async (req, res) => {
   try {
-    const s = await prisma.setting.findUnique({ where: { id: 'config' } })
-    const v = s?.value || {}
-    return res.json({
-      depositoMin: v.depositoMin ?? 10,
-      saqueMin: v.saqueMin ?? 20,
-      saqueMax: v.saqueMax ?? 40000,
-      roletaMinWithdraw: v.roletaMinWithdraw ?? 100,
-      roletaBonusDays: v.roletaBonusDays ?? 3,
-      roletaDailySpins: v.roletaDailySpins ?? 1,
-      bonusPrimeiroDep: v.bonusPrimeiroDep ?? 0,
-      bonusPrimeiroDepPercent: v.bonusPrimeiroDepPercent ?? 0
-    })
+    const cfg = await getAppConfig()
+    return res.json(cfg)
   } catch (e) {
-    return res.json({ depositoMin: 10, saqueMin: 20, saqueMax: 40000, roletaMinWithdraw: 100, roletaBonusDays: 3, roletaDailySpins: 1, bonusPrimeiroDep: 0, bonusPrimeiroDepPercent: 0 })
+    return res.json({ depositoMin: 10, saqueMin: 20, saqueMax: 40000, roletaMinWithdraw: 100, roletaBonusDays: 3, roletaDailySpins: 1, bonusPrimeiroDep: 0, bonusPrimeiroDepPercent: 0, roletaSegments: DEFAULT_ROLETA_SEGMENTS })
   }
 })
 
@@ -1770,10 +1845,15 @@ app.post('/api/admin/config', adminAuthMiddleware, async (req, res) => {
     const roletaDailySpins = Math.max(1, Math.min(10, parseInt(body.roletaDailySpins, 10) || 1))
     const bonusPrimeiroDep = Math.max(0, parseFloat(body.bonusPrimeiroDep) || 0)
     const bonusPrimeiroDepPercent = Math.max(0, Math.min(100, parseFloat(body.bonusPrimeiroDepPercent) || 0))
+    const segs = body.roletaSegments
+    const roletaSegments = Array.isArray(segs) && segs.length === 8
+      ? segs.map((sg, i) => ({ label: String(sg?.label ?? ''), value: Number(sg?.value) ?? 0 }))
+      : DEFAULT_ROLETA_SEGMENTS
+    const value = { depositoMin, saqueMin, saqueMax, roletaMinWithdraw, roletaBonusDays, roletaDailySpins, bonusPrimeiroDep, bonusPrimeiroDepPercent, roletaSegments }
     await prisma.setting.upsert({
       where: { id: 'config' },
-      create: { id: 'config', value: { depositoMin, saqueMin, saqueMax, roletaMinWithdraw, roletaBonusDays, roletaDailySpins, bonusPrimeiroDep, bonusPrimeiroDepPercent } },
-      update: { value: { depositoMin, saqueMin, saqueMax, roletaMinWithdraw, roletaBonusDays, roletaDailySpins, bonusPrimeiroDep, bonusPrimeiroDepPercent } }
+      create: { id: 'config', value },
+      update: { value }
     })
     return res.json({ ok: true })
   } catch (e) {
@@ -1918,9 +1998,11 @@ app.get('/api/settings', async (req, res) => {
     ])
     const v = main?.value || {}
     const cfg = config?.value || {}
+    const defaultLogo = '/s5/app-icon/1222508/LOGO.jpg'
     return res.json({
-      logo: main?.logo || '/s5/app-icon/1222508/LOGO.jpg',
+      logo: main?.logo || defaultLogo,
       banner: main?.banner || '/s5/1770954153806/9999.jpg',
+      loadingBanner: v.loadingBanner || main?.logo || defaultLogo,
       siteName: v.siteName || 'A73.com',
       pageTitle: v.pageTitle || 'A73',
       depositoMin: cfg.depositoMin ?? 10,
@@ -1928,7 +2010,47 @@ app.get('/api/settings', async (req, res) => {
       saqueMax: cfg.saqueMax ?? 40000
     })
   } catch (e) {
-    return res.json({ logo: '/s5/app-icon/1222508/LOGO.jpg', banner: '/s5/1770954153806/9999.jpg', siteName: 'A73.com', pageTitle: 'A73', depositoMin: 10, saqueMin: 20, saqueMax: 40000 })
+    return res.json({ logo: '/s5/app-icon/1222508/LOGO.jpg', banner: '/s5/1770954153806/9999.jpg', loadingBanner: '/s5/app-icon/1222508/LOGO.jpg', siteName: 'A73.com', pageTitle: 'A73', depositoMin: 10, saqueMin: 20, saqueMax: 40000 })
+  }
+})
+
+// Upload banner de carregamento (tela de loading)
+app.post('/api/upload/loading-banner', upload.single('file'), adminAuthMiddleware, async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.json({ ok: false, error: 'Nenhum arquivo enviado' })
+    }
+    const url = `/uploads/${req.file.filename}`
+    const s = await prisma.setting.findUnique({ where: { id: 'main' } })
+    const v = (s?.value && typeof s.value === 'object') ? { ...s.value } : {}
+    v.loadingBanner = url
+    await prisma.setting.upsert({
+      where: { id: 'main' },
+      create: { id: 'main', logo: null, banner: null, value: v },
+      update: { value: v }
+    })
+    return res.json({ ok: true, url })
+  } catch (e) {
+    console.error('upload loading-banner:', e)
+    return res.json({ ok: false, error: e.message })
+  }
+})
+
+// Restaurar banner de carregamento (usar logo)
+app.post('/api/settings/loading-banner/clear', adminAuthMiddleware, async (req, res) => {
+  try {
+    const s = await prisma.setting.findUnique({ where: { id: 'main' } })
+    const v = (s?.value && typeof s.value === 'object') ? { ...s.value } : {}
+    delete v.loadingBanner
+    await prisma.setting.upsert({
+      where: { id: 'main' },
+      create: { id: 'main', logo: null, banner: null, value: v },
+      update: { value: v }
+    })
+    return res.json({ ok: true })
+  } catch (e) {
+    console.error('clear loading-banner:', e)
+    return res.status(500).json({ ok: false, error: e.message })
   }
 })
 

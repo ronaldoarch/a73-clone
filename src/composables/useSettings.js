@@ -6,6 +6,7 @@ import { apiUrl } from '@/config/api'
 
 const logoUrl = ref('/s5/app-icon/1222508/LOGO.jpg')
 const bannerUrl = ref('/s5/1770954153806/9999.jpg')
+const loadingBannerUrl = ref('/s5/app-icon/1222508/LOGO.jpg')
 const siteName = ref('A73.com')
 const pageTitle = ref('A73')
 const depositoMin = ref(10)
@@ -20,6 +21,7 @@ export function useSettings() {
       const fix = (url) => url ? apiUrl(url) + (url.includes('?') ? '' : '?t=' + Date.now()) : url
       if (data.logo) logoUrl.value = fix(data.logo)
       if (data.banner) bannerUrl.value = fix(data.banner)
+      if (data.loadingBanner) loadingBannerUrl.value = fix(data.loadingBanner)
       if (data.siteName) siteName.value = data.siteName
       if (data.pageTitle) pageTitle.value = data.pageTitle
       if (typeof data.depositoMin === 'number') depositoMin.value = data.depositoMin
@@ -40,6 +42,7 @@ export function useSettings() {
   return {
     logoUrl,
     bannerUrl,
+    loadingBannerUrl,
     siteName,
     pageTitle,
     depositoMin,

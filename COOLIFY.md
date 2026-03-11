@@ -58,6 +58,24 @@ Para ter login, registro e bônus funcionando, use **Docker Compose** ou configu
 
 Se `VITE_API_URL` estiver definido no build, o frontend chama o backend diretamente e o CORS pode bloquear.
 
+### 404 em /uploads (logo, banners, loading banner)
+
+Se `/uploads/file-*.jpeg` retorna 404 mas `/api/settings` retorna 200, o backend está ok mas **os arquivos de upload não existem**. Causas comuns:
+
+1. **Volume não configurado** — a cada redeploy os arquivos são perdidos
+2. **Volume novo** — o volume foi criado vazio após um redeploy
+
+**Solução no Coolify:**
+
+1. Abra o recurso do **backend** (ou o serviço backend no Docker Compose)
+2. Em **Storages** / **Volumes** / **Persistent Storage**, adicione:
+   - **Container Path:** `/app/uploads`
+   - **Volume Name:** `backend-uploads` (ou outro nome)
+3. Salve e faça **Redeploy**
+4. Depois do deploy, acesse o **Admin** e reenvie logo/banners, ou use "Restaurar (usar logo)" para aplicar a logo padrão
+
+**Docker Compose:** o `docker-compose.yml` já define `backend-uploads:/app/uploads`. Se usar Compose no Coolify, o volume deve ser criado automaticamente. Se os arquivos sumiram após redeploy, pode ser que o volume tenha sido recriado — reenvie as imagens pelo Admin.
+
 ### Erro 502 Bad Gateway no /api
 
 O 502 significa que o nginx do frontend não consegue alcançar o backend. Verifique:

@@ -565,6 +565,22 @@
           <div class="card" style="margin-bottom: 1.5rem;">
             <div class="card-label" style="margin-bottom: 1rem;">Faça upload da logo e dos banners da plataforma.</div>
           </div>
+          <!-- Banner de carregamento (em destaque) -->
+          <div class="card" style="margin-bottom: 1.5rem;">
+            <h3>Banner de carregamento</h3>
+            <p class="card-label" style="margin-bottom: 1rem;">Imagem exibida na tela de loading ao abrir o app. Se não enviar, usa a logo.</p>
+            <div class="preview-box">
+              <img v-if="loadingBannerUrl" :src="loadingBannerUrl" alt="Banner de carregamento" @error="e => (e.target.src = logoUrl || '/s5/app-icon/1222508/LOGO.jpg')" />
+              <span v-else class="placeholder">Usando logo</span>
+            </div>
+            <form @submit.prevent="uploadLoadingBanner" style="display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center;">
+              <input ref="loadingBannerInput" type="file" accept=".jpg,.jpeg,.png,.webp,.gif,.svg" style="display:none" @change="onLoadingBannerSelect" />
+              <button type="button" class="btn btn-primary" @click="triggerLoadingBannerInput">Escolher arquivo</button>
+              <button type="submit" class="btn btn-primary" :disabled="!loadingBannerFile">Enviar</button>
+              <button type="button" class="btn btn-outline" @click="clearLoadingBanner">Restaurar (usar logo)</button>
+            </form>
+            <div v-if="loadingBannerMsg" class="upload-msg" :class="{ error: loadingBannerMsgError }">{{ loadingBannerMsg }}</div>
+          </div>
           <!-- Identidade do site -->
           <div class="card" style="margin-bottom: 1.5rem;">
             <h3>Identidade do site</h3>
@@ -610,21 +626,6 @@
                 <button type="submit" class="btn btn-primary" :disabled="!bannerFile">Enviar</button>
               </form>
               <div v-if="bannerMsg" class="upload-msg" :class="{ error: bannerMsgError }">{{ bannerMsg }}</div>
-            </div>
-            <div class="card">
-              <h3>Banner de carregamento</h3>
-              <p class="card-label" style="margin-bottom: 1rem;">Imagem exibida na tela de loading ao abrir o app. Se não enviar, usa a logo.</p>
-              <div class="preview-box">
-                <img v-if="loadingBannerUrl" :src="loadingBannerUrl" alt="Banner de carregamento" @error="e => (e.target.src = logoUrl || '/s5/app-icon/1222508/LOGO.jpg')" />
-                <span v-else class="placeholder">Usando logo</span>
-              </div>
-              <form @submit.prevent="uploadLoadingBanner">
-                <input ref="loadingBannerInput" type="file" accept=".jpg,.jpeg,.png,.webp,.gif,.svg" style="display:none" @change="onLoadingBannerSelect" />
-                <button type="button" class="btn btn-primary" @click="triggerLoadingBannerInput">Escolher arquivo</button>
-                <button type="submit" class="btn btn-primary" :disabled="!loadingBannerFile">Enviar</button>
-                <button type="button" class="btn btn-outline" @click="clearLoadingBanner">Restaurar (usar logo)</button>
-              </form>
-              <div v-if="loadingBannerMsg" class="upload-msg" :class="{ error: loadingBannerMsgError }">{{ loadingBannerMsg }}</div>
             </div>
           </div>
         </section>

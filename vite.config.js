@@ -38,6 +38,18 @@ export default defineConfig({
       }
     })
   ],
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'ionic': ['@ionic/vue', '@ionic/vue-router'],
+          'vue': ['vue', 'vue-router'],
+          'ionicons': ['ionicons']
+        }
+      }
+    },
+    chunkSizeWarningLimit: 600
+  },
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url))

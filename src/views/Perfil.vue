@@ -220,8 +220,7 @@ function openSupport() {
 function logout() {
   localStorage.removeItem('token')
   localStorage.removeItem('account')
-  router.push('/main/inicio/')
-  window.location.reload()
+  window.location.href = '/main/inicio/'
 }
 </script>
 
@@ -245,26 +244,25 @@ function logout() {
 .perfil-buttons-row {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 0;
 }
-/* unset-btn: reset estilos padrão do Ionic (como no original) */
+/* unset-btn: reset estilos padrão do Ionic */
 .perfil-buttons-row .unset-btn {
   --border-width: 0;
-  --box-shadow: none;
 }
 .perfil-btn-entrar {
   --background: #fff;
   --color: #2d1b4e;
-  --border-radius: 9999px;
-  --box-shadow: none;
+  --border-radius: 8px;
+  --box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
   font-weight: 700;
   height: 48px;
   padding-inline: 28px;
+  margin-right: -12px;
 }
 .perfil-btn-registro-wrap {
   position: relative;
 }
-/* Badge R$ +99: ícone sobreposto no topo do botão, não dentro */
 .perfil-registro-badge {
   position: absolute;
   top: -10px;
@@ -273,18 +271,12 @@ function logout() {
   display: flex;
   border-radius: 8px 8px 8px 0;
   overflow: hidden;
-.perfil-registro-badge::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-}
-  box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
   pointer-events: none;
 }
 .perfil-badge-rs {
-  background: #4A1570;
-  color: #EEFF4A;
+  background: linear-gradient(135deg, #f0c354, #f59e0b);
+  color: #fff;
   font-size: 0.65rem;
   font-weight: 800;
   padding: 4px 6px;
@@ -299,11 +291,12 @@ function logout() {
 .perfil-btn-registro {
   --background: #EEFF4A;
   --color: #2d1b4e;
-  --border-radius: 9999px;
-  --box-shadow: none;
+  --border-radius: 8px;
+  --box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
   font-weight: 700;
   height: 48px;
   padding-inline: 28px;
+  margin-left: -12px;
 }
 
 .perfil-dashboard {

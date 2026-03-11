@@ -22,7 +22,10 @@
     <script>
       (function() {
         var base = (typeof window !== 'undefined' && window.__API_BASE__) ? String(window.__API_BASE__).replace(/\/$/, '') : '';
-        fetch(base + '/api/settings').then(function(r) { return r.json(); }).then(function(data) {
+        var controller = new AbortController();
+        var timeout = setTimeout(function() { controller.abort(); }, 3000);
+        fetch(base + '/api/settings', { signal: controller.signal }).then(function(r) { return r.json(); }).then(function(data) {
+          clearTimeout(timeout);
           var img = document.getElementById('app-loading-img');
           var spinner = document.getElementById('app-loading-spinner');
           if (img && data.loadingBanner) {
@@ -31,7 +34,7 @@
             img.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center;margin:0;border-radius:0';
             if (spinner) spinner.style.display = 'none';
           }
-        }).catch(function() {});
+        }).catch(function() { clearTimeout(timeout); });
       })();
     </script>
     <script type="module" src="/src/main.js"></script>

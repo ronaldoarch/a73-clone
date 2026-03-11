@@ -23,27 +23,29 @@ import '@/utils/viteDepsMap'
 
 import TabsLayout from './views/TabsLayout.vue'
 import Inicio from './views/Inicio.vue'
-import Promo from './views/Promo.vue'
-import Entrar from './views/Entrar.vue'
-import Withdraw from './views/Withdraw.vue'
-import SaqueSenha from './views/SaqueSenha.vue'
-import CentroMensagens from './views/CentroMensagens.vue'
-import Relatorios from './views/Relatorios.vue'
-import Convidar from './views/Convidar.vue'
-import Perfil from './views/Perfil.vue'
-import Menu from './views/Menu.vue'
-import Comissao from './views/Comissao.vue'
-import TaxaReembolso from './views/TaxaReembolso.vue'
-import Misterioso from './views/Misterioso.vue'
-import Vip from './views/Vip.vue'
-import Login from './views/Login.vue'
-import Register from './views/Register.vue'
-import Admin from './views/Admin.vue'
-import OriginalSpa from './views/OriginalSpa.vue'
-import Jogos from './views/Jogos.vue'
-import Jogo from './views/Jogo.vue'
-import Roleta from './views/Roleta.vue'
-import Eventos from './views/Eventos.vue'
+
+// Lazy load: demais rotas carregam só quando acessadas
+const Login = () => import('./views/Login.vue')
+const Register = () => import('./views/Register.vue')
+const Promo = () => import('./views/Promo.vue')
+const Entrar = () => import('./views/Entrar.vue')
+const Withdraw = () => import('./views/Withdraw.vue')
+const SaqueSenha = () => import('./views/SaqueSenha.vue')
+const CentroMensagens = () => import('./views/CentroMensagens.vue')
+const Relatorios = () => import('./views/Relatorios.vue')
+const Convidar = () => import('./views/Convidar.vue')
+const Perfil = () => import('./views/Perfil.vue')
+const Menu = () => import('./views/Menu.vue')
+const Comissao = () => import('./views/Comissao.vue')
+const TaxaReembolso = () => import('./views/TaxaReembolso.vue')
+const Misterioso = () => import('./views/Misterioso.vue')
+const Vip = () => import('./views/Vip.vue')
+const Admin = () => import('./views/Admin.vue')
+const OriginalSpa = () => import('./views/OriginalSpa.vue')
+const Jogos = () => import('./views/Jogos.vue')
+const Jogo = () => import('./views/Jogo.vue')
+const Roleta = () => import('./views/Roleta.vue')
+const Eventos = () => import('./views/Eventos.vue')
 
 const routes = [
   { path: '/', redirect: '/main/inicio/' },

@@ -22,10 +22,16 @@
             <span v-if="!hasCustomLogo" class="header-site-name">{{ siteName }}</span>
           </div>
         </ion-buttons>
-        <ion-buttons slot="end">
+        <ion-buttons slot="end" class="header-buttons-end">
           <template v-if="!isLoggedIn">
             <ion-button @click="$router.push('/main/login/')" class="btn-entrar">ENTRAR</ion-button>
-            <ion-button @click="$router.push('/main/register/')" class="btn-registro">REGISTRO R$+99</ion-button>
+            <div class="btn-registro-wrap">
+              <span class="btn-registro-badge">
+                <span class="btn-badge-rs">R$</span>
+                <span class="btn-badge-99">+99</span>
+              </span>
+              <ion-button @click="$router.push('/main/register/')" class="btn-registro">REGISTRO</ion-button>
+            </div>
           </template>
           <template v-else>
             <ion-button fill="clear" size="small" class="btn-roleta-novos" @click="openRoletaNovos" title="Roleta de Novos">
@@ -589,6 +595,12 @@ function closeBanner() {
 </script>
 
 <style scoped>
+:deep(ion-header),
+:deep(ion-toolbar),
+:deep(ion-toolbar .toolbar-container),
+:deep(ion-buttons) {
+  overflow: visible !important;
+}
 .app-download-banner {
   display: flex;
   align-items: center;
@@ -597,7 +609,7 @@ function closeBanner() {
   background: #5f2b8a;
   gap: 12px;
   position: relative;
-  z-index: 1;
+  z-index: 0;
 }
 .close-banner {
   position: absolute;
@@ -660,10 +672,16 @@ function closeBanner() {
   border-bottom: 1px solid var(--border);
   padding-top: max(env(safe-area-inset-top), 8px);
   min-height: calc(56px + max(env(safe-area-inset-top), 8px));
+  position: relative;
+  z-index: 100;
 }
 .header-toolbar.header-gradient {
   --background: linear-gradient(135deg, #670d98 0%, #640c95 50%, #5B2875 100%);
   background: linear-gradient(135deg, #670d98 0%, #640c95 50%, #5B2875 100%);
+}
+.header-buttons-end {
+  gap: 0;
+  overflow: visible;
 }
 .header-logo-wrap {
   display: flex;
@@ -685,31 +703,59 @@ function closeBanner() {
   border-radius: 10px;
 }
 .btn-entrar {
-  --background: #6b4392;
-  --color: #fff;
-  --box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
-  --border-width: 1px;
-  --border-style: solid;
-  --border-color: #886aab;
-  font-family: var(--font-smooch);
-  font-weight: 700;
-  font-size: 0.9rem;
-  margin-right: 4px;
-  --border-radius: 12px;
-  padding: 10px 20px;
-  min-height: 40px;
-}
-.btn-registro {
-  --background: #f0c354;
-  --color: #fff;
-  --box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+  --background: #fff;
+  --color: #2d1b4e;
+  --box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
   --border-width: 0;
   font-family: var(--font-smooch);
   font-weight: 700;
   font-size: 0.9rem;
-  --border-radius: 12px;
+  margin-right: -12px;
+  --border-radius: 8px;
   padding: 10px 20px;
-  min-height: 40px;
+  min-height: 44px;
+}
+.btn-registro-wrap {
+  position: relative;
+  z-index: 200;
+}
+.btn-registro-badge {
+  position: absolute;
+  top: 2px;
+  right: 8px;
+  z-index: 9999;
+  display: flex;
+  border-radius: 8px 8px 8px 0;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+}
+.btn-badge-rs {
+  background: linear-gradient(135deg, #f0c354, #f59e0b);
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 800;
+  padding: 4px 6px;
+}
+.btn-badge-99 {
+  background: #E74C3C;
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 800;
+  padding: 4px 8px;
+}
+.btn-registro {
+  --background: #EEFF4A;
+  --color: #2d1b4e;
+  --box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  --border-width: 0;
+  font-family: var(--font-smooch);
+  font-weight: 700;
+  font-size: 0.9rem;
+  --border-radius: 8px;
+  padding: 10px 20px;
+  min-height: 44px;
+  margin-left: -12px;
 }
 .btn-perfil {
   --background: rgba(59, 52, 102, 0.9);

@@ -391,8 +391,8 @@ app.post('/api/frontend/trpc/user.register', async (req, res) => {
   }
 })
 
-// Upload logo
-app.post('/api/upload/logo', upload.single('file'), async (req, res) => {
+// Upload logo (requer admin)
+app.post('/api/upload/logo', upload.single('file'), adminAuthMiddleware, async (req, res) => {
   try {
     if (!req.file) {
       return res.json({ ok: false, error: 'Nenhum arquivo enviado' })

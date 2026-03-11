@@ -1429,6 +1429,7 @@ async function addBonusSpinToIndicator(indicatorUserId) {
 }
 
 app.get('/api/roleta/config', async (req, res) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate')
   try {
     const cfg = await getAppConfig()
     return res.json({ segments: cfg.roletaSegments || DEFAULT_ROLETA_SEGMENTS })
@@ -2071,6 +2072,66 @@ app.post('/api/settings/branding', adminAuthMiddleware, async (req, res) => {
   } catch (e) {
     console.error('save branding:', e)
     return res.status(500).json({ ok: false, error: e.message })
+  }
+})
+
+// ========== Promoções (Eventos) - público + admin ==========
+// GET promocoes - lista pública
+app.get('/api/promocoes', async (req, res) => {
+  try {
+    const s = await prisma.setting.findUnique({ where: { id: 'promocoes' } })
+    const list = (s?.value && Array.isArray(s.value)) ? s.value : []
+    return res.json(list)
+  } catch (e) {
+    return res.json([])
+  }
+})
+
+// GET admin promocoes
+app.get('/api/admin/promocoes', adminAuthMiddleware, async (req, res) => {
+  try {
+    const s = await prisma.setting.findUnique({ where: { id: 'promocoes' } })
+    const list = (s?.value && Array.isArray(s.value)) ? s.value : []
+    return res.json(list)
+  } catch (e) {
+    return res.json([])
+  }
+})
+
+// POST admin promocoes - criar/atualizar lista
+app.post('/api/admin/promocoes', adminAuthMiddleware, async (req, res) => {
+  try {
+    const list = Array.isArray(req.body) ? req.body : (req.body?.promocoes || req.body?.list || [])
+    const valid = list.map((p, i) => ({
+      id: p.id || `p-${Date.now()}-${i}`,
+      titulo: String(p.titulo || '').trim(),
+      descricao: String(p.descricao || '').trim(),
+      bannerUrl: String(p.bannerUrl || p.banner || '').trim(),
+      url: String(p.url || p.link || '').trim(),
+      status: String(p.status || 'Em andamento').trim(),
+      ordem: Number(p.ordem) || i
+    })).sort((a, b) => a.ordem - b.ordem)
+    await prisma.setting.upsert({
+      where: { id: 'promocoes' },
+      create: { id: 'promocoes', logo: null, banner: null, value: valid },
+      update: { value: valid }
+    })
+    return res.json({ ok: true, promocoes: valid })
+  } catch (e) {
+    console.error('save promocoes:', e)
+    return res.status(500).json({ ok: false, error: e.message })
+  }
+})
+
+// Upload banner de promoção
+app.post('/api/upload/promo-banner', upload.single('file'), adminAuthMiddleware, async (req, res) => {
+  try {
+    if (!req.file) return res.json({ ok: false, error: 'Nenhum arquivo enviado' })
+    const url = `/uploads/${req.file.filename}`
+    return res.json({ ok: true, url })
+  } catch (e) {
+    console.error('upload promo-banner:', e)
+    return res.json({ ok: false, error: e.message })
   }
 })
 

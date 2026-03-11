@@ -5,6 +5,7 @@ import { ref, onMounted, watch } from 'vue'
 import { apiUrl } from '@/config/api'
 
 const logoUrl = ref('/s5/app-icon/1222508/LOGO.jpg')
+const hasCustomLogo = ref(false)
 const bannerUrl = ref('/s5/1770954153806/9999.jpg')
 const loadingBannerUrl = ref('/s5/app-icon/1222508/LOGO.jpg')
 const siteName = ref('A73.com')
@@ -19,6 +20,7 @@ export function useSettings() {
       const res = await fetch(apiUrl('/api/settings'), { cache: 'no-store' })
       const data = await res.json()
       const fix = (url) => url ? apiUrl(url) + (url.includes('?') ? '' : '?t=' + Date.now()) : url
+      hasCustomLogo.value = !!data.logo
       if (data.logo) logoUrl.value = fix(data.logo)
       if (data.banner) bannerUrl.value = fix(data.banner)
       if (data.loadingBanner) loadingBannerUrl.value = fix(data.loadingBanner)
@@ -41,6 +43,7 @@ export function useSettings() {
 
   return {
     logoUrl,
+    hasCustomLogo,
     bannerUrl,
     loadingBannerUrl,
     siteName,

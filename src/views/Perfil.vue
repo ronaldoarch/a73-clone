@@ -65,27 +65,31 @@
         <div class="perfil-vip-section">
           <div class="perfil-vip-header">
             <div class="perfil-vip-level-row">
-              <span class="perfil-vip-badge-card">
-                <ion-icon name="shield-outline" class="perfil-vip-shield" />
-                VIP 0
+              <span class="perfil-vip-icon-wrap">
+                <ion-icon name="ribbon" class="perfil-vip-crown" />
               </span>
+              <span class="perfil-vip-badge-card">VIP 0</span>
               <span class="perfil-vip-nivel-label">Nível Atual</span>
             </div>
-            <button type="button" class="perfil-vip-detalhes-btn">
+            <button type="button" class="perfil-vip-detalhes-btn" @click="$router.push('/main/vip/')">
               Detalhes VIP
               <ion-icon name="chevron-forward" class="perfil-vip-arrow" />
             </button>
           </div>
           <div class="perfil-vip-progress-row">
             <span class="perfil-vip-badge-card perfil-vip-badge-start">
-              <ion-icon name="shield-outline" class="perfil-vip-shield" />
+              <span class="perfil-vip-icon-wrap perfil-vip-icon-sm">
+                <ion-icon name="ribbon" class="perfil-vip-crown" />
+              </span>
               VIP 0
             </span>
             <div class="perfil-vip-bar">
               <div class="perfil-vip-progress" :style="{ width: vipProgress + '%' }"></div>
             </div>
             <span class="perfil-vip-badge-card perfil-vip-badge-end">
-              <ion-icon name="shield-outline" class="perfil-vip-shield" />
+              <span class="perfil-vip-icon-wrap perfil-vip-icon-sm">
+                <ion-icon name="ribbon" class="perfil-vip-crown" />
+              </span>
               VIP 1
             </span>
           </div>
@@ -405,13 +409,29 @@ function logout() {
 }
 
 .perfil-vip-section {
+  position: relative;
   background: #2D2B30;
-  border-radius: 20px;
+  border-radius: 28px;
   padding: 16px;
   margin-bottom: 20px;
   box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+  overflow: visible;
+}
+/* Recorte pill: encaixe do botão - card com "pedaço faltando" no topo direito */
+.perfil-vip-section::before {
+  content: '';
+  position: absolute;
+  top: -8px;
+  right: 12px;
+  width: 152px;
+  height: 48px;
+  border-radius: 24px;
+  background: var(--bg);
+  z-index: 0;
 }
 .perfil-vip-header {
+  position: relative;
+  z-index: 1;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -422,30 +442,52 @@ function logout() {
   align-items: center;
   gap: 8px;
 }
+/* Badge circular prateado com ícone (como na referência) */
+.perfil-vip-icon-wrap {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #9ca3af, #6b7280);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: inset 0 1px 2px rgba(255,255,255,0.2), 0 1px 2px rgba(0,0,0,0.3);
+}
+.perfil-vip-crown {
+  font-size: 1rem;
+  color: #fbbf24;
+}
+.perfil-vip-icon-sm {
+  width: 24px;
+  height: 24px;
+}
+.perfil-vip-icon-sm .perfil-vip-crown {
+  font-size: 0.75rem;
+}
 .perfil-vip-badge-card {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: #5C5C5C;
+  background: #4b4b4b;
   color: #fff;
   font-size: 0.85rem;
   font-weight: 700;
   padding: 6px 12px;
   border-radius: 20px;
 }
-.perfil-vip-shield {
-  font-size: 1rem;
-  color: #c0c0c0;
-}
 .perfil-vip-nivel-label {
-  color: #e5e5e5;
+  color: #9ca3af;
   font-size: 0.85rem;
 }
+/* Botão Detalhes VIP: cinza escuro, efeito flutuante */
 .perfil-vip-detalhes-btn {
   display: flex;
   align-items: center;
   gap: 6px;
-  background: #5E2B87;
+  margin-top: -32px;
+  margin-left: -28px;
+  background: #4b4b4b;
   color: #fff;
   border: none;
   padding: 8px 14px;
@@ -453,6 +495,14 @@ function logout() {
   font-size: 0.85rem;
   font-weight: 500;
   cursor: pointer;
+  box-shadow:
+    0 4px 8px rgba(0,0,0,0.35),
+    0 2px 4px rgba(0,0,0,0.25),
+    inset 0 1px 0 rgba(255,255,255,0.08);
+}
+.perfil-vip-detalhes-btn:active {
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+  transform: translateY(1px);
 }
 .perfil-vip-arrow {
   color: #fbbf24;
@@ -464,23 +514,22 @@ function logout() {
   gap: 8px;
   margin-bottom: 14px;
 }
-.perfil-vip-badge-start {
-  flex-shrink: 0;
-}
+.perfil-vip-badge-start,
 .perfil-vip-badge-end {
   flex-shrink: 0;
 }
+/* Barra de progresso: linha fina cinza clara */
 .perfil-vip-bar {
   flex: 1;
-  height: 6px;
-  background: #6b6b6b;
-  border-radius: 3px;
+  height: 4px;
+  background: #6b7280;
+  border-radius: 2px;
   overflow: hidden;
 }
 .perfil-vip-progress {
   height: 100%;
   background: linear-gradient(90deg, #a855f7, #f59e0b);
-  border-radius: 3px;
+  border-radius: 2px;
   transition: width 0.3s ease;
 }
 .perfil-vip-criteria-block {

@@ -565,6 +565,29 @@
           <div class="card" style="margin-bottom: 1.5rem;">
             <div class="card-label" style="margin-bottom: 1rem;">Faça upload da logo e dos banners da plataforma.</div>
           </div>
+
+          <!-- Prévia no mobile - como os banners aparecem no app -->
+          <div class="card midia-mobile-preview" style="margin-bottom: 1.5rem;">
+            <h3>Prévia no mobile</h3>
+            <p class="card-label" style="margin-bottom: 1rem;">Como os banners aparecem no app (tamanho da tela mobile).</p>
+            <div class="midia-preview-mobile-frame">
+              <div class="midia-preview-item">
+                <span class="midia-preview-label">Banner principal (carrossel na Início)</span>
+                <div class="midia-preview-banner-wrap">
+                  <img v-if="bannerUrl" :key="bannerUrl" :src="bannerUrl" alt="Banner" class="midia-preview-banner-img" @error="e => { if (!e.target.dataset.fallback) { e.target.dataset.fallback = '1'; e.target.src = '/s5/1770954153806/9999.jpg' } }" />
+                  <span v-else class="placeholder">Sem banner</span>
+                </div>
+              </div>
+              <div class="midia-preview-item">
+                <span class="midia-preview-label">Banner de carregamento (tela de loading)</span>
+                <div class="midia-preview-loading-wrap">
+                  <img v-if="loadingBannerUrl" :key="loadingBannerUrl" :src="loadingBannerUrl" alt="Loading" class="midia-preview-loading-img" @error="e => { if (!e.target.dataset.fallback) { e.target.dataset.fallback = '1'; e.target.src = '/s5/app-icon/1222508/LOGO.jpg' } }" />
+                  <span v-else class="placeholder">Usando logo</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <!-- Banner de carregamento (em destaque) -->
           <div class="card" style="margin-bottom: 1.5rem;">
             <h3>Banner de carregamento</h3>
@@ -628,6 +651,51 @@
               <div v-if="bannerMsg" class="upload-msg" :class="{ error: bannerMsgError }">{{ bannerMsg }}</div>
             </div>
           </div>
+        </section>
+
+        <!-- Promoções (Eventos) -->
+        <section v-show="activeSection === 'promocoes'" class="admin-section">
+          <div class="card" style="margin-bottom: 1.5rem;">
+            <h3>Promoções da tela Eventos</h3>
+            <p class="card-label" style="margin-bottom: 1rem;">Cadastre promoções que aparecem quando o usuário clica na roleta do meio. Cada promoção tem um banner (upload) e uma URL de destino. Ao clicar no banner, o usuário é redirecionado para a URL.</p>
+          </div>
+          <div v-if="promocoesLoading" class="card-label">Carregando...</div>
+          <template v-else>
+            <div v-for="(p, i) in promocoesList" :key="p.id || i" class="card" style="margin-bottom: 1.5rem;">
+              <h4>Promoção {{ i + 1 }}</h4>
+              <div class="form-group">
+                <label>Título</label>
+                <input v-model="p.titulo" type="text" placeholder="Ex: CONVIDE 1 PESSOA GANHE R$50" />
+              </div>
+              <div class="form-group">
+                <label>Descrição (abaixo do banner)</label>
+                <input v-model="p.descricao" type="text" placeholder="Ex: Indique amigos para receber um bônus" />
+              </div>
+              <div class="form-group">
+                <label>Banner</label>
+                <div class="preview-box banner-preview" style="margin-bottom: 0.5rem;">
+                  <img v-if="p.bannerUrl" :src="promoBannerSrc(p)" alt="Banner" style="max-width:100%;max-height:80px;object-fit:contain" @error="e => (e.target.src = '/s5/1770954153806/9999.jpg')" />
+                  <span v-else class="placeholder">Sem banner</span>
+                </div>
+                <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+                  <input :ref="el => promoBannerInputRefs[i] = el" type="file" accept=".jpg,.jpeg,.png,.webp,.gif" style="display:none" @change="e => onPromoBannerSelect(e, i)" />
+                  <button type="button" class="btn btn-primary" @click="promoBannerInputRefs[i]?.click()">Escolher banner</button>
+                  <button type="button" class="btn btn-outline" @click="removePromo(i)">Remover</button>
+                </div>
+              </div>
+              <div class="form-group">
+                <label>URL (para onde o usuário vai ao clicar)</label>
+                <input v-model="p.url" type="url" placeholder="https://..." />
+              </div>
+              <div class="form-group">
+                <label>Status</label>
+                <input v-model="p.status" type="text" placeholder="Em andamento" />
+              </div>
+            </div>
+            <button type="button" class="btn btn-outline" @click="addPromo" style="margin-bottom: 1rem;">+ Nova promoção</button>
+            <button type="button" class="btn btn-primary" :disabled="promocoesSaving" @click="savePromocoes">{{ promocoesSaving ? 'Salvando...' : 'Salvar todas' }}</button>
+            <span v-if="promocoesMsg" class="config-msg" :class="{ error: promocoesMsgError }" style="margin-left: 0.5rem;">{{ promocoesMsg }}</span>
+          </template>
         </section>
       </main>
     </div>
@@ -751,7 +819,7 @@ const defaultTheme = {
 
 const router = useRouter()
 const route = useRoute()
-const VALID_SECTIONS = ['dashboard', 'usuarios', 'depositos', 'saques', 'afiliados', 'config', 'roleta', 'gatebox', 'jogos', 'provedores', 'tema', 'midia']
+const VALID_SECTIONS = ['dashboard', 'usuarios', 'depositos', 'saques', 'afiliados', 'config', 'roleta', 'gatebox', 'jogos', 'provedores', 'tema', 'midia', 'promocoes']
 
 const ADMIN_TOKEN_KEY = 'admin_token'
 const adminLoggedIn = ref(!!localStorage.getItem(ADMIN_TOKEN_KEY))
@@ -787,7 +855,7 @@ function selectSection(id) {
   router.replace({ path: `/admin/${id}` })
 }
 
-const titles = { dashboard: 'Dashboard', usuarios: 'Usuários', depositos: 'Depósitos', saques: 'Saques', afiliados: 'Afiliados', config: 'Configurações', roleta: 'Roleta', gatebox: 'Gatebox PIX', jogos: 'API de Jogos', provedores: 'Provedores na Home', tema: 'Tema', midia: 'Logo e Banners' }
+const titles = { dashboard: 'Dashboard', usuarios: 'Usuários', depositos: 'Depósitos', saques: 'Saques', afiliados: 'Afiliados', config: 'Configurações', roleta: 'Roleta', gatebox: 'Gatebox PIX', jogos: 'API de Jogos', provedores: 'Provedores na Home', tema: 'Tema', midia: 'Logo e Banners', promocoes: 'Promoções (Eventos)' }
 
 const sections = [
   { id: 'dashboard', label: 'Dashboard', icon: () => h('svg', { fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z' })]) },
@@ -802,6 +870,7 @@ const sections = [
   { id: 'provedores', label: 'Provedores na Home', icon: () => h('svg', { fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10' })]) },
   { id: 'tema', label: 'Tema', icon: () => h('svg', { fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01' })]) },
   { id: 'midia', label: 'Logo e Banners', icon: () => h('svg', { fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z' })]) },
+  { id: 'promocoes', label: 'Promoções', icon: () => h('svg', { fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7' })]) },
 ]
 
 const usuarios = ref([])
@@ -1521,6 +1590,13 @@ const loadingBannerInput = ref(null)
 const logoFile = ref(null)
 const bannerFile = ref(null)
 const loadingBannerFile = ref(null)
+
+const promocoesList = ref([])
+const promocoesLoading = ref(false)
+const promocoesSaving = ref(false)
+const promocoesMsg = ref('')
+const promocoesMsgError = ref(false)
+const promoBannerInputRefs = ref([])
 const logoMsg = ref('')
 const logoMsgError = ref(false)
 const bannerMsg = ref('')
@@ -1786,7 +1862,82 @@ watch(activeSection, async (s) => {
   if (s === 'config') loadConfig()
   if (s === 'roleta') loadRoleta()
   if (s === 'gatebox') loadGatebox()
+  if (s === 'promocoes') loadPromocoes()
 })
+
+async function loadPromocoes() {
+  promocoesLoading.value = true
+  promocoesMsg.value = ''
+  try {
+    const headers = {}
+    const token = localStorage.getItem(ADMIN_TOKEN_KEY)
+    if (token) headers['Authorization'] = `Bearer ${token}`
+    const r = await fetch(apiUrl('/api/admin/promocoes'), { headers })
+    const list = await r.json()
+    promocoesList.value = Array.isArray(list) ? list.map(p => ({ ...p })) : []
+    if (promocoesList.value.length === 0) promocoesList.value = [{ id: `p-${Date.now()}`, titulo: '', descricao: '', bannerUrl: '', url: '', status: 'Em andamento', ordem: 0 }]
+  } catch (_) {
+    promocoesList.value = []
+  } finally {
+    promocoesLoading.value = false
+  }
+}
+function promoBannerSrc(p) {
+  const url = p?.bannerUrl || p?.banner || ''
+  if (!url) return ''
+  return url.startsWith('http') || url.startsWith('/') ? url : apiUrl(url)
+}
+async function onPromoBannerSelect(e, i) {
+  const file = e.target?.files?.[0]
+  if (!file) return
+  const fd = new FormData()
+  fd.append('file', file)
+  try {
+    const headers = {}
+    const token = localStorage.getItem(ADMIN_TOKEN_KEY)
+    if (token) headers['Authorization'] = `Bearer ${token}`
+    const r = await fetch(apiUrl('/api/upload/promo-banner'), { method: 'POST', headers, body: fd })
+    const data = await r.json()
+    if (data.ok && data.url && promocoesList.value[i]) {
+      promocoesList.value[i].bannerUrl = data.url
+    }
+  } catch (_) {}
+  e.target.value = ''
+}
+function addPromo() {
+  promocoesList.value.push({ id: `p-${Date.now()}`, titulo: '', descricao: '', bannerUrl: '', url: '', status: 'Em andamento', ordem: promocoesList.value.length })
+}
+function removePromo(i) {
+  promocoesList.value.splice(i, 1)
+}
+async function savePromocoes() {
+  promocoesSaving.value = true
+  promocoesMsg.value = ''
+  promocoesMsgError.value = false
+  try {
+    const headers = { 'Content-Type': 'application/json' }
+    const token = localStorage.getItem(ADMIN_TOKEN_KEY)
+    if (token) headers['Authorization'] = `Bearer ${token}`
+    const r = await fetch(apiUrl('/api/admin/promocoes'), {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(promocoesList.value)
+    })
+    const data = await r.json()
+    if (data.ok) {
+      promocoesMsg.value = 'Salvo!'
+      setTimeout(() => { promocoesMsg.value = '' }, 3000)
+    } else {
+      promocoesMsg.value = data.error || 'Erro'
+      promocoesMsgError.value = true
+    }
+  } catch (e) {
+    promocoesMsg.value = 'Erro: ' + (e.message || 'Verifique a conexão')
+    promocoesMsgError.value = true
+  } finally {
+    promocoesSaving.value = false
+  }
+}
 
 // Sincroniza seção com a URL (ex: /admin/usuarios)
 watch(() => route.params.section, (section) => {
@@ -1894,6 +2045,17 @@ tr:hover { background: rgba(255,255,255,0.02); }
 .preview-box { width: 80px; height: 80px; border-radius: 12px; background: var(--card); border: 1px solid var(--border); margin-bottom: 1rem; overflow: hidden; display: flex; align-items: center; justify-content: center; }
 .preview-box.banner-preview { width: 100%; max-height: 120px; }
 .preview-box img { max-width: 100%; max-height: 100%; object-fit: contain; }
+
+/* Prévia mobile - Mídia */
+.midia-mobile-preview { }
+.midia-preview-mobile-frame { max-width: 375px; border: 2px solid var(--border); border-radius: 24px; overflow: hidden; background: var(--bg); padding: 1rem; }
+.midia-preview-item { margin-bottom: 1rem; }
+.midia-preview-item:last-child { margin-bottom: 0; }
+.midia-preview-label { display: block; font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.5rem; }
+.midia-preview-banner-wrap { aspect-ratio: 16/9; background: var(--card); overflow: hidden; display: flex; align-items: center; justify-content: center; }
+.midia-preview-banner-img { width: 100%; height: 100%; object-fit: cover; }
+.midia-preview-loading-wrap { aspect-ratio: 9/16; max-height: 400px; background: var(--card); overflow: hidden; display: flex; align-items: center; justify-content: center; }
+.midia-preview-loading-img { width: 100%; height: 100%; object-fit: cover; }
 .placeholder { color: var(--text-muted); font-size: 0.75rem; }
 .padrao-msg { margin-top: 0.75rem; font-size: 0.875rem; color: var(--success); }
 .upload-msg { margin-top: 0.75rem; font-size: 0.875rem; }

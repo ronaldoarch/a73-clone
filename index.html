@@ -13,8 +13,8 @@
   </head>
   <body>
     <div id="app-loading" style="position:fixed;inset:0;background:linear-gradient(135deg,#670d98 0%,#640c95 50%,#5B2875 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;transition:opacity 0.3s">
-      <img src="https://upload-us.i-j-2-k.com/s5/app-icon/1222508/LOGO.jpg" alt="" style="width:80px;height:80px;border-radius:16px;margin-bottom:16px;object-fit:contain" onerror="this.style.display='none'" />
-      <div style="width:36px;height:36px;border:3px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:appLoadingSpin 0.8s linear infinite"></div>
+      <img id="app-loading-img" src="https://upload-us.i-j-2-k.com/s5/app-icon/1222508/LOGO.jpg" alt="" style="width:80px;height:80px;border-radius:16px;margin-bottom:16px;object-fit:contain" onerror="this.style.display='none'" />
+      <div id="app-loading-spinner" style="width:36px;height:36px;border:3px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:appLoadingSpin 0.8s linear infinite"></div>
       <style>@keyframes appLoadingSpin{to{transform:rotate(360deg)}}</style>
     </div>
     <div id="app"></div>
@@ -23,10 +23,13 @@
       (function() {
         var base = (typeof window !== 'undefined' && window.__API_BASE__) ? String(window.__API_BASE__).replace(/\/$/, '') : '';
         fetch(base + '/api/settings').then(function(r) { return r.json(); }).then(function(data) {
-          var img = document.querySelector('#app-loading img');
+          var img = document.getElementById('app-loading-img');
+          var spinner = document.getElementById('app-loading-spinner');
           if (img && data.loadingBanner) {
             var url = data.loadingBanner.startsWith('http') ? data.loadingBanner : base + data.loadingBanner;
             img.src = url;
+            img.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center;margin:0;border-radius:0';
+            if (spinner) spinner.style.display = 'none';
           }
         }).catch(function() {});
       })();

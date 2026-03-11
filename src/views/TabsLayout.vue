@@ -2,20 +2,20 @@
   <ion-tabs>
     <ion-router-outlet />
     <ion-tab-bar slot="bottom" class="main-tab-bar">
-      <!-- Tabs ocultos para rotas sem botão visível - evita TypeError a[h] is not a function -->
-      <ion-tab-button tab="login" href="/main/login/" class="tab-hidden" />
-      <ion-tab-button tab="register" href="/main/register/" class="tab-hidden" />
-      <ion-tab-button tab="promo" href="/main/promo/" class="tab-hidden" />
-      <ion-tab-button tab="withdraw" href="/main/withdraw/" class="tab-hidden" />
-      <ion-tab-button tab="saque-senha" href="/main/saque-senha/" class="tab-hidden" />
-      <ion-tab-button tab="centro-mensagens" href="/main/centro-mensagens/" class="tab-hidden" />
-      <ion-tab-button tab="relatorios" href="/main/relatorios/" class="tab-hidden" />
-      <ion-tab-button tab="convidar" href="/main/convidar/" class="tab-hidden" />
-      <ion-tab-button tab="comissao" href="/main/comissao/" class="tab-hidden" />
-      <ion-tab-button tab="taxa-reembolso" href="/main/taxa-reembolso/" class="tab-hidden" />
-      <ion-tab-button tab="misterioso" href="/main/misterioso/" class="tab-hidden" />
-      <ion-tab-button tab="vip" href="/main/vip/" class="tab-hidden" />
-      <ion-tab-button tab="jogos" href="/main/jogos/" class="tab-hidden" />
+      <!-- Tabs ocultos para rotas sem botão visível - evita TypeError checkActiveTab -->
+      <ion-tab-button tab="login" href="/main/login/" class="tab-hidden"><ion-icon name="ribbon" /><ion-label>Login</ion-label></ion-tab-button>
+      <ion-tab-button tab="register" href="/main/register/" class="tab-hidden"><ion-icon name="ribbon" /><ion-label>Registro</ion-label></ion-tab-button>
+      <ion-tab-button tab="promo" href="/main/promo/" class="tab-hidden"><ion-icon name="ribbon" /><ion-label>Promo</ion-label></ion-tab-button>
+      <ion-tab-button tab="withdraw" href="/main/withdraw/" class="tab-hidden"><ion-icon name="ribbon" /><ion-label>Withdraw</ion-label></ion-tab-button>
+      <ion-tab-button tab="saque-senha" href="/main/saque-senha/" class="tab-hidden"><ion-icon name="ribbon" /><ion-label>Saque</ion-label></ion-tab-button>
+      <ion-tab-button tab="centro-mensagens" href="/main/centro-mensagens/" class="tab-hidden"><ion-icon name="ribbon" /><ion-label>Mensagens</ion-label></ion-tab-button>
+      <ion-tab-button tab="relatorios" href="/main/relatorios/" class="tab-hidden"><ion-icon name="ribbon" /><ion-label>Relatórios</ion-label></ion-tab-button>
+      <ion-tab-button tab="convidar" href="/main/convidar/" class="tab-hidden"><ion-icon name="ribbon" /><ion-label>Convidar</ion-label></ion-tab-button>
+      <ion-tab-button tab="comissao" href="/main/comissao/" class="tab-hidden"><ion-icon name="ribbon" /><ion-label>Comissão</ion-label></ion-tab-button>
+      <ion-tab-button tab="taxa-reembolso" href="/main/taxa-reembolso/" class="tab-hidden"><ion-icon name="ribbon" /><ion-label>Taxa</ion-label></ion-tab-button>
+      <ion-tab-button tab="misterioso" href="/main/misterioso/" class="tab-hidden"><ion-icon name="ribbon" /><ion-label>Misterioso</ion-label></ion-tab-button>
+      <ion-tab-button tab="vip" href="/main/vip/" class="tab-hidden"><ion-icon name="ribbon" /><ion-label>VIP</ion-label></ion-tab-button>
+      <ion-tab-button tab="jogos" href="/main/jogos/" class="tab-hidden"><ion-icon name="ribbon" /><ion-label>Jogos</ion-label></ion-tab-button>
       <!-- Tabs visíveis -->
       <ion-tab-button tab="inicio" href="/main/inicio/">
         <ion-icon name="ribbon" />
@@ -25,7 +25,7 @@
         <ion-icon name="wallet" />
         <ion-label>Depósito</ion-label>
       </ion-tab-button>
-      <ion-tab-button tab="roleta" href="/main/inicio/" class="tab-roleta-btn">
+      <ion-tab-button tab="roleta" href="/main/eventos/" class="tab-roleta-btn">
         <div class="tab-roleta">
           <div class="tab-roleta-inner">
             <ion-icon name="flame" class="tab-roleta-icon" />
@@ -120,14 +120,17 @@ import { IonTabs, IonTabBar, IonTabButton, IonRouterOutlet, IonLabel, IonIcon } 
   overflow: hidden;
   box-sizing: border-box;
   padding: 6px;
-  background-color: #14b8a6;
-  background-image:
-    linear-gradient(45deg, #a855f7 25%, transparent 25%),
-    linear-gradient(-45deg, #a855f7 25%, transparent 25%),
-    linear-gradient(45deg, #a855f7 25%, transparent 25%),
-    linear-gradient(-45deg, #a855f7 25%, transparent 25%);
-  background-size: 8px 8px;
-  background-position: 0 0, 4px 0, 4px -4px, 0 4px;
+  /* Anel segmentado: roxo e teal alternados (roletinha) */
+  background: conic-gradient(
+    #a855f7 0deg 45deg,
+    #0d9488 45deg 90deg,
+    #a855f7 90deg 135deg,
+    #0d9488 135deg 180deg,
+    #a855f7 180deg 225deg,
+    #0d9488 225deg 270deg,
+    #a855f7 270deg 315deg,
+    #0d9488 315deg 360deg
+  );
   box-shadow: 0 4px 16px rgba(0,0,0,0.25);
   display: flex;
   align-items: center;
@@ -145,10 +148,26 @@ import { IonTabs, IonTabBar, IonTabButton, IonRouterOutlet, IonLabel, IonIcon } 
   align-items: center;
   justify-content: center;
   animation: roleta-spin-reverse 1.2s linear infinite;
+  position: relative;
+}
+/* Anel laranja ao redor da chama */
+.tab-roleta-inner::before {
+  content: '';
+  position: absolute;
+  width: 28px;
+  height: 28px;
+  left: 50%;
+  top: 50%;
+  margin: -14px 0 0 -14px;
+  border-radius: 50%;
+  border: 2px solid #f97316;
+  box-sizing: border-box;
 }
 .tab-roleta-icon {
-  font-size: 24px;
-  color: #374151;
+  font-size: 20px;
+  color: #f97316;
+  position: relative;
+  z-index: 1;
 }
 @keyframes roleta-spin {
   from { transform: rotate(0deg); }

@@ -90,6 +90,7 @@ async function handleLogin() {
       localStorage.setItem('token', 'demo-' + Date.now())
       localStorage.setItem('account', phone.value)
       sessionStorage.setItem('showRoletaNovos', '1')
+    sessionStorage.setItem('showBonusDiario', '1')
       toast.success('Login realizado! (modo demo)')
       router.push('/main/inicio/')
       return
@@ -103,6 +104,7 @@ async function handleLogin() {
     localStorage.setItem('account', res.user?.account || phone.value)
     await useAfiliado().refresh()
     sessionStorage.setItem('showRoletaNovos', '1')
+    sessionStorage.setItem('showBonusDiario', '1')
     toast.success('Login realizado!')
     router.push('/main/inicio/')
   } catch (e) {

@@ -3,7 +3,7 @@
     <div v-if="url" class="game-iframe-overlay">
       <div class="game-iframe-header">
         <button type="button" class="game-iframe-close" @click="$emit('close')">
-          <ion-icon name="close" />
+          <IonIcon name="close" />
           Fechar
         </button>
       </div>
@@ -19,6 +19,7 @@
 </template>
 
 <script setup>
+import { IonIcon } from '@ionic/vue'
 defineProps({
   url: { type: String, default: null }
 })

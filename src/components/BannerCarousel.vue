@@ -5,9 +5,9 @@
         :modules="[Pagination, Autoplay]"
         :slides-per-view="1"
         :space-between="0"
-        :loop="true"
-        :autoplay="{ delay: 4000, disableOnInteraction: false }"
-        :pagination="{ clickable: true }"
+        :loop="effectiveSlides.length > 1"
+        :autoplay="effectiveSlides.length > 1 ? { delay: 4000, disableOnInteraction: false } : false"
+        :pagination="effectiveSlides.length > 1 ? { clickable: true } : false"
         class="banner-swiper"
       >
         <SwiperSlide v-for="(slide, i) in effectiveSlides" :key="i">
@@ -21,7 +21,7 @@
             />
             <div class="banner-overlay">
               <span class="banner-text-main">{{ slide.title }}</span>
-              <ion-button
+              <IonButton
                 v-if="slide.cta"
                 size="small"
                 color="warning"
@@ -29,7 +29,7 @@
                 @click="$emit('cta-click', slide)"
               >
                 {{ slide.cta }}
-              </ion-button>
+              </IonButton>
             </div>
           </div>
         </SwiperSlide>
@@ -40,6 +40,7 @@
 
 <script setup>
 import { computed } from 'vue'
+import { IonButton } from '@ionic/vue'
 import { Swiper, SwiperSlide } from 'swiper/vue'
 import { Pagination, Autoplay } from 'swiper/modules'
 import 'swiper/css'

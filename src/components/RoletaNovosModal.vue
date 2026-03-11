@@ -1,30 +1,47 @@
 <template>
+  <!--
+  ESTRUTURA DA ROLETA (de cima para baixo, camadas):
+  1. Overlay (fundo escuro) → Modal (caixa max 420px)
+  2. Header: seta voltar + título "Exclusivo para Novos Usuários"
+  3. Stage (área da roleta):
+     - bg.png: fundo roxo (cover)
+     - wheel-wrap: border.png (roleta do meio, z2), wheel giratório (z3), pointer (z10), GO (z15)
+  4. Detalhes: content-bg.png + bot1/bot2 + título + 4 regras
+  5. Modal resultado (ganhou/thanks) por cima quando ativo
+  -->
   <Teleport to="body">
     <Transition name="roleta-novos">
       <div v-if="visible" class="roleta-novos-overlay">
+        <div class="roleta-novos-modal">
         <!-- Barra superior -->
         <header class="roleta-novos-header">
-          <ion-button fill="clear" class="roleta-novos-back" @click="close">
-            <ion-icon name="chevron-back" />
-          </ion-button>
+          <IonButton fill="clear" class="roleta-novos-back" @click="close">
+            <IonIcon name="chevron-back" />
+          </IonButton>
           <h1 class="roleta-novos-title">Exclusivo para Novos Usuários</h1>
         </header>
 
-        <!-- Área principal: fundo + luzes + roleta -->
+        <!-- Área principal: content-bg (cortina) → base (bot1) → roda -->
         <div class="roleta-novos-stage">
-          <img src="/images/roleta-novos/bg.png" alt="" class="roleta-novos-bg" />
-          <img src="/images/roleta-novos/guangxiao1.png" alt="" class="roleta-novos-spotlight" />
-          <img src="/images/roleta-novos/guangquan1.png" alt="" class="roleta-novos-lights" />
-
+          <img src="/images/roleta-novos/content-bg.png" alt="" class="roleta-novos-stage-bg" />
+          <!-- Base da roleta: atrás da roda, na frente da cortina -->
+          <div class="roleta-novos-wheel-base">
+            <img src="/images/roleta-novos/bot1.png" alt="" class="roleta-novos-wheel-base-img" />
+          </div>
           <div class="roleta-novos-wheel-wrap">
-            <!-- Moldura/borda da roleta -->
+            <!-- Camada 1: anel de luz (guangquan1) -->
+            <img src="/images/roleta-novos/guangquan1.png" alt="" class="roleta-novos-lights" />
+            <!-- Camada 2: brilho central (guangxiao1) -->
+            <img src="/images/roleta-novos/guangxiao1.png" alt="" class="roleta-novos-spotlight" />
+            <!-- Camada 3: moldura (border) -->
             <img src="/images/roleta-novos/border.png" alt="" class="roleta-novos-border" />
-            <!-- Roleta giratória (8 segmentos) -->
+            <!-- Roda giratória: wheel-bg + 8 segmentos -->
             <div
               class="roleta-novos-wheel"
               :class="{ spinning: isSpinning }"
               :style="{ transform: `rotate(${wheelRotation}deg)` }"
             >
+              <img src="/images/roleta-novos/wheel-bg.png" alt="" class="roleta-novos-wheel-bg" />
               <div
                 v-for="(seg, i) in segments"
                 :key="i"
@@ -34,7 +51,7 @@
                 <div class="roleta-novos-segment-inner" :style="itemRotateStyle(i)">
                   <template v-if="seg.value !== null">
                     <img :src="iconSrc(seg.icon)" :alt="seg.label" class="roleta-novos-segment-icon roleta-novos-segment-icon-coin" />
-                    <span class="roleta-novos-segment-value">R$ {{ seg.value }}</span>
+                    <span class="roleta-novos-segment-value">R$ {{ seg.value != null ? (seg.value % 1 === 0 ? seg.value : seg.value.toFixed(2).replace('.', ',')) : '' }}</span>
                   </template>
                   <template v-else>
                     <img :src="iconSrc(seg.icon)" :alt="seg.label" class="roleta-novos-segment-icon" />
@@ -59,14 +76,13 @@
           </div>
         </div>
 
-        <!-- Detalhes do Evento (banner vermelho com regras) -->
+        <!-- Palanque: painel vermelho com borda dourada, abaixo da roleta -->
         <div class="roleta-novos-details">
-          <img src="/images/roleta-novos/content-bg.png" alt="" class="roleta-novos-details-bg" />
           <div class="roleta-novos-details-content">
+            <!-- Imagem atrás de todo o bloco (título + lista), maior que todo o texto -->
+            <img src="/images/roleta-novos/bot2.png" alt="" class="roleta-novos-details-content-bg" aria-hidden="true" />
             <h3 class="roleta-novos-details-title">
-              <img src="/images/roleta-novos/bot1.png" alt="" class="roleta-novos-coin" />
-              Detalhes do Evento
-              <img src="/images/roleta-novos/bot2.png" alt="" class="roleta-novos-coin" />
+              <span class="roleta-novos-details-title-text">Detalhes do Evento</span>
             </h3>
             <ol class="roleta-novos-rules">
               <li>Novos usuários que se cadastrarem com um número de telefone e fornecerem seu CPF receberão recompensas personalizadas da plataforma.</li>
@@ -75,6 +91,7 @@
               <li>Para evitar mal-entendidos, a plataforma reserva-se o direito de fazer a interpretação final desta atividade.</li>
             </ol>
           </div>
+          <div class="roleta-novos-details-base" aria-hidden="true" />
         </div>
 
         <!-- Modal de resultado (ganhou / thanks) -->
@@ -91,10 +108,11 @@
                   Não foi dessa vez. Tente na próxima!
                 </template>
               </p>
-              <ion-button expand="block" class="roleta-novos-result-btn" @click="closeResult">OK</ion-button>
+              <IonButton expand="block" class="roleta-novos-result-btn" @click="closeResult">OK</IonButton>
             </div>
           </div>
         </Transition>
+        </div>
       </div>
     </Transition>
   </Teleport>
@@ -106,31 +124,15 @@ import { IonButton, IonIcon } from '@ionic/vue'
 import { apiUrl } from '@/config/api'
 
 const DEFAULT_SEGMENTS = [
-  { label: 'R$ 3,00', value: 3, icon: 'bonus' },
-  { label: 'R$ 9,00', value: 9, icon: 'bonus' },
-  { label: 'R$ 99,00', value: 99, icon: 'bonus' },
-  { label: 'R$ 22,00', value: 22, icon: 'bonus' },
-  { label: 'R$ 45,00', value: 45, icon: 'bonus' },
-  { label: 'Thanks', value: null, icon: 'thks' },
-  { label: 'Presente', value: null, icon: 'gift_box' },
-  { label: 'Presente', value: null, icon: 'gift_box' }
+  { label: 'R$ 3,00', value: 3, icon: 'bonus', weight: 1 },
+  { label: 'R$ 9,00', value: 9, icon: 'bonus', weight: 1 },
+  { label: 'R$ 99,00', value: 99, icon: 'bonus', weight: 1 },
+  { label: 'R$ 22,00', value: 22, icon: 'bonus', weight: 1 },
+  { label: 'R$ 45,00', value: 45, icon: 'bonus', weight: 1 },
+  { label: 'Thanks', value: null, icon: 'thks', weight: 1 },
+  { label: 'Presente', value: null, icon: 'gift_box', weight: 1 },
+  { label: 'Presente', value: null, icon: 'gift_box', weight: 1 }
 ]
-
-function mapApiSegmentsToModal(apiSegments) {
-  if (!Array.isArray(apiSegments) || apiSegments.length !== 8) return DEFAULT_SEGMENTS
-  return apiSegments.map((s) => {
-    const label = String(s?.label ?? '')
-    const val = Number(s?.value) ?? 0
-    let icon = 'bonus'
-    if (label && /^\?+$/.test(label)) icon = 'gift_box'
-    else if (val === 0) icon = 'thks'
-    return {
-      label,
-      value: val === 0 ? null : val,
-      icon
-    }
-  })
-}
 
 const props = defineProps({
   show: { type: Boolean, default: false },
@@ -142,9 +144,32 @@ const emit = defineEmits(['close'])
 const visible = ref(false)
 watch(() => props.show, (v) => { visible.value = v }, { immediate: true })
 
-const segments = computed(() => {
-  const fromProp = mapApiSegmentsToModal(props.segments)
-  return fromProp.length === 8 ? fromProp : DEFAULT_SEGMENTS
+const segments = ref([...DEFAULT_SEGMENTS])
+
+watch(visible, async (v) => {
+  if (v) {
+    try {
+      const r = await fetch(apiUrl('/api/roleta/config'), { cache: 'no-store' })
+      const data = await r.json()
+      if (Array.isArray(data.segments) && data.segments.length === 8) {
+        segments.value = data.segments.map(s => {
+          const label = String(s?.label ?? '')
+          const val = Number(s?.value) ?? 0
+          let icon = 'bonus'
+          if (label && /^\?+$/.test(label)) icon = 'gift_box'
+          else if (val === 0) icon = 'thks'
+          return {
+            label: label || 'Prêmio',
+            value: val === 0 ? null : val,
+            icon,
+            weight: Math.max(0, parseInt(s?.weight, 10) || 1)
+          }
+        })
+      }
+    } catch (e) {
+      segments.value = [...DEFAULT_SEGMENTS]
+    }
+  }
 })
 
 const iconSrc = (icon) => `/images/roleta-novos/${icon}.png`
@@ -159,13 +184,13 @@ const resultPrizeFormatted = computed(() =>
   resultPrize.value.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.')
 )
 
-const segmentAngle = computed(() => 360 / (segments.value?.length || 8))
+const segmentAngle = computed(() => 360 / (segments.value.length || 8))
 
 function segmentStyle(index) {
-  const angle = segmentAngle.value
-  const deg = index * angle
+  const deg = index * segmentAngle.value
   return {
-    transform: `rotate(${deg}deg)`
+    transform: `rotate(${deg}deg)`,
+    transformOrigin: '0% 100%'
   }
 }
 
@@ -191,6 +216,8 @@ function close() {
 async function doSpin() {
   if (isSpinning.value) return
   spinError.value = ''
+  const list = segments.value
+  if (!list.length) return
   const token = localStorage.getItem('token')
   if (!token || String(token).startsWith('demo-')) {
     spinError.value = 'Faça login para participar da roleta de novos usuários.'
@@ -213,7 +240,7 @@ async function doSpin() {
       isSpinning.value = false
       return
     }
-    const prizeIndex = data.prizeIndex ?? Math.floor(Math.random() * segments.value.length)
+    const prizeIndex = data.prizeIndex ?? Math.floor(Math.random() * list.length)
     const prize = data.prize ?? 0
     resultPrize.value = prize
 
@@ -249,11 +276,30 @@ function closeResult() {
 .roleta-novos-overlay {
   position: fixed;
   inset: 0;
-  background: #2d1b4e;
+  background: rgba(0, 0, 0, 0.7);
   z-index: 9999;
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
   overflow-y: auto;
+  box-sizing: border-box;
+}
+.roleta-novos-modal {
+  width: min(100%, 420px);
+  max-width: 420px;
+  height: auto;
+  max-height: min(90vh, 700px);
+  background: #2d1b4e;
+  border-radius: 16px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  align-self: center;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  box-sizing: border-box;
 }
 
 .roleta-novos-header {
@@ -281,62 +327,78 @@ function closeResult() {
 .roleta-novos-stage {
   position: relative;
   flex: 1;
-  min-height: 320px;
+  min-height: 280px;
+  max-height: 380px;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 16px 0;
+  padding: 0;
 }
-.roleta-novos-bg {
+/* content-bg atrás da roleta (stage) */
+.roleta-novos-stage-bg {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
+  object-position: center;
   pointer-events: none;
+  z-index: 0;
 }
-.roleta-novos-spotlight {
-  position: absolute;
-  left: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  height: 80%;
-  max-height: 400px;
-  width: auto;
-  object-fit: contain;
-  opacity: 0.9;
-  pointer-events: none;
-}
-.roleta-novos-lights {
-  position: absolute;
-  top: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 100%;
-  max-width: 500px;
-  height: auto;
-  object-fit: contain;
-  pointer-events: none;
-}
-
 .roleta-novos-wheel-wrap {
   position: relative;
-  width: 280px;
-  height: 280px;
+  width: 240px;
+  height: 240px;
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 2;
 }
-.roleta-novos-border {
+/* Anel de luz (guangquan1) atrás da roda */
+.roleta-novos-lights {
   position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
   width: 100%;
   height: 100%;
   object-fit: contain;
+  object-position: center;
   pointer-events: none;
+  z-index: 0;
 }
+/* Brilho central (guangxiao1) */
+.roleta-novos-spotlight {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 110%;
+  height: 110%;
+  object-fit: contain;
+  object-position: center;
+  opacity: 0.9;
+  pointer-events: none;
+  z-index: 1;
+}
+/* Moldura (border) */
+.roleta-novos-border {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center;
+  pointer-events: none;
+  z-index: 2;
+}
+/* Roda (wheel-bg + segmentos) centralizada no wrap - 82% */
 .roleta-novos-wheel {
   position: absolute;
+  left: 9%;
+  top: 9%;
   width: 82%;
   height: 82%;
   border-radius: 50%;
@@ -344,8 +406,19 @@ function closeResult() {
   transform-origin: 50% 50%;
   transition: transform 4s cubic-bezier(0.17, 0.67, 0.12, 0.99);
   will-change: transform;
-  background: linear-gradient(135deg, #3b82f6 0%, #93c5fd 50%, #3b82f6 100%);
-  box-shadow: inset 0 0 0 4px rgba(255,255,255,0.3), 0 0 20px rgba(0,0,0,0.3);
+  background: transparent;
+  box-shadow: 0 0 20px rgba(0,0,0,0.2);
+  z-index: 3;
+}
+.roleta-novos-wheel-bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center;
+  pointer-events: none;
+  z-index: 0;
 }
 .roleta-novos-wheel.spinning {
   transition: transform 4s cubic-bezier(0.17, 0.67, 0.12, 0.99);
@@ -359,19 +432,15 @@ function closeResult() {
   margin-left: 0;
   transform-origin: 0% 100%;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding-top: 6%;
-  gap: 0;
-  background: rgba(59, 130, 246, 0.9);
-  border: 1px solid rgba(255, 255, 255, 0.3);
+  padding: 0;
+  background: transparent;
+  border: none;
   box-sizing: border-box;
-  /* 45° wedge: center (0,100%) -> right (100%,100%) -> 45° (70.7%, 0%) */
+  z-index: 1;
+  /* 45° wedge */
   clip-path: polygon(0% 100%, 100% 100%, 70.71% 0%);
-}
-.roleta-novos-segment:nth-child(odd) {
-  background: rgba(30, 64, 175, 0.9);
 }
 .roleta-novos-segment-inner {
   display: flex;
@@ -379,8 +448,12 @@ function closeResult() {
   align-items: center;
   justify-content: center;
   gap: 4px;
-  padding: 4px;
   min-width: 0;
+  width: 100%;
+  padding: 4px;
+}
+.roleta-novos-segment:nth-child(odd) {
+  background: transparent;
 }
 .roleta-novos-segment-icon {
   width: 24px;
@@ -400,6 +473,7 @@ function closeResult() {
   text-shadow: 0 1px 3px rgba(0,0,0,0.8), 0 0 1px rgba(0,0,0,0.9);
   white-space: nowrap;
   letter-spacing: 0.02em;
+  text-align: center;
 }
 .roleta-novos-segment-label {
   font-size: 0.55rem;
@@ -407,7 +481,7 @@ function closeResult() {
   color: #fff;
   text-shadow: 0 1px 3px rgba(0,0,0,0.8), 0 0 1px rgba(0,0,0,0.9);
   white-space: nowrap;
-  letter-spacing: 0.02em;
+  text-align: center;
 }
 
 .roleta-novos-pointer {
@@ -470,57 +544,110 @@ function closeResult() {
   text-shadow: 0 1px 3px rgba(0,0,0,0.8);
 }
 
+/* Base da roleta (bot1) – em baixo da roda, tipo pedestal */
+/* Base: atrás da roleta (z 1), na frente da cortina (z 0) */
+.roleta-novos-wheel-base {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 0 16px 8px;
+  pointer-events: none;
+}
+/* Base (bot1) encaixada na largura do stage */
+.roleta-novos-wheel-base-img {
+  width: 100%;
+  max-width: 300px;
+  height: auto;
+  object-fit: contain;
+  object-position: center;
+}
+
+/* Área dos detalhes: sem faixa vermelha, só a imagem (bot2) no título */
 .roleta-novos-details {
   position: relative;
   margin: 0 16px 24px;
   flex-shrink: 0;
-}
-.roleta-novos-details-bg {
-  width: 100%;
-  height: auto;
-  display: block;
+  min-height: 120px;
   border-radius: 12px;
+  overflow: visible;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
 }
 .roleta-novos-details-content {
-  position: absolute;
-  inset: 0;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  padding: 24px 20px 28px;
+  position: relative;
+  padding: 16px 16px 24px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: flex-start;
   pointer-events: none;
 }
-.roleta-novos-details-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0 0 16px 0;
-  font-size: 1rem;
-  font-weight: 700;
-  color: #fff;
-}
-.roleta-novos-coin {
-  width: 28px;
+/* Imagem (bot2) encaixada no bloco de conteúdo */
+.roleta-novos-details-content-bg {
+  position: absolute;
+  left: 50%;
+  top: calc(50% - 24px);
+  transform: translate(-50%, -50%);
+  width: 100%;
+  max-width: 300px;
   height: auto;
   object-fit: contain;
+  object-position: center;
+  z-index: 0;
+}
+/* Texto contido na faixa da imagem (bot2): mesma largura útil */
+.roleta-novos-details-title {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 0 10px 0;
+  width: 100%;
+  max-width: 250px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.4);
+}
+.roleta-novos-details-title-text {
+  position: relative;
+  z-index: 2;
+  text-align: center;
 }
 .roleta-novos-rules {
+  position: relative;
+  z-index: 2;
   margin: 0;
-  padding-left: 20px;
+  padding-left: 18px;
+  padding-right: 8px;
   color: #fff;
-  font-size: 0.8rem;
-  line-height: 1.5;
+  font-size: 0.65rem;
+  line-height: 1.4;
   text-align: left;
   width: 100%;
-  max-width: 100%;
+  max-width: 250px;
+  box-sizing: border-box;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  text-shadow: 0 1px 1px rgba(0,0,0,0.3);
 }
 .roleta-novos-rules li {
-  margin-bottom: 8px;
+  margin-bottom: 6px;
+}
+/* Faixa base azul/dourada no pé do palanque */
+.roleta-novos-details-base {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 8px;
+  background: linear-gradient(180deg, #1a237e 0%, #283593 50%, #d4af37 100%);
+  border-radius: 0 0 8px 8px;
 }
 
 /* Result modal */

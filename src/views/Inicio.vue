@@ -1,19 +1,25 @@
 <template>
   <ion-page>
-    <!-- Banner "Baixe Nosso APP" no topo -->
-    <div v-if="showAppBanner" class="app-download-banner">
-      <ion-icon name="download-outline" class="app-banner-icon" />
-      <span class="app-banner-text">Baixe Nosso APP, Ganhe Super Prêmios!</span>
-      <ion-button size="small" color="warning" class="instalar-btn" @click="installApp">Instalar</ion-button>
-      <ion-button fill="clear" size="small" class="close-banner" @click="closeBanner">✕</ion-button>
-    </div>
-
     <ion-header>
+      <!-- Banner "Baixe Nosso APP" - acima da logo, visível até o usuário clicar no X -->
+      <div v-if="showAppBanner" class="app-download-banner">
+        <button type="button" class="close-banner" @click="closeBanner" aria-label="Fechar">✕</button>
+        <img :src="logoUrl" alt="" class="app-banner-icon" @error="e => (e.target.src = '/s5/app-icon/1222508/LOGO.jpg')" />
+        <div class="app-banner-text-wrap">
+          <span class="app-banner-line1">Baixe Nosso APP,</span>
+          <span class="app-banner-line2">Ganhe Super Prêmios!</span>
+        </div>
+        <ion-icon name="cash" class="app-banner-prize-icon" />
+        <button type="button" class="instalar-btn" @click="installApp">
+          <ion-icon name="download-outline" />
+          <span>Instalar</span>
+        </button>
+      </div>
       <ion-toolbar class="header-toolbar header-gradient">
         <ion-buttons slot="start">
           <div class="header-logo-wrap">
             <img :src="logoUrl" alt="" class="header-logo" @error="e => (e.target.src = '/s5/app-icon/1222508/LOGO.jpg')" />
-            <span class="header-site-name">{{ siteName }}</span>
+            <span v-if="!hasCustomLogo" class="header-site-name">{{ siteName }}</span>
           </div>
         </ion-buttons>
         <ion-buttons slot="end">
@@ -22,6 +28,9 @@
             <ion-button @click="$router.push('/main/register/')" class="btn-registro">REGISTRO R$+99</ion-button>
           </template>
           <template v-else>
+            <ion-button fill="clear" size="small" class="btn-roleta-novos" @click="openRoletaNovos" title="Roleta de Novos">
+              <ion-icon name="gift-outline" />
+            </ion-button>
             <span class="header-balance" @click="$router.push('/main/perfil/')">R$ {{ balanceFormatted }}</span>
             <ion-button @click="$router.push('/main/perfil/')" class="btn-perfil">
               <ion-icon name="person-circle-outline" />
@@ -79,6 +88,15 @@
         <ion-icon name="chevron-forward" class="caixa-arrow" />
       </div>
 
+      <!-- Roleta principal (sempre visível para usuários logados) -->
+      <div v-if="isLoggedIn" class="caixa-tesouro roleta-card" @click="$router.push('/main/roleta/')">
+        <ion-icon name="diamond" class="caixa-icon" />
+        <div class="caixa-text-wrap">
+          <span class="caixa-text">Ganhe R$100 Grátis! Gire a Roleta e ganhe prêmios</span>
+        </div>
+        <ion-icon name="chevron-forward" class="caixa-arrow" />
+      </div>
+
       <!-- Banners promocionais (GIFs) -->
       <div class="promo-banners">
         <div class="promo-card convide">
@@ -112,7 +130,7 @@
         <div class="jackpot-stripes"></div>
         <img :src="jackpotBg" alt="JACKPOT" class="jackpot-bg-img" />
         <!-- Mina Misteriosa -->
-        <div class="mina-misteriosa-card" @click="$router.push('/main/roleta/')">
+        <div class="mina-misteriosa-card" @click="goToRoleta">
           <div class="mina-misteriosa-img-wrap">
             <img src="/images/mina-misteriosa.png" alt="Mina Misteriosa" class="mina-misteriosa-img" />
             <span class="mina-misteriosa-timer">{{ minaTimerFormatted }}</span>
@@ -276,6 +294,7 @@
     </ion-content>
     <GameIframeModal :url="gameUrl" @close="closeGame" />
     <RoletaNovosModal :show="showRoletaNovosModal" :segments="roletaNovosSegments" @close="closeRoletaNovos" />
+    <BonusDiarioModal :show="showBonusDiarioModal" @close="closeBonusDiario" @cta="onBonusDiarioCta" />
   </ion-page>
 </template>
 
@@ -290,21 +309,25 @@ import jackpotCoin from '@/assets/coin-36-DzGEC43m.png'
 import { useRouter } from 'vue-router'
 import { useSettings } from '@/composables/useSettings'
 import { useAfiliado } from '@/composables/useAfiliado'
+import { useToast } from '@/composables/useToast'
 import { useGamesCatalog } from '@/composables/useGamesCatalog'
 import { useRanking } from '@/composables/useRanking'
 import { useGameIframe } from '@/composables/useGameIframe'
 import GameIframeModal from '@/components/GameIframeModal.vue'
 import RoletaNovosModal from '@/components/RoletaNovosModal.vue'
+import BonusDiarioModal from '@/components/BonusDiarioModal.vue'
 import BannerCarousel from '@/components/BannerCarousel.vue'
 import { apiUrl } from '@/config/api'
 
 const router = useRouter()
+const toast = useToast()
 const showRoletaNovosModal = ref(false)
 const roletaNovosSegments = ref([])
+const showBonusDiarioModal = ref(false)
 
 async function loadRoletaNovosConfig() {
   try {
-    const r = await fetch(apiUrl('/api/roleta/config'))
+    const r = await fetch(apiUrl('/api/roleta/config'), { cache: 'no-store' })
     const data = await r.json()
     const segs = data.segments
     if (Array.isArray(segs) && segs.length === 8) {
@@ -338,14 +361,44 @@ function closeRoletaNovos() {
   sessionStorage.removeItem('showRoletaNovos')
   if (isLoggedIn.value) refresh()
 }
-const { gameUrl, openGame, closeGame } = useGameIframe()
-const { logoUrl, bannerUrl, siteName } = useSettings()
 
-const bannerSlides = computed(() => [
-  { img: bannerUrl.value || '/s5/1770954153806/9999.jpg', alt: 'Banner A73', title: 'COM AMIGOS COMPARTILHE R$100', cta: 'SAQUE RÁPIDO' },
-  { img: '/s5/1770954153806/9999.jpg', alt: 'Promo', title: 'GANHE 1 SAQUE R$650', cta: 'CONVIDAR' },
-  { img: '/images/download.gif', alt: 'VIP', title: 'BÔNUS LOGIN ATÉ R$899', cta: 'ENTRAR' }
-])
+function closeBonusDiario() {
+  showBonusDiarioModal.value = false
+  sessionStorage.removeItem('showBonusDiario')
+  maybeShowRoletaNovosAfterBonusDiario()
+}
+
+function onBonusDiarioCta() {
+  closeBonusDiario()
+  router.push('/main/roleta/')
+}
+
+async function maybeShowBonusDiario() {
+  const fromLogin = sessionStorage.getItem('showBonusDiario') === '1'
+  if (!fromLogin || !isLoggedIn.value) return
+  const semLembretes = localStorage.getItem('bonus_diario_sem_lembretes')
+  const today = new Date().toDateString()
+  if (semLembretes === today) return
+  showBonusDiarioModal.value = true
+  sessionStorage.removeItem('showBonusDiario')
+}
+
+async function openRoletaNovos() {
+  const eligible = await checkRoletaNovosEligible()
+  if (eligible) {
+    showRoletaNovosModal.value = true
+  } else {
+    toast.warning('Você já utilizou a Roleta de Novos.')
+  }
+}
+const { gameUrl, openGame, closeGame } = useGameIframe()
+const { logoUrl, hasCustomLogo, bannerUrl, siteName } = useSettings()
+
+// Apenas o banner configurado no Admin (Tema → Mídia)
+const bannerSlides = computed(() => {
+  const img = bannerUrl.value || '/s5/1770954153806/9999.jpg'
+  return [{ img, alt: 'Banner', title: 'COM AMIGOS COMPARTILHE R$100', cta: 'SAQUE RÁPIDO' }]
+})
 
 function onBannerCta() {
   router.push('/main/withdraw/')
@@ -410,6 +463,14 @@ function openSupport() {
   window.open('https://wa.me/', '_blank')
 }
 
+function goToRoleta() {
+  if (!isLoggedIn.value) {
+    router.push('/main/login/')
+    return
+  }
+  router.push('/main/roleta/')
+}
+
 function runJackpotBurst() {
   if (!showJackpot.value) return
   jackpotBurstInterval = setInterval(() => {
@@ -425,19 +486,16 @@ function runJackpotBurst() {
 onMounted(async () => {
   checkLogin()
   if (isLoggedIn.value) refresh()
-  loadRoletaNovosConfig()
-  if (sessionStorage.getItem('showRoletaNovos') === '1') {
-    const eligible = await checkRoletaNovosEligible()
-    if (eligible) {
-      showRoletaNovosModal.value = true
-    } else {
-      sessionStorage.removeItem('showRoletaNovos')
-    }
-  }
+  await loadRoletaNovosConfig()
+  await maybeShowBonusDiario()
+  await maybeShowRoletaNovos()
   loadCatalog()
   loadRanking()
   if (localStorage.getItem('a73_app_banner_hidden') === '1') {
     showAppBanner.value = false
+  }
+  if (localStorage.getItem('a73_jackpot_hidden') === '1') {
+    showJackpot.value = false
   }
   if (showJackpot.value) {
     runJackpotBurst()
@@ -448,10 +506,43 @@ onMounted(async () => {
   }, 1000)
 })
 
-onIonViewWillEnter(() => {
+async function maybeShowRoletaNovos() {
+  const fromLogin = sessionStorage.getItem('showRoletaNovos') === '1'
+  const firstVisit = !sessionStorage.getItem('roleta_novos_offer_seen')
+  const hasBonusDiario = sessionStorage.getItem('showBonusDiario') === '1'
+  if (fromLogin && hasBonusDiario) {
+    // Mostra RoletaNovos depois que o usuário fechar o BonusDiario
+    return
+  }
+  if (fromLogin) {
+    const eligible = await checkRoletaNovosEligible()
+    if (eligible) showRoletaNovosModal.value = true
+    sessionStorage.removeItem('showRoletaNovos')
+  } else if (firstVisit && !isLoggedIn.value) {
+    sessionStorage.setItem('roleta_novos_offer_seen', '1')
+    showRoletaNovosModal.value = true
+  }
+}
+
+async function maybeShowRoletaNovosAfterBonusDiario() {
+  if (sessionStorage.getItem('showRoletaNovos') === '1') {
+    const eligible = await checkRoletaNovosEligible()
+    if (eligible) showRoletaNovosModal.value = true
+    sessionStorage.removeItem('showRoletaNovos')
+  }
+}
+
+onIonViewWillEnter(async () => {
   checkLogin()
   if (isLoggedIn.value) refresh()
-  loadRoletaNovosConfig()
+  await loadRoletaNovosConfig()
+  // Só verificar popups se veio do login/registro - evita mostrar a cada clique em Início
+  if (sessionStorage.getItem('showBonusDiario') === '1') {
+    await maybeShowBonusDiario()
+  }
+  if (sessionStorage.getItem('showRoletaNovos') === '1') {
+    await maybeShowRoletaNovos()
+  }
 })
 
 onUnmounted(() => {
@@ -501,39 +592,74 @@ function closeBanner() {
 .app-download-banner {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 10px 16px;
-  margin: 8px 16px 0;
-  background: linear-gradient(90deg, rgba(139,92,246,0.35), rgba(168,85,247,0.2), rgba(255,255,255,0.08));
-  border-radius: 20px;
-  border: 1px solid rgba(139,92,246,0.3);
-  box-shadow: 0 0 15px rgba(168, 85, 247, 0.2);
-  gap: 10px;
-}
-.app-banner-text {
-  font-family: var(--font-smooch);
-  flex: 1;
-  font-size: 0.85rem;
-  color: var(--text);
-  font-weight: 500;
-}
-.instalar-btn {
-  --background: var(--primary);
-  --color: #000;
-  font-weight: 700;
-  text-transform: uppercase;
-  flex-shrink: 0;
+  padding: max(env(safe-area-inset-top), 12px) 16px 12px 40px;
+  margin: 0;
+  background: #5f2b8a;
+  gap: 12px;
+  position: relative;
+  z-index: 1;
 }
 .close-banner {
-  --color: var(--text-muted);
-  min-width: 32px;
+  position: absolute;
+  top: 8px;
+  left: 12px;
+  background: none;
+  border: none;
+  color: #ffeb3b;
+  font-size: 1.1rem;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 4px;
+  line-height: 1;
+  z-index: 2;
 }
+.app-banner-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 10px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+.app-banner-text-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.app-banner-line1, .app-banner-line2 {
+  font-family: var(--font-smooch);
+  font-size: 0.9rem;
+  color: #fff;
+  font-weight: 600;
+}
+.app-banner-prize-icon {
+  font-size: 1.5rem;
+  color: #fbbf24;
+  flex-shrink: 0;
+}
+.instalar-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+  background: linear-gradient(180deg, #a5d6a7, #81c784);
+  border: none;
+  border-radius: 12px;
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.9rem;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.instalar-btn ion-icon { font-size: 1.2rem; }
 
 .header-toolbar {
   --background: var(--card);
   --color: var(--text);
   --border-color: var(--border);
   border-bottom: 1px solid var(--border);
+  padding-top: max(env(safe-area-inset-top), 8px);
+  min-height: calc(56px + max(env(safe-area-inset-top), 8px));
 }
 .header-toolbar.header-gradient {
   --background: linear-gradient(135deg, #670d98 0%, #640c95 50%, #5B2875 100%);
@@ -596,6 +722,14 @@ function closeBanner() {
 }
 .btn-perfil ion-icon {
   vertical-align: middle;
+}
+.btn-roleta-novos {
+  --padding-start: 8px;
+  --padding-end: 8px;
+  --color: var(--primary);
+}
+.btn-roleta-novos ion-icon {
+  font-size: 1.4rem;
 }
 .header-balance {
   display: inline-flex;
@@ -839,6 +973,11 @@ function closeBanner() {
   font-size: 1.2rem;
   color: var(--primary);
   flex-shrink: 0;
+}
+.roleta-card {
+  background: linear-gradient(90deg, rgba(234,179,8,0.35), rgba(251,191,36,0.2));
+  border-color: rgba(234,179,8,0.5);
+  box-shadow: 0 0 15px rgba(251,191,36,0.2);
 }
 
 .promo-banners {

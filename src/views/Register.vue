@@ -117,6 +117,8 @@ async function handleRegister() {
     initFromRegistro(account, pidRef)
     if (pidRef) localStorage.removeItem('a73_pid_ref') // usado uma vez
     await refresh()
+    sessionStorage.setItem('showRoletaNovos', '1')
+    sessionStorage.setItem('showBonusDiario', '1')
     toast.success('Conta criada!')
     router.push('/main/inicio/')
   } catch (e) {

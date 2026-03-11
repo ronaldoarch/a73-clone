@@ -43,6 +43,7 @@ import OriginalSpa from './views/OriginalSpa.vue'
 import Jogos from './views/Jogos.vue'
 import Jogo from './views/Jogo.vue'
 import Roleta from './views/Roleta.vue'
+import Eventos from './views/Eventos.vue'
 
 const routes = [
   { path: '/', redirect: '/main/inicio/' },
@@ -69,6 +70,7 @@ const routes = [
       { path: 'menu/', name: 'menu', component: Menu },
       { path: 'jogos/', name: 'jogos', component: Jogos },
       { path: 'roleta/', name: 'roleta', component: Roleta },
+      { path: 'eventos/', name: 'eventos', component: Eventos },
     ]
   },
   { path: '/admin/:section?', name: 'admin', component: Admin },

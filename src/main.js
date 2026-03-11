@@ -120,3 +120,7 @@ const app = createApp(App)
 app.use(IonicVue)
 app.use(router)
 app.mount('#app')
+// Esconde loading assim que o app monta (fallback caso onMounted do App.vue atrase)
+if (typeof window.__hideAppLoading === 'function') {
+  requestAnimationFrame(() => window.__hideAppLoading())
+}

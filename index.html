@@ -38,6 +38,11 @@
           var el = document.getElementById('app-loading');
           if (el) { el.style.opacity = '0'; el.style.pointerEvents = 'none'; setTimeout(function() { el.remove(); }, 300); }
         };
+        // Fallback: esconde loading após 10s se o app travar
+        setTimeout(function() {
+          var el = document.getElementById('app-loading');
+          if (el) window.__hideAppLoading && window.__hideAppLoading();
+        }, 10000);
       });
     </script>
   </body>

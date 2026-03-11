@@ -25,9 +25,14 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         globIgnores: [
           '**/hot-platform-36-gold.svg'
-          // index.html e index-*.js no precache (navigateFallback exige) - cada deploy gera novo SW
         ],
-        maximumFileSizeToCacheInBytes: 20 * 1024 * 1024 // 20 MB - assets legados podem ser grandes
+        maximumFileSizeToCacheInBytes: 20 * 1024 * 1024,
+        // Nunca cachear /api e /uploads (evita Cache.put em 404 e dados desatualizados)
+        navigateFallbackDenylist: [/^\/api/, /^\/uploads/],
+        runtimeCaching: [
+          { urlPattern: /\/api\//, handler: 'NetworkOnly' },
+          { urlPattern: /\/uploads\//, handler: 'NetworkOnly' }
+        ]
       }
     })
   ],

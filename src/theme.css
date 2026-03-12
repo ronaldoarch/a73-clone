@@ -546,6 +546,8 @@ ion-tab-bar {
   --background: var(--ion-card-background);
   --border: 1px solid var(--border);
   border-top: 1px solid var(--border);
+  position: relative;
+  z-index: 101;
 }
 
 ion-tab-button {

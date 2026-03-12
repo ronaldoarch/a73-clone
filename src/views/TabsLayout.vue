@@ -98,7 +98,6 @@ import { IonTabs, IonTabBar, IonTabButton, IonRouterOutlet, IonLabel, IonIcon } 
 .tab-roleta-btn {
   --padding-top: 8px;
   --padding-bottom: 4px;
-  margin-top: -4px;
 }
 .tab-roleta-btn::part(native) {
   background: transparent;

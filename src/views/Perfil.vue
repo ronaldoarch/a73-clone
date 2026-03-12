@@ -130,6 +130,11 @@
             Código de Resgate
             <ion-icon name="chevron-forward" />
           </a>
+          <a href="#" class="perfil-menu-item" @click.prevent="showChangePwd = true">
+            <ion-icon name="lock-closed" />
+            Alterar Senha
+            <ion-icon name="chevron-forward" />
+          </a>
           <a href="#" class="perfil-menu-item">
             <ion-icon name="shield-checkmark" />
             Centro de Segurança
@@ -142,6 +147,26 @@
         </div>
       </div>
     </ion-content>
+
+    <!-- Modal alterar senha -->
+    <div v-if="showChangePwd" class="fund-password-overlay" @click.self="showChangePwd = false">
+      <div class="fund-password-modal-content perfil-change-pwd-modal">
+        <h3 class="perfil-change-pwd-title">Alterar Senha</h3>
+        <div class="perfil-change-pwd-fields">
+          <input v-model="changePwdCurrent" type="password" class="perfil-change-pwd-input" placeholder="Senha atual" autocomplete="current-password" />
+          <input v-model="changePwdNew" type="password" class="perfil-change-pwd-input" placeholder="Nova senha (mín. 6 caracteres)" autocomplete="new-password" />
+          <input v-model="changePwdConfirm" type="password" class="perfil-change-pwd-input" placeholder="Confirmar nova senha" autocomplete="new-password" />
+        </div>
+        <div class="perfil-change-pwd-actions">
+          <ion-button expand="block" class="perfil-change-pwd-btn" :disabled="changePwdLoading" @click="submitChangePwd">
+            {{ changePwdLoading ? 'Aguarde...' : 'Confirmar' }}
+          </ion-button>
+          <ion-button expand="block" fill="outline" class="perfil-change-pwd-btn-cancel" @click="showChangePwd = false">
+            Cancelar
+          </ion-button>
+        </div>
+      </div>
+    </div>
 
     <!-- Modal senha de fundo (ao clicar em Saque) - overlay fora do ion-content -->
     <div v-if="showSaqueModal" class="fund-password-overlay" @click.self="showSaqueModal = false">
@@ -168,6 +193,8 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAfiliado } from '@/composables/useAfiliado'
+import { afiliadoApi } from '@/api/afiliado'
+import { useToast } from '@/composables/useToast'
 import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButton, IonIcon,
   onIonViewWillEnter
@@ -186,6 +213,42 @@ const currentWager = ref('0,00')
 const requiredWager = ref('100,00')
 const vipProgress = ref(0)
 const showSaqueModal = ref(false)
+const toast = useToast()
+
+// Alterar senha
+const showChangePwd = ref(false)
+const changePwdCurrent = ref('')
+const changePwdNew = ref('')
+const changePwdConfirm = ref('')
+const changePwdLoading = ref(false)
+
+async function submitChangePwd() {
+  if (!changePwdCurrent.value || !changePwdNew.value) {
+    toast.error('Preencha todos os campos')
+    return
+  }
+  if (changePwdNew.value.length < 6) {
+    toast.error('Nova senha deve ter no mínimo 6 caracteres')
+    return
+  }
+  if (changePwdNew.value !== changePwdConfirm.value) {
+    toast.error('As senhas não coincidem')
+    return
+  }
+  changePwdLoading.value = true
+  try {
+    await afiliadoApi.changePassword({ currentPassword: changePwdCurrent.value, newPassword: changePwdNew.value })
+    toast.success('Senha alterada com sucesso!')
+    showChangePwd.value = false
+    changePwdCurrent.value = ''
+    changePwdNew.value = ''
+    changePwdConfirm.value = ''
+  } catch (e) {
+    toast.error(e.message)
+  } finally {
+    changePwdLoading.value = false
+  }
+}
 
 function onConfirmarSenhaFundo() {
   showSaqueModal.value = false
@@ -652,4 +715,37 @@ function logout() {
   --border-radius: 12px;
   height: 48px;
 }
+.perfil-change-pwd-modal {
+  padding: 24px 20px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.perfil-change-pwd-title {
+  color: #fff;
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin: 0;
+  text-align: center;
+}
+.perfil-change-pwd-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.perfil-change-pwd-input {
+  width: 100%;
+  padding: 10px 14px;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 10px;
+  color: #fff;
+  font-size: 0.95rem;
+  outline: none;
+  box-sizing: border-box;
+}
+.perfil-change-pwd-input::placeholder { color: #9ca3af; }
+.perfil-change-pwd-actions { display: flex; flex-direction: column; gap: 8px; }
+.perfil-change-pwd-btn { --background: #22c55e; --color: #fff; font-weight: 700; }
+.perfil-change-pwd-btn-cancel { --border-color: rgba(255,255,255,0.3); --color: #9ca3af; }
 </style>

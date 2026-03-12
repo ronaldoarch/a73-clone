@@ -78,8 +78,17 @@
           <p class="withdraw-hint">Informe a chave PIX onde deseja receber o valor</p>
         </div>
 
-        <ion-button class="withdraw-submit-btn" expand="block" @click="retirarAgora" :disabled="loading">
-          {{ loading ? 'Processando...' : 'Retirar Agora' }}
+        <!-- Painel de rollover -->
+        <div v-if="rolloverPendente > 0" class="withdraw-rollover-aviso">
+          <ion-icon name="lock-closed" class="withdraw-rollover-icon" />
+          <div class="withdraw-rollover-text">
+            <strong>Saque bloqueado por rollover</strong>
+            <span>Aposte mais <strong>R$ {{ rolloverPendente.toFixed(2).replace('.', ',') }}</strong> para liberar o saque de bônus.</span>
+          </div>
+        </div>
+
+        <ion-button class="withdraw-submit-btn" expand="block" @click="retirarAgora" :disabled="loading || rolloverPendente > 0">
+          {{ loading ? 'Processando...' : rolloverPendente > 0 ? 'Bloqueado (rollover pendente)' : 'Retirar Agora' }}
         </ion-button>
       </div>
     </ion-content>
@@ -97,7 +106,7 @@ import { useSettings } from '@/composables/useSettings'
 import { afiliadoApi } from '@/api/afiliado'
 import { useToast } from '@/composables/useToast'
 
-const { balanceFormatted, balance, refresh } = useAfiliado()
+const { balanceFormatted, balance, rolloverPendente, refresh } = useAfiliado()
 const { saqueMin, saqueMax } = useSettings()
 const toast = useToast()
 const loading = ref(false)
@@ -372,4 +381,29 @@ onIonViewWillEnter(() => {
   height: 52px;
   margin-top: 24px;
 }
+.withdraw-rollover-aviso {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-top: 20px;
+  padding: 14px 16px;
+  background: rgba(251, 191, 36, 0.10);
+  border: 1px solid rgba(251, 191, 36, 0.45);
+  border-radius: 12px;
+}
+.withdraw-rollover-icon {
+  font-size: 1.4rem;
+  color: #fbbf24;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.withdraw-rollover-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.88rem;
+  color: #fbbf24;
+}
+.withdraw-rollover-text strong { font-weight: 700; }
+.withdraw-rollover-text span { color: #e5e7eb; }
 </style>

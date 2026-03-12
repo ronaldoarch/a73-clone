@@ -75,6 +75,18 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')))
 
 // POST webhook Gatebox - recebe eventos PIX (PIX_PAY_IN, etc.) - sem auth
 app.post('/api/webhook/gatebox', async (req, res) => {
+  // Validação de token: se GATEBOX_WEBHOOK_TOKEN estiver definido, exige
+  // Authorization: Bearer <token> ou X-Webhook-Token: <token>
+  const webhookToken = process.env.GATEBOX_WEBHOOK_TOKEN
+  if (webhookToken) {
+    const authHeader = req.headers['authorization'] || ''
+    const tokenHeader = req.headers['x-webhook-token'] || req.headers['x-gatebox-token'] || ''
+    const received = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : tokenHeader
+    if (received !== webhookToken) {
+      console.warn('Webhook Gatebox: token inválido, request rejeitado')
+      return res.status(401).json({ ok: false, error: 'Unauthorized' })
+    }
+  }
   const body = req.body || {}
   const eventType = (body.type || body.eventType || body.event || '').toUpperCase()
   let externalId = body.externalId || body.data?.externalId || body.transactionId || body.id ||
@@ -447,6 +459,29 @@ app.post('/api/frontend/trpc/user.register', async (req, res) => {
   }
 })
 
+// POST troca de senha do usuário
+app.post('/api/user/change-password', authMiddleware, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body?.json || req.body || {}
+    if (!currentPassword || !newPassword) {
+      return res.json({ error: { message: 'Senha atual e nova senha são obrigatórias' } })
+    }
+    if (typeof newPassword !== 'string' || newPassword.length < 6) {
+      return res.json({ error: { message: 'Nova senha deve ter no mínimo 6 caracteres' } })
+    }
+    const user = await prisma.user.findUnique({ where: { id: req.userId } })
+    if (!user) return res.status(401).json({ error: { message: 'Usuário não encontrado' } })
+    const ok = await bcrypt.compare(currentPassword, user.password)
+    if (!ok) return res.json({ error: { message: 'Senha atual incorreta' } })
+    const hash = await bcrypt.hash(newPassword, 10)
+    await prisma.user.update({ where: { id: req.userId }, data: { password: hash, updatedAt: new Date() } })
+    return res.json({ result: { data: { json: { ok: true } } } })
+  } catch (e) {
+    console.error('change-password:', e)
+    return res.status(500).json({ error: { message: e.message } })
+  }
+})
+
 // Upload logo (requer admin)
 app.post('/api/upload/logo', upload.single('file'), adminAuthMiddleware, async (req, res) => {
   try {
@@ -776,6 +811,7 @@ app.post('/api/deposito', authMiddleware, async (req, res) => {
 // Promo: critérios para "número de promoção efetiva"
 const PROMO_DEP_MIN = 30
 const PROMO_APOSTA_MIN = 600
+const PROMO_EXPIRA_DIAS = 180 // bônus promo expira 180 dias após o registro
 
 // POST reclamar bônus Promo - usa "promoção efetiva": subordinados com dep≥30 e apostas≥600
 app.post('/api/afiliado/reclamar-promo', authMiddleware, async (req, res) => {
@@ -793,7 +829,16 @@ app.post('/api/afiliado/reclamar-promo', authMiddleware, async (req, res) => {
     ]
     const r = recompensasPromo.find(x => x.pessoas === p)
     if (!r) return res.json({ error: { message: 'Recompensa não encontrada' } })
-    const af = await ensureAfiliado(req.userId, (await prisma.user.findUnique({ where: { id: req.userId } }))?.account || '')
+    const user = await prisma.user.findUnique({ where: { id: req.userId } })
+    const af = await ensureAfiliado(req.userId, user?.account || '')
+    // Verifica expiração: promo só disponível nos primeiros PROMO_EXPIRA_DIAS dias
+    const horaReg = af.horaRegisto || user?.createdAt
+    if (horaReg) {
+      const diasDesdeReg = (Date.now() - new Date(horaReg).getTime()) / (24 * 60 * 60 * 1000)
+      if (diasDesdeReg > PROMO_EXPIRA_DIAS) {
+        return res.json({ error: { message: `Bônus Promo expirado. Disponível apenas nos primeiros ${PROMO_EXPIRA_DIAS} dias após o registro.` } })
+      }
+    }
     const subordinados = await prisma.user.findMany({
       where: { indicatorId: req.userId },
       include: { afiliado: true }

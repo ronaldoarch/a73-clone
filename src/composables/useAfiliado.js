@@ -34,6 +34,13 @@ const defaultData = () => ({
   nivelVip: 0,
   bonusVipColetados: [],
   bonusVipReclamar: 0,
+  rolloverPendente: 0,
+  vipDiarioColetadoEm: null,
+  vipSemanalColetadoEm: null,
+  vipMensalColetadoEm: null,
+  vipDiarioDisp: 0,
+  vipSemanalDisp: 0,
+  vipMensalDisp: 0,
   // Misterioso
   horaRegisto: null,
   depositoMisterioso: 0,
@@ -352,6 +359,52 @@ export function useAfiliado() {
     return true
   }
 
+  /** VIP bônus periódico */
+  const rolloverPendente = computed({ get: () => state.value.rolloverPendente ?? 0, set: v => { state.value.rolloverPendente = v } })
+  const vipDiarioDisp = computed(() => state.value.vipDiarioDisp ?? 0)
+  const vipSemanalDisp = computed(() => state.value.vipSemanalDisp ?? 0)
+  const vipMensalDisp = computed(() => state.value.vipMensalDisp ?? 0)
+
+  function _podeColetar(coletadoEm, tipo) {
+    if (!coletadoEm) return true
+    const ultima = new Date(coletadoEm)
+    const agora = new Date()
+    if (tipo === 'diario') return ultima.toDateString() !== agora.toDateString()
+    if (tipo === 'semanal') {
+      const semana = d => { const c = new Date(d); c.setHours(0,0,0,0); c.setDate(c.getDate() - c.getDay()); return c.getTime() }
+      return semana(ultima) !== semana(agora)
+    }
+    return ultima.getFullYear() !== agora.getFullYear() || ultima.getMonth() !== agora.getMonth()
+  }
+
+  const podeColetarVipDiario = computed(() => (state.value.nivelVip || 0) > 0 && _podeColetar(state.value.vipDiarioColetadoEm, 'diario'))
+  const podeColetarVipSemanal = computed(() => (state.value.nivelVip || 0) > 0 && _podeColetar(state.value.vipSemanalColetadoEm, 'semanal'))
+  const podeColetarVipMensal = computed(() => (state.value.nivelVip || 0) > 0 && _podeColetar(state.value.vipMensalColetadoEm, 'mensal'))
+
+  async function coletarVipDiario() {
+    try {
+      const r = await afiliadoApi.coletarVipDiario()
+      await refresh()
+      return r
+    } catch (e) { throw e }
+  }
+
+  async function coletarVipSemanal() {
+    try {
+      const r = await afiliadoApi.coletarVipSemanal()
+      await refresh()
+      return r
+    } catch (e) { throw e }
+  }
+
+  async function coletarVipMensal() {
+    try {
+      const r = await afiliadoApi.coletarVipMensal()
+      await refresh()
+      return r
+    } catch (e) { throw e }
+  }
+
   /** Registrar depósito (atualiza Misterioso, comissão, apostas VIP, etc.) */
   async function registrarDeposito(valor) {
     if (!valor || valor <= 0) return
@@ -415,6 +468,16 @@ export function useAfiliado() {
     receberComissao,
     reclamarMisterioso,
     coletarVip,
+    coletarVipDiario,
+    coletarVipSemanal,
+    coletarVipMensal,
+    podeColetarVipDiario,
+    podeColetarVipSemanal,
+    podeColetarVipMensal,
+    rolloverPendente,
+    vipDiarioDisp,
+    vipSemanalDisp,
+    vipMensalDisp,
     novosSubordinados,
     valorDeposito,
     numDepositos,

@@ -63,6 +63,18 @@ export const afiliadoApi = {
     return trpcPost('/api/afiliado/coletar-vip', {})
   },
 
+  async coletarVipDiario() {
+    return trpcPost('/api/afiliado/coletar-vip-diario', {})
+  },
+
+  async coletarVipSemanal() {
+    return trpcPost('/api/afiliado/coletar-vip-semanal', {})
+  },
+
+  async coletarVipMensal() {
+    return trpcPost('/api/afiliado/coletar-vip-mensal', {})
+  },
+
   async getPid() {
     const r = await trpcGet('/api/afiliado/pid')
     return r?.pid

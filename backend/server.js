@@ -500,6 +500,23 @@ async function checkMisteriosoReset(af, user) {
   return af
 }
 
+// Tabelas de bônus VIP periódico (índice = nível 0-15)
+const BONUS_VIP_DIARIO  = [0, 0.10, 0.30, 0.50, 0.80, 1.50, 2.00, 3.00,  8.00,  13.00,  18.00,  28.00,  38.00,  43.00,  48.00,  53.00]
+const BONUS_VIP_SEMANAL = [0, 0.50, 1.00, 2.00, 3.00, 5.00, 7.00, 10.00, 30.00,  50.00,  70.00, 110.00, 150.00, 170.00, 190.00, 210.00]
+const BONUS_VIP_MENSAL  = [0, 1.00, 3.00, 5.00, 8.00, 15.00, 20.00, 30.00, 80.00, 130.00, 180.00, 280.00, 380.00, 430.00, 480.00, 530.00]
+
+// Helpers de cooldown VIP periódico
+function mesmodia(a, b) {
+  return a.getUTCFullYear() === b.getUTCFullYear() && a.getUTCMonth() === b.getUTCMonth() && a.getUTCDate() === b.getUTCDate()
+}
+function mesmasemana(a, b) {
+  const inicioSemana = d => { const c = new Date(d); c.setUTCHours(0,0,0,0); c.setUTCDate(c.getUTCDate() - c.getUTCDay()); return c.getTime() }
+  return inicioSemana(a) === inicioSemana(b)
+}
+function mesmomes(a, b) {
+  return a.getUTCFullYear() === b.getUTCFullYear() && a.getUTCMonth() === b.getUTCMonth()
+}
+
 // GET afiliado - retorna dados completos
 app.get('/api/afiliado', authMiddleware, async (req, res) => {
   try {
@@ -541,7 +558,14 @@ app.get('/api/afiliado', authMiddleware, async (req, res) => {
       misteriosoReclamado: af.misteriosoReclamado,
       misteriosoDiasAtivos: af.misteriosoDiasAtivos,
       bonusPromoReclamados: Array.isArray(af.bonusPromoReclamados) ? af.bonusPromoReclamados : [],
-      bonusVipColetados: Array.isArray(af.bonusVipColetados) ? af.bonusVipColetados : []
+      bonusVipColetados: Array.isArray(af.bonusVipColetados) ? af.bonusVipColetados : [],
+      rolloverPendente: af.rolloverPendente ?? 0,
+      vipDiarioColetadoEm: af.vipDiarioColetadoEm?.toISOString?.() || null,
+      vipSemanalColetadoEm: af.vipSemanalColetadoEm?.toISOString?.() || null,
+      vipMensalColetadoEm: af.vipMensalColetadoEm?.toISOString?.() || null,
+      vipDiarioDisp: BONUS_VIP_DIARIO[Math.min(af.nivelVip || 0, 15)],
+      vipSemanalDisp: BONUS_VIP_SEMANAL[Math.min(af.nivelVip || 0, 15)],
+      vipMensalDisp: BONUS_VIP_MENSAL[Math.min(af.nivelVip || 0, 15)]
     }
     return res.json({ result: { data: { json: data } } })
   } catch (e) {
@@ -870,6 +894,69 @@ app.post('/api/afiliado/coletar-vip', authMiddleware, async (req, res) => {
   }
 })
 
+// POST coletar bônus VIP Diário
+app.post('/api/afiliado/coletar-vip-diario', authMiddleware, async (req, res) => {
+  try {
+    const af = await ensureAfiliado(req.userId, (await prisma.user.findUnique({ where: { id: req.userId } }))?.account || '')
+    if (af.nivelVip <= 0) return res.json({ error: { message: 'Nível VIP insuficiente' } })
+    const agora = new Date()
+    if (af.vipDiarioColetadoEm && mesmodia(af.vipDiarioColetadoEm, agora)) {
+      return res.json({ error: { message: 'Bônus diário já coletado hoje' } })
+    }
+    const valor = BONUS_VIP_DIARIO[Math.min(af.nivelVip, 15)]
+    await prisma.afiliadoData.update({
+      where: { userId: req.userId },
+      data: { balance: { increment: valor }, rolloverPendente: { increment: valor }, vipDiarioColetadoEm: agora, updatedAt: agora }
+    })
+    return res.json({ result: { data: { json: { ok: true, valor } } } })
+  } catch (e) {
+    console.error('coletar-vip-diario:', e)
+    return res.status(500).json({ error: { message: e.message } })
+  }
+})
+
+// POST coletar bônus VIP Semanal
+app.post('/api/afiliado/coletar-vip-semanal', authMiddleware, async (req, res) => {
+  try {
+    const af = await ensureAfiliado(req.userId, (await prisma.user.findUnique({ where: { id: req.userId } }))?.account || '')
+    if (af.nivelVip <= 0) return res.json({ error: { message: 'Nível VIP insuficiente' } })
+    const agora = new Date()
+    if (af.vipSemanalColetadoEm && mesmasemana(af.vipSemanalColetadoEm, agora)) {
+      return res.json({ error: { message: 'Bônus semanal já coletado esta semana' } })
+    }
+    const valor = BONUS_VIP_SEMANAL[Math.min(af.nivelVip, 15)]
+    await prisma.afiliadoData.update({
+      where: { userId: req.userId },
+      data: { balance: { increment: valor }, rolloverPendente: { increment: valor }, vipSemanalColetadoEm: agora, updatedAt: agora }
+    })
+    return res.json({ result: { data: { json: { ok: true, valor } } } })
+  } catch (e) {
+    console.error('coletar-vip-semanal:', e)
+    return res.status(500).json({ error: { message: e.message } })
+  }
+})
+
+// POST coletar bônus VIP Mensal
+app.post('/api/afiliado/coletar-vip-mensal', authMiddleware, async (req, res) => {
+  try {
+    const af = await ensureAfiliado(req.userId, (await prisma.user.findUnique({ where: { id: req.userId } }))?.account || '')
+    if (af.nivelVip <= 0) return res.json({ error: { message: 'Nível VIP insuficiente' } })
+    const agora = new Date()
+    if (af.vipMensalColetadoEm && mesmomes(af.vipMensalColetadoEm, agora)) {
+      return res.json({ error: { message: 'Bônus mensal já coletado este mês' } })
+    }
+    const valor = BONUS_VIP_MENSAL[Math.min(af.nivelVip, 15)]
+    await prisma.afiliadoData.update({
+      where: { userId: req.userId },
+      data: { balance: { increment: valor }, rolloverPendente: { increment: valor }, vipMensalColetadoEm: agora, updatedAt: agora }
+    })
+    return res.json({ result: { data: { json: { ok: true, valor } } } })
+  } catch (e) {
+    console.error('coletar-vip-mensal:', e)
+    return res.status(500).json({ error: { message: e.message } })
+  }
+})
+
 // GET pid (para link de convite)
 app.get('/api/afiliado/pid', authMiddleware, async (req, res) => {
   try {
@@ -989,9 +1076,15 @@ const handleSeamless = async (req, res) => {
         console.warn('gold_api INSUFFICIENT_USER_FUNDS:', { user_code: user_code ? `${String(user_code).slice(0, 4)}***` : null, currentBalance, delta })
         return res.json({ status: 0, msg: 'INSUFFICIENT_USER_FUNDS', user_balance: fmt(currentBalance) })
       }
+      // Decrementa rollover pendente ao apostar (apenas débitos reais)
+      const rolloverDesconto = betReais > 0 && !isDemo ? Math.min(betReais, af.rolloverPendente ?? 0) : 0
       await prisma.afiliadoData.update({
         where: { id: af.id },
-        data: { balance: newBalance, updatedAt: new Date() }
+        data: {
+          balance: newBalance,
+          rolloverPendente: rolloverDesconto > 0 ? { decrement: rolloverDesconto } : undefined,
+          updatedAt: new Date()
+        }
       })
 
       if (txnId) {
@@ -1650,6 +1743,8 @@ app.post('/api/saque', authMiddleware, async (req, res) => {
     const af = await ensureAfiliado(req.userId, user?.account || '')
     const saldo = af.balance ?? 0
     if (saldo < v) return res.json({ error: { message: 'Saldo insuficiente' } })
+    const rollover = af.rolloverPendente ?? 0
+    if (rollover > 0) return res.json({ error: { message: `Requisito de rollover não cumprido. Aposte mais R$ ${rollover.toFixed(2)} para liberar o saque.` } })
 
     const [, withdrawal] = await prisma.$transaction([
       prisma.afiliadoData.update({

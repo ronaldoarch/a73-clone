@@ -118,10 +118,14 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import {
-  IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButton, IonIcon, IonButtons
+  IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButton, IonIcon, IonButtons,
+  onIonViewWillEnter
 } from '@ionic/vue'
+import { useAfiliado } from '@/composables/useAfiliado'
+
+const { valorDeposito, valorSaque, comissaoRecebida, apostaAcumulada, refresh } = useAfiliado()
 
 const tabAtivo = ref('detalhes')
 const filtroPeriodo = ref('Hoje')
@@ -143,12 +147,15 @@ const tiposDetalhes = [
   'Tarefas'
 ]
 
-const depositoAcumulado = ref('0,00')
-const totalRetirada = ref('0,00')
-const totalBonus = ref('0,00')
-const acumuladoApostas = ref('0')
+const depositoAcumulado = computed(() => valorDeposito.value)
+const totalRetirada = computed(() => valorSaque.value)
+const totalBonus = computed(() => comissaoRecebida.value)
+const acumuladoApostas = computed(() => apostaAcumulada.value?.toLocaleString?.('pt-BR', { minimumFractionDigits: 2 }) ?? '0,00')
 const apostasEficazes = ref('0,00')
 const ganhoPerda = ref('0,00')
+
+onMounted(() => { if (localStorage.getItem('token')) refresh() })
+onIonViewWillEnter(() => { if (localStorage.getItem('token')) refresh() })
 
 function toggleFiltro(qual) {
   abertoPeriodo.value = qual === 'periodo' ? !abertoPeriodo.value : false

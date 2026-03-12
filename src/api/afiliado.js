@@ -63,6 +63,18 @@ export const afiliadoApi = {
     return trpcPost('/api/afiliado/coletar-vip', {})
   },
 
+  async coletarVipDiario() {
+    return trpcPost('/api/afiliado/coletar-vip-diario', {})
+  },
+
+  async coletarVipSemanal() {
+    return trpcPost('/api/afiliado/coletar-vip-semanal', {})
+  },
+
+  async coletarVipMensal() {
+    return trpcPost('/api/afiliado/coletar-vip-mensal', {})
+  },
+
   async getPid() {
     const r = await trpcGet('/api/afiliado/pid')
     return r?.pid
@@ -70,5 +82,16 @@ export const afiliadoApi = {
 
   async saque(data) {
     return trpcPost('/api/saque', data)
+  },
+
+  async changePassword({ currentPassword, newPassword }) {
+    const res = await fetch(apiUrl('/api/user/change-password'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      body: JSON.stringify({ json: { currentPassword, newPassword } })
+    })
+    const json = await res.json()
+    if (json.error) throw new Error(json.error.message || 'Erro')
+    return json.result?.data?.json
   }
 }

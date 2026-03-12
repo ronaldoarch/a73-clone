@@ -294,6 +294,11 @@
                   <input v-model.number="appConfig.bonusPrimeiroDepPercent" type="number" min="0" max="100" step="0.5" />
                 </div>
               </div>
+              <div class="form-group">
+                <label>URL do WhatsApp (suporte)</label>
+                <input v-model="appConfig.whatsappUrl" type="url" placeholder="https://wa.me/5511999999999" />
+                <span class="form-hint">Usado nos botões de suporte em toda a plataforma.</span>
+              </div>
               <div class="config-actions">
                 <button type="submit" class="btn btn-primary" :disabled="configSaving">{{ configSaving ? 'Salvando...' : 'Salvar' }}</button>
                 <span v-if="configMsg" class="config-msg" :class="{ error: configError }">{{ configMsg }}</span>
@@ -889,7 +894,7 @@ const saqueActionLoading = ref(null)
 const dashboard = ref({ usersCount: 0, depositsToday: 0, withdrawalsPending: 0, totalDeposits: 0, recentDeposits: [], recentWithdrawals: [] })
 const dashboardLoading = ref(false)
 
-const appConfig = ref({ depositoMin: 10, saqueMin: 20, saqueMax: 40000, roletaMinWithdraw: 100, roletaBonusDays: 3, roletaDailySpins: 1, bonusPrimeiroDep: 0, bonusPrimeiroDepPercent: 0 })
+const appConfig = ref({ depositoMin: 10, saqueMin: 20, saqueMax: 40000, roletaMinWithdraw: 100, roletaBonusDays: 3, roletaDailySpins: 1, bonusPrimeiroDep: 0, bonusPrimeiroDepPercent: 0, whatsappUrl: '' })
 const configLoading = ref(false)
 const configSaving = ref(false)
 const configMsg = ref('')
@@ -972,7 +977,7 @@ async function loadConfig() {
     const data = await r.json()
     appConfig.value = data
   } catch (e) {
-    appConfig.value = { depositoMin: 10, saqueMin: 20, saqueMax: 40000, roletaMinWithdraw: 100, roletaBonusDays: 3, roletaDailySpins: 1, bonusPrimeiroDep: 0, bonusPrimeiroDepPercent: 0 }
+    appConfig.value = { depositoMin: 10, saqueMin: 20, saqueMax: 40000, roletaMinWithdraw: 100, roletaBonusDays: 3, roletaDailySpins: 1, bonusPrimeiroDep: 0, bonusPrimeiroDepPercent: 0, whatsappUrl: '' }
   } finally {
     configLoading.value = false
   }

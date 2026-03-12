@@ -120,6 +120,9 @@ import { ref } from 'vue'
 import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButton, IonIcon, IonButtons
 } from '@ionic/vue'
+import { useSettings } from '@/composables/useSettings'
+
+const { whatsappUrl } = useSettings()
 
 const tabAtivo = ref('suporte')
 const notifCount = ref(5)
@@ -158,10 +161,10 @@ const notificacoes = ref([
 ])
 
 function contatoSuporte() {
-  window.open('https://wa.me/', '_blank')
+  window.open(whatsappUrl.value || 'https://wa.me/', '_blank')
 }
 function contatoWhatsApp() {
-  window.open('https://wa.me/', '_blank')
+  window.open(whatsappUrl.value || 'https://wa.me/', '_blank')
 }
 function contatoTelegram() {
   window.open('https://t.me/', '_blank')

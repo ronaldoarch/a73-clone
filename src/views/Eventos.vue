@@ -126,28 +126,40 @@
               {{ st.label }}
             </button>
           </div>
-          <div class="eventos-vip-tabela">
-            <div class="eventos-vip-tabela-header">
-              <span>Nível</span>
-              <span>Aposta necessária</span>
-              <span>Bônus</span>
-            </div>
-            <div
-              v-for="nivel in niveisVipFormatados"
-              :key="nivel.nivel"
-              class="eventos-vip-tabela-row"
-            >
-              <div class="eventos-vip-nivel-cell">
-                <ion-icon name="shield-checkmark" class="eventos-vip-row-shield" />
-                <span>VIP {{ nivel.nivel }}</span>
-              </div>
+          <!-- Tabela por aba -->
+          <div v-if="vipSubAtivo === 'bonus'" class="eventos-vip-tabela">
+            <div class="eventos-vip-tabela-header"><span>Nível</span><span>Aposta necessária</span><span>Bônus Upgrade</span></div>
+            <div v-for="nivel in niveisVipFormatados" :key="nivel.nivel" class="eventos-vip-tabela-row">
+              <div class="eventos-vip-nivel-cell"><ion-icon name="shield-checkmark" class="eventos-vip-row-shield" /><span>VIP {{ nivel.nivel }}</span></div>
               <span class="eventos-vip-aposta-cell">{{ nivel.aposta }}</span>
               <span class="eventos-vip-bonus-cell">{{ nivel.bonus }}</span>
             </div>
           </div>
-          <ion-button class="eventos-vip-btn-reclamar" expand="block" @click="reclamarVip">
+          <div v-else class="eventos-vip-tabela">
+            <div class="eventos-vip-tabela-header"><span>Nível</span><span>Bônus {{ vipSubAtivo === 'diario' ? 'Diário' : vipSubAtivo === 'semanal' ? 'Semanal' : 'Mensal' }}</span></div>
+            <div v-for="nivel in niveisVipPeriodico" :key="nivel.nivel" class="eventos-vip-tabela-row">
+              <div class="eventos-vip-nivel-cell"><ion-icon name="shield-checkmark" class="eventos-vip-row-shield" /><span>VIP {{ nivel.nivel }}</span></div>
+              <span class="eventos-vip-bonus-cell">R$ {{ vipSubAtivo === 'diario' ? nivel.diario : vipSubAtivo === 'semanal' ? nivel.semanal : nivel.mensal }}</span>
+            </div>
+          </div>
+
+          <ion-button v-if="vipSubAtivo === 'bonus'" class="eventos-vip-btn-reclamar" expand="block" @click="reclamarVip">
             Reivindicar Recompensas de upgrade
           </ion-button>
+          <ion-button v-else-if="vipSubAtivo === 'diario'" class="eventos-vip-btn-reclamar" expand="block" :disabled="!podeColetarVipDiario" @click="coletarDiario">
+            {{ podeColetarVipDiario ? `Coletar Bônus Diário (R$ ${fmt(vipDiarioDisp)})` : 'Já coletado hoje' }}
+          </ion-button>
+          <ion-button v-else-if="vipSubAtivo === 'semanal'" class="eventos-vip-btn-reclamar" expand="block" :disabled="!podeColetarVipSemanal" @click="coletarSemanal">
+            {{ podeColetarVipSemanal ? `Coletar Bônus Semanal (R$ ${fmt(vipSemanalDisp)})` : 'Já coletado esta semana' }}
+          </ion-button>
+          <ion-button v-else-if="vipSubAtivo === 'mensal'" class="eventos-vip-btn-reclamar" expand="block" :disabled="!podeColetarVipMensal" @click="coletarMensal">
+            {{ podeColetarVipMensal ? `Coletar Bônus Mensal (R$ ${fmt(vipMensalDisp)})` : 'Já coletado este mês' }}
+          </ion-button>
+
+          <div v-if="rolloverPendente > 0" class="eventos-vip-rollover-aviso">
+            <ion-icon name="information-circle" />
+            Rollover restante: <strong>R$ {{ fmt(rolloverPendente) }}</strong> em apostas para liberar saque.
+          </div>
         </div>
       </div>
 
@@ -300,6 +312,16 @@ const {
   vipProgresso,
   niveisVip,
   coletarVip: coletarVipApi,
+  coletarVipDiario: coletarVipDiarioApi,
+  coletarVipSemanal: coletarVipSemanalApi,
+  coletarVipMensal: coletarVipMensalApi,
+  podeColetarVipDiario,
+  podeColetarVipSemanal,
+  podeColetarVipMensal,
+  rolloverPendente,
+  vipDiarioDisp,
+  vipSemanalDisp,
+  vipMensalDisp,
   fmt,
   nivelVip,
 } = useAfiliado()
@@ -363,6 +385,29 @@ async function reclamarVip() {
   } else {
     toast.warning('Requisitos não atendidos ou bônus já reclamado.')
   }
+}
+
+const BONUS_DIARIO_E  = [0, 0.10, 0.30, 0.50, 0.80, 1.50, 2.00, 3.00,  8.00,  13.00,  18.00,  28.00,  38.00,  43.00,  48.00,  53.00]
+const BONUS_SEMANAL_E = [0, 0.50, 1.00, 2.00, 3.00, 5.00, 7.00, 10.00, 30.00,  50.00,  70.00, 110.00, 150.00, 170.00, 190.00, 210.00]
+const BONUS_MENSAL_E  = [0, 1.00, 3.00, 5.00, 8.00, 15.00, 20.00, 30.00, 80.00, 130.00, 180.00, 280.00, 380.00, 430.00, 480.00, 530.00]
+
+const niveisVipPeriodico = computed(() =>
+  (niveisVip || []).slice(1).map(n => ({
+    nivel: n.nivel,
+    diario: BONUS_DIARIO_E[n.nivel]?.toFixed(2) ?? '0.00',
+    semanal: BONUS_SEMANAL_E[n.nivel]?.toFixed(2) ?? '0.00',
+    mensal: BONUS_MENSAL_E[n.nivel]?.toFixed(2) ?? '0.00',
+  }))
+)
+
+async function coletarDiario() {
+  try { await coletarVipDiarioApi(); toast.success('Bônus diário coletado!') } catch (e) { toast.error(e.message) }
+}
+async function coletarSemanal() {
+  try { await coletarVipSemanalApi(); toast.success('Bônus semanal coletado!') } catch (e) { toast.error(e.message) }
+}
+async function coletarMensal() {
+  try { await coletarVipMensalApi(); toast.success('Bônus mensal coletado!') } catch (e) { toast.error(e.message) }
 }
 
 function resgatarCodigo() {
@@ -701,6 +746,18 @@ onMounted(async () => {
   --background: #22c55e;
   --color: #fff;
   font-weight: 600;
+}
+.eventos-vip-rollover-aviso {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0 0 0;
+  padding: 10px 14px;
+  background: rgba(251, 191, 36, 0.12);
+  border: 1px solid rgba(251, 191, 36, 0.4);
+  border-radius: 10px;
+  color: #fbbf24;
+  font-size: 0.88rem;
 }
 
 /* Código de Resgate */

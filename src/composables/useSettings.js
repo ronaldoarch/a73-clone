@@ -1,5 +1,5 @@
 /**
- * Settings da plataforma (logo, banner, siteName, pageTitle, depositoMin, saqueMin, saqueMax) - carregados do backend
+ * Settings da plataforma (logo, banner, siteName, pageTitle, depositoMin, saqueMin, saqueMax, whatsappUrl) - carregados do backend
  */
 import { ref, onMounted, watch } from 'vue'
 import { apiUrl } from '@/config/api'
@@ -13,6 +13,7 @@ const pageTitle = ref('A73')
 const depositoMin = ref(10)
 const saqueMin = ref(20)
 const saqueMax = ref(40000)
+const whatsappUrl = ref('')
 
 export function useSettings() {
   async function load() {
@@ -29,6 +30,7 @@ export function useSettings() {
       if (typeof data.depositoMin === 'number') depositoMin.value = data.depositoMin
       if (typeof data.saqueMin === 'number') saqueMin.value = data.saqueMin
       if (typeof data.saqueMax === 'number') saqueMax.value = data.saqueMax
+      if (data.whatsappUrl) whatsappUrl.value = data.whatsappUrl
       if (typeof document !== 'undefined') document.title = pageTitle.value
     } catch (e) {
       // mantém defaults
@@ -51,6 +53,7 @@ export function useSettings() {
     depositoMin,
     saqueMin,
     saqueMax,
+    whatsappUrl,
     load
   }
 }

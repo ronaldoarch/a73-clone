@@ -16,7 +16,11 @@ setPrisma(prisma)
 
 const app = express()
 const PORT = process.env.PORT || 3000
-const JWT_SECRET = process.env.JWT_SECRET || 'a73-secret-change-in-production'
+const JWT_SECRET = process.env.JWT_SECRET
+if (!JWT_SECRET) {
+  console.error('FATAL: JWT_SECRET não definido. Defina a variável de ambiente JWT_SECRET antes de iniciar.')
+  process.exit(1)
+}
 
 // CORS: FRONTEND_URL restringe origens permitidas; se vazio, aceita qualquer
 const FRONTEND_URL = process.env.FRONTEND_URL || ''
@@ -32,12 +36,31 @@ const corsOpts = {
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }
-// CORS permissivo para /gold_api - iGameWin chama de iframe de outro domínio (evita ERROR_GET_BALANCE_END_POINT)
-// Deve rodar ANTES do cors global para não ser bloqueado por FRONTEND_URL
+// CORS para /gold_api e /api/games/seamless - iGameWin chama de iframe de outro domínio.
+// Usa whitelist: IGAMEWIN_ALLOWED_ORIGINS (CSV) + FRONTEND_URL.
+// Se nenhuma variável for definida, bloqueia tudo por segurança.
+const IGAMEWIN_ALLOWED_ORIGINS = (process.env.IGAMEWIN_ALLOWED_ORIGINS || '')
+  .split(',').map(u => u.trim()).filter(Boolean)
+
+function isAllowedSeamlessOrigin(origin) {
+  if (!origin) return false
+  const allowed = [
+    ...IGAMEWIN_ALLOWED_ORIGINS,
+    ...(FRONTEND_URL ? FRONTEND_URL.split(',').map(u => u.trim()).filter(Boolean) : [])
+  ]
+  return allowed.some(u => origin === u || origin.startsWith(u.replace(/\/$/, '') + '/'))
+}
+
 app.use((req, res, next) => {
   if (req.path === '/gold_api' || req.path === '/api/games/seamless') {
-    const origin = req.headers.origin || '*'
-    res.setHeader('Access-Control-Allow-Origin', origin)
+    const origin = req.headers.origin
+    if (origin && isAllowedSeamlessOrigin(origin)) {
+      res.setHeader('Access-Control-Allow-Origin', origin)
+    } else if (!origin) {
+      // Chamada server-to-server sem Origin (permitido)
+      res.setHeader('Access-Control-Allow-Origin', '*')
+    }
+    // Se origin existe mas não está na whitelist, não seta o header (browser bloqueará)
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
     if (req.method === 'OPTIONS') return res.sendStatus(204)
@@ -52,6 +75,18 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')))
 
 // POST webhook Gatebox - recebe eventos PIX (PIX_PAY_IN, etc.) - sem auth
 app.post('/api/webhook/gatebox', async (req, res) => {
+  // Validação de token: se GATEBOX_WEBHOOK_TOKEN estiver definido, exige
+  // Authorization: Bearer <token> ou X-Webhook-Token: <token>
+  const webhookToken = process.env.GATEBOX_WEBHOOK_TOKEN
+  if (webhookToken) {
+    const authHeader = req.headers['authorization'] || ''
+    const tokenHeader = req.headers['x-webhook-token'] || req.headers['x-gatebox-token'] || ''
+    const received = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : tokenHeader
+    if (received !== webhookToken) {
+      console.warn('Webhook Gatebox: token inválido, request rejeitado')
+      return res.status(401).json({ ok: false, error: 'Unauthorized' })
+    }
+  }
   const body = req.body || {}
   const eventType = (body.type || body.eventType || body.event || '').toUpperCase()
   let externalId = body.externalId || body.data?.externalId || body.transactionId || body.id ||
@@ -77,17 +112,38 @@ app.post('/api/webhook/gatebox', async (req, res) => {
     if (!eventType || !['PIX_PAY_IN', 'PIX_PAYIN', 'PAY_IN', 'PIX PAY IN'].includes(eventType.replace(/\s/g, '_'))) return
     if (!externalId) return
     const extStr = String(externalId).trim()
-    let deposit = await prisma.deposit.findFirst({
+
+    // Idempotência: atualiza status para 'processando' atomicamente.
+    // Se outro request já fez isso, updateMany retorna count=0 e abortamos.
+    let claimed = await prisma.deposit.updateMany({
       where: { externalId: extStr, status: 'pendente' },
+      data: { status: 'processando' }
+    })
+    if (claimed.count === 0) {
+      // Tenta pelo id como fallback
+      claimed = await prisma.deposit.updateMany({
+        where: { id: extStr, status: 'pendente' },
+        data: { status: 'processando' }
+      })
+    }
+    if (claimed.count === 0) {
+      console.log('Webhook Gatebox: depósito', extStr, 'já processado ou não encontrado — ignorando')
+      return
+    }
+
+    // Busca o depósito agora em status 'processando' (nosso lock)
+    let deposit = await prisma.deposit.findFirst({
+      where: { externalId: extStr, status: 'processando' },
       include: { user: true }
     })
     if (!deposit) {
       deposit = await prisma.deposit.findFirst({
-        where: { id: extStr, status: 'pendente' },
+        where: { id: extStr, status: 'processando' },
         include: { user: true }
       })
     }
     if (!deposit) return
+
     await confirmarDepositoPix(deposit)
     console.log('Webhook Gatebox: depósito', extStr, 'confirmado')
   } catch (e) {
@@ -177,7 +233,8 @@ async function getAppConfig() {
       roletaDailySpins: v.roletaDailySpins ?? 1,
       bonusPrimeiroDep: v.bonusPrimeiroDep ?? 0,
       bonusPrimeiroDepPercent: v.bonusPrimeiroDepPercent ?? 0,
-      roletaSegments
+      roletaSegments,
+      whatsappUrl: v.whatsappUrl || ''
     }
   } catch (e) { return { depositoMin: 10, saqueMin: 20, saqueMax: 40000, roletaMinWithdraw: 100, roletaBonusDays: 3, roletaDailySpins: 1, bonusPrimeiroDep: 0, bonusPrimeiroDepPercent: 0, roletaSegments: DEFAULT_ROLETA_SEGMENTS } }
 }
@@ -282,6 +339,10 @@ function normalizeAccount(v) {
 // tRPC-style user.login
 app.post('/api/frontend/trpc/user.login', async (req, res) => {
   try {
+    const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.socket.remoteAddress || 'unknown'
+    if (!userLoginLimiter.check(ip)) {
+      return res.status(429).json({ error: { message: 'Muitas tentativas de login. Aguarde 15 minutos.' } })
+    }
     const { account, phone, password } = req.body?.json || req.body || {}
     const login = account || phone
     if (!login || !password) {
@@ -294,12 +355,13 @@ app.post('/api/frontend/trpc/user.login', async (req, res) => {
         user = await prisma.user.findFirst({ where: { account: loginNorm } })
       }
     }
+    // Mensagem genérica para evitar enumeração de contas
     if (!user) {
-      return res.json({ error: { message: 'Usuário não encontrado' } })
+      return res.json({ error: { message: 'Credenciais inválidas' } })
     }
     const ok = await bcrypt.compare(password, user.password)
     if (!ok) {
-      return res.json({ error: { message: 'Senha incorreta' } })
+      return res.json({ error: { message: 'Credenciais inválidas' } })
     }
     await ensureAfiliado(user.id, user.account)
     const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '7d' })
@@ -322,18 +384,25 @@ app.post('/api/frontend/trpc/user.login', async (req, res) => {
 // tRPC-style user.register
 app.post('/api/frontend/trpc/user.register', async (req, res) => {
   try {
+    const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.socket.remoteAddress || 'unknown'
+    if (!userRegisterLimiter.check(ip)) {
+      return res.status(429).json({ error: { message: 'Muitos cadastros a partir deste endereço. Aguarde 1 hora.' } })
+    }
     const data = req.body?.json || req.body || {}
     const { phone, account, password, confirmPassword, pid } = data
     const acc = account || phone
     if (!acc || !password) {
       return res.json({ error: { message: 'Telefone e senha obrigatórios' } })
     }
+    if (typeof password !== 'string' || password.length < 6) {
+      return res.json({ error: { message: 'Senha deve ter no mínimo 6 caracteres' } })
+    }
     if (password !== confirmPassword) {
       return res.json({ error: { message: 'As senhas não coincidem' } })
     }
     const phoneClean = normalizeAccount(acc)
-    if (phoneClean.length < 10) {
-      return res.json({ error: { message: 'Telefone inválido (mínimo 10 dígitos)' } })
+    if (phoneClean.length < 10 || phoneClean.length > 15) {
+      return res.json({ error: { message: 'Telefone inválido' } })
     }
     const exists = await prisma.user.findUnique({ where: { account: phoneClean } })
     if (exists) {
@@ -388,6 +457,29 @@ app.post('/api/frontend/trpc/user.register', async (req, res) => {
   } catch (e) {
     console.error('register error:', e)
     return res.status(500).json({ error: { message: e.message || 'Erro interno' } })
+  }
+})
+
+// POST troca de senha do usuário
+app.post('/api/user/change-password', authMiddleware, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body?.json || req.body || {}
+    if (!currentPassword || !newPassword) {
+      return res.json({ error: { message: 'Senha atual e nova senha são obrigatórias' } })
+    }
+    if (typeof newPassword !== 'string' || newPassword.length < 6) {
+      return res.json({ error: { message: 'Nova senha deve ter no mínimo 6 caracteres' } })
+    }
+    const user = await prisma.user.findUnique({ where: { id: req.userId } })
+    if (!user) return res.status(401).json({ error: { message: 'Usuário não encontrado' } })
+    const ok = await bcrypt.compare(currentPassword, user.password)
+    if (!ok) return res.json({ error: { message: 'Senha atual incorreta' } })
+    const hash = await bcrypt.hash(newPassword, 10)
+    await prisma.user.update({ where: { id: req.userId }, data: { password: hash, updatedAt: new Date() } })
+    return res.json({ result: { data: { json: { ok: true } } } })
+  } catch (e) {
+    console.error('change-password:', e)
+    return res.status(500).json({ error: { message: e.message } })
   }
 })
 
@@ -456,6 +548,23 @@ async function checkMisteriosoReset(af, user) {
   return af
 }
 
+// Tabelas de bônus VIP periódico (índice = nível 0-15)
+const BONUS_VIP_DIARIO  = [0, 0.10, 0.30, 0.50, 0.80, 1.50, 2.00, 3.00,  8.00,  13.00,  18.00,  28.00,  38.00,  43.00,  48.00,  53.00]
+const BONUS_VIP_SEMANAL = [0, 0.50, 1.00, 2.00, 3.00, 5.00, 7.00, 10.00, 30.00,  50.00,  70.00, 110.00, 150.00, 170.00, 190.00, 210.00]
+const BONUS_VIP_MENSAL  = [0, 1.00, 3.00, 5.00, 8.00, 15.00, 20.00, 30.00, 80.00, 130.00, 180.00, 280.00, 380.00, 430.00, 480.00, 530.00]
+
+// Helpers de cooldown VIP periódico
+function mesmodia(a, b) {
+  return a.getUTCFullYear() === b.getUTCFullYear() && a.getUTCMonth() === b.getUTCMonth() && a.getUTCDate() === b.getUTCDate()
+}
+function mesmasemana(a, b) {
+  const inicioSemana = d => { const c = new Date(d); c.setUTCHours(0,0,0,0); c.setUTCDate(c.getUTCDate() - c.getUTCDay()); return c.getTime() }
+  return inicioSemana(a) === inicioSemana(b)
+}
+function mesmomes(a, b) {
+  return a.getUTCFullYear() === b.getUTCFullYear() && a.getUTCMonth() === b.getUTCMonth()
+}
+
 // GET afiliado - retorna dados completos
 app.get('/api/afiliado', authMiddleware, async (req, res) => {
   try {
@@ -497,7 +606,14 @@ app.get('/api/afiliado', authMiddleware, async (req, res) => {
       misteriosoReclamado: af.misteriosoReclamado,
       misteriosoDiasAtivos: af.misteriosoDiasAtivos,
       bonusPromoReclamados: Array.isArray(af.bonusPromoReclamados) ? af.bonusPromoReclamados : [],
-      bonusVipColetados: Array.isArray(af.bonusVipColetados) ? af.bonusVipColetados : []
+      bonusVipColetados: Array.isArray(af.bonusVipColetados) ? af.bonusVipColetados : [],
+      rolloverPendente: af.rolloverPendente ?? 0,
+      vipDiarioColetadoEm: af.vipDiarioColetadoEm?.toISOString?.() || null,
+      vipSemanalColetadoEm: af.vipSemanalColetadoEm?.toISOString?.() || null,
+      vipMensalColetadoEm: af.vipMensalColetadoEm?.toISOString?.() || null,
+      vipDiarioDisp: BONUS_VIP_DIARIO[Math.min(af.nivelVip || 0, 15)],
+      vipSemanalDisp: BONUS_VIP_SEMANAL[Math.min(af.nivelVip || 0, 15)],
+      vipMensalDisp: BONUS_VIP_MENSAL[Math.min(af.nivelVip || 0, 15)]
     }
     return res.json({ result: { data: { json: data } } })
   } catch (e) {
@@ -513,11 +629,13 @@ app.post('/api/deposito/pix', authMiddleware, async (req, res) => {
     const v = parseFloat(valor)
     const cfg = await getAppConfig()
     const minDep = cfg.depositoMin ?? 10
-    if (!v || v < minDep) return res.json({ error: { message: `Valor mínimo R$ ${minDep.toFixed(2)}` } })
+    if (!Number.isFinite(v) || v <= 0) return res.json({ error: { message: 'Valor inválido' } })
+    if (v < minDep) return res.json({ error: { message: `Valor mínimo R$ ${minDep.toFixed(2)}` } })
     if (v > 50000) return res.json({ error: { message: 'Valor máximo R$ 50.000,00' } })
     const doc = String(cpf || '').replace(/\D/g, '')
     if (doc.length !== 11) return res.json({ error: { message: 'CPF inválido (11 dígitos)' } })
-    if (!nome || !String(nome).trim()) return res.json({ error: { message: 'Nome completo obrigatório' } })
+    const nomeDeposito = String(nome || '').trim()
+    if (!nomeDeposito || nomeDeposito.length > 120) return res.json({ error: { message: 'Nome completo obrigatório' } })
     const user = await prisma.user.findUnique({ where: { id: req.userId } })
     if (!user) return res.status(401).json({ error: { message: 'Usuário não encontrado' } })
     const deposit = await prisma.deposit.create({
@@ -533,7 +651,7 @@ app.post('/api/deposito/pix', authMiddleware, async (req, res) => {
       externalId,
       amount: v,
       document: doc,
-      name: String(nome).trim().slice(0, 100),
+      name: nomeDeposito.slice(0, 100),
       identification: `Depósito A73 - ${user.account}`,
       description: `Depósito A73 - ${user.account}`,
       expire: 3600
@@ -694,6 +812,7 @@ app.post('/api/deposito', authMiddleware, async (req, res) => {
 // Promo: critérios para "número de promoção efetiva"
 const PROMO_DEP_MIN = 30
 const PROMO_APOSTA_MIN = 600
+const PROMO_EXPIRA_DIAS = 180 // bônus promo expira 180 dias após o registro
 
 // POST reclamar bônus Promo - usa "promoção efetiva": subordinados com dep≥30 e apostas≥600
 app.post('/api/afiliado/reclamar-promo', authMiddleware, async (req, res) => {
@@ -711,7 +830,16 @@ app.post('/api/afiliado/reclamar-promo', authMiddleware, async (req, res) => {
     ]
     const r = recompensasPromo.find(x => x.pessoas === p)
     if (!r) return res.json({ error: { message: 'Recompensa não encontrada' } })
-    const af = await ensureAfiliado(req.userId, (await prisma.user.findUnique({ where: { id: req.userId } }))?.account || '')
+    const user = await prisma.user.findUnique({ where: { id: req.userId } })
+    const af = await ensureAfiliado(req.userId, user?.account || '')
+    // Verifica expiração: promo só disponível nos primeiros PROMO_EXPIRA_DIAS dias
+    const horaReg = af.horaRegisto || user?.createdAt
+    if (horaReg) {
+      const diasDesdeReg = (Date.now() - new Date(horaReg).getTime()) / (24 * 60 * 60 * 1000)
+      if (diasDesdeReg > PROMO_EXPIRA_DIAS) {
+        return res.json({ error: { message: `Bônus Promo expirado. Disponível apenas nos primeiros ${PROMO_EXPIRA_DIAS} dias após o registro.` } })
+      }
+    }
     const subordinados = await prisma.user.findMany({
       where: { indicatorId: req.userId },
       include: { afiliado: true }
@@ -792,6 +920,7 @@ app.post('/api/afiliado/reclamar-misterioso', authMiddleware, async (req, res) =
       data: {
         misteriosoReclamado: true,
         balance: { increment: premio },
+        rolloverPendente: { increment: premio }, // 1x rollover antes de sacar
         updatedAt: new Date()
       }
     })
@@ -822,6 +951,69 @@ app.post('/api/afiliado/coletar-vip', authMiddleware, async (req, res) => {
     return res.json({ result: { data: { json: { ok: true } } } })
   } catch (e) {
     console.error('coletar-vip:', e)
+    return res.status(500).json({ error: { message: e.message } })
+  }
+})
+
+// POST coletar bônus VIP Diário
+app.post('/api/afiliado/coletar-vip-diario', authMiddleware, async (req, res) => {
+  try {
+    const af = await ensureAfiliado(req.userId, (await prisma.user.findUnique({ where: { id: req.userId } }))?.account || '')
+    if (af.nivelVip <= 0) return res.json({ error: { message: 'Nível VIP insuficiente' } })
+    const agora = new Date()
+    if (af.vipDiarioColetadoEm && mesmodia(af.vipDiarioColetadoEm, agora)) {
+      return res.json({ error: { message: 'Bônus diário já coletado hoje' } })
+    }
+    const valor = BONUS_VIP_DIARIO[Math.min(af.nivelVip, 15)]
+    await prisma.afiliadoData.update({
+      where: { userId: req.userId },
+      data: { balance: { increment: valor }, rolloverPendente: { increment: valor }, vipDiarioColetadoEm: agora, updatedAt: agora }
+    })
+    return res.json({ result: { data: { json: { ok: true, valor } } } })
+  } catch (e) {
+    console.error('coletar-vip-diario:', e)
+    return res.status(500).json({ error: { message: e.message } })
+  }
+})
+
+// POST coletar bônus VIP Semanal
+app.post('/api/afiliado/coletar-vip-semanal', authMiddleware, async (req, res) => {
+  try {
+    const af = await ensureAfiliado(req.userId, (await prisma.user.findUnique({ where: { id: req.userId } }))?.account || '')
+    if (af.nivelVip <= 0) return res.json({ error: { message: 'Nível VIP insuficiente' } })
+    const agora = new Date()
+    if (af.vipSemanalColetadoEm && mesmasemana(af.vipSemanalColetadoEm, agora)) {
+      return res.json({ error: { message: 'Bônus semanal já coletado esta semana' } })
+    }
+    const valor = BONUS_VIP_SEMANAL[Math.min(af.nivelVip, 15)]
+    await prisma.afiliadoData.update({
+      where: { userId: req.userId },
+      data: { balance: { increment: valor }, rolloverPendente: { increment: valor }, vipSemanalColetadoEm: agora, updatedAt: agora }
+    })
+    return res.json({ result: { data: { json: { ok: true, valor } } } })
+  } catch (e) {
+    console.error('coletar-vip-semanal:', e)
+    return res.status(500).json({ error: { message: e.message } })
+  }
+})
+
+// POST coletar bônus VIP Mensal
+app.post('/api/afiliado/coletar-vip-mensal', authMiddleware, async (req, res) => {
+  try {
+    const af = await ensureAfiliado(req.userId, (await prisma.user.findUnique({ where: { id: req.userId } }))?.account || '')
+    if (af.nivelVip <= 0) return res.json({ error: { message: 'Nível VIP insuficiente' } })
+    const agora = new Date()
+    if (af.vipMensalColetadoEm && mesmomes(af.vipMensalColetadoEm, agora)) {
+      return res.json({ error: { message: 'Bônus mensal já coletado este mês' } })
+    }
+    const valor = BONUS_VIP_MENSAL[Math.min(af.nivelVip, 15)]
+    await prisma.afiliadoData.update({
+      where: { userId: req.userId },
+      data: { balance: { increment: valor }, rolloverPendente: { increment: valor }, vipMensalColetadoEm: agora, updatedAt: agora }
+    })
+    return res.json({ result: { data: { json: { ok: true, valor } } } })
+  } catch (e) {
+    console.error('coletar-vip-mensal:', e)
     return res.status(500).json({ error: { message: e.message } })
   }
 })
@@ -945,9 +1137,15 @@ const handleSeamless = async (req, res) => {
         console.warn('gold_api INSUFFICIENT_USER_FUNDS:', { user_code: user_code ? `${String(user_code).slice(0, 4)}***` : null, currentBalance, delta })
         return res.json({ status: 0, msg: 'INSUFFICIENT_USER_FUNDS', user_balance: fmt(currentBalance) })
       }
+      // Decrementa rollover pendente ao apostar (apenas débitos reais)
+      const rolloverDesconto = betReais > 0 && !isDemo ? Math.min(betReais, af.rolloverPendente ?? 0) : 0
       await prisma.afiliadoData.update({
         where: { id: af.id },
-        data: { balance: newBalance, updatedAt: new Date() }
+        data: {
+          balance: newBalance,
+          rolloverPendente: rolloverDesconto > 0 ? { decrement: rolloverDesconto } : undefined,
+          updatedAt: new Date()
+        }
       })
 
       if (txnId) {
@@ -1517,7 +1715,11 @@ app.get('/api/roleta', authMiddleware, async (req, res) => {
         }),
         prisma.afiliadoData.update({
           where: { userId: req.userId },
-          data: { balance: { increment: amount }, updatedAt: now }
+          data: {
+            balance: { increment: amount },
+            rolloverPendente: { increment: amount }, // 1x rollover antes de sacar
+            updatedAt: now
+          }
         })
       ])
       r = await prisma.roletaBonus.findUnique({ where: { userId: req.userId } })
@@ -1597,15 +1799,19 @@ app.post('/api/saque', authMiddleware, async (req, res) => {
     const cfg = await getAppConfig()
     const { valor, metodo, nome, cpfId } = req.body?.json || req.body || {}
     const v = parseFloat(valor)
-    if (!v || v < cfg.saqueMin) return res.json({ error: { message: `Valor mínimo R$ ${cfg.saqueMin.toFixed(2)}` } })
+    if (!Number.isFinite(v) || v <= 0) return res.json({ error: { message: 'Valor inválido' } })
+    if (v < cfg.saqueMin) return res.json({ error: { message: `Valor mínimo R$ ${cfg.saqueMin.toFixed(2)}` } })
     if (v > cfg.saqueMax) return res.json({ error: { message: `Valor máximo R$ ${cfg.saqueMax.toFixed(2).replace('.', ',')}` } })
     const chavePix = String(cpfId || '').trim()
-    if (!chavePix) return res.json({ error: { message: 'Chave PIX é obrigatória' } })
-    if (!String(nome || '').trim()) return res.json({ error: { message: 'Nome do recebedor é obrigatório' } })
+    if (!chavePix || chavePix.length > 77) return res.json({ error: { message: 'Chave PIX inválida' } })
+    const nomeRecebedor = String(nome || '').trim()
+    if (!nomeRecebedor || nomeRecebedor.length > 120) return res.json({ error: { message: 'Nome do recebedor é obrigatório' } })
     const user = await prisma.user.findUnique({ where: { id: req.userId } })
     const af = await ensureAfiliado(req.userId, user?.account || '')
     const saldo = af.balance ?? 0
     if (saldo < v) return res.json({ error: { message: 'Saldo insuficiente' } })
+    const rollover = af.rolloverPendente ?? 0
+    if (rollover > 0) return res.json({ error: { message: `Requisito de rollover não cumprido. Aposte mais R$ ${rollover.toFixed(2)} para liberar o saque.` } })
 
     const [, withdrawal] = await prisma.$transaction([
       prisma.afiliadoData.update({
@@ -1622,7 +1828,7 @@ app.post('/api/saque', authMiddleware, async (req, res) => {
           userId: req.userId,
           valor: v,
           metodo: metodo || 'pix',
-          nome: nome || null,
+          nome: nomeRecebedor || null,
           cpfId: chavePix,
           status: 'pendente'
         }
@@ -1633,7 +1839,7 @@ app.post('/api/saque', authMiddleware, async (req, res) => {
     if (/^\d+$/.test(key) && (key.length === 11 || key.length === 14)) {
       key = key.replace(/\D/g, '')
     }
-    const name = String(nome || user?.account || 'Cliente').trim()
+    const name = nomeRecebedor || user?.account || 'Cliente'
 
     const refundAndFail = async (errorMsg) => {
       await prisma.$transaction([
@@ -1674,8 +1880,64 @@ app.post('/api/saque', authMiddleware, async (req, res) => {
 })
 
 // ========== Admin APIs ==========
+
+// Rate limit in-memory reutilizável (login usuário + admin + registro)
+function makeRateLimiter(max, windowMs) {
+  const attempts = new Map()
+  setInterval(() => {
+    const cutoff = Date.now() - windowMs
+    for (const [k, e] of attempts.entries()) {
+      if (e.windowStart < cutoff) attempts.delete(k)
+    }
+  }, 30 * 60 * 1000)
+  return {
+    check(key) {
+      const now = Date.now()
+      const e = attempts.get(key) || { count: 0, windowStart: now }
+      if (now - e.windowStart > windowMs) { e.count = 0; e.windowStart = now }
+      e.count++
+      attempts.set(key, e)
+      return e.count <= max
+    }
+  }
+}
+
+const userLoginLimiter    = makeRateLimiter(10, 15 * 60 * 1000)  // 10 tentativas / 15 min por IP
+const userRegisterLimiter = makeRateLimiter(5, 60 * 60 * 1000)   // 5 registros / hora por IP
+
+// Rate limit in-memory para login admin: máx 10 tentativas por IP em 15 minutos
+const adminLoginAttempts = new Map()
+const ADMIN_RATE_LIMIT_MAX = 10
+const ADMIN_RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000 // 15 min
+
+function checkAdminRateLimit(ip) {
+  const now = Date.now()
+  const entry = adminLoginAttempts.get(ip) || { count: 0, windowStart: now }
+  if (now - entry.windowStart > ADMIN_RATE_LIMIT_WINDOW_MS) {
+    // Janela expirou, reinicia
+    entry.count = 0
+    entry.windowStart = now
+  }
+  entry.count++
+  adminLoginAttempts.set(ip, entry)
+  return entry.count <= ADMIN_RATE_LIMIT_MAX
+}
+
+// Limpeza periódica de entradas antigas (a cada 30 min)
+setInterval(() => {
+  const cutoff = Date.now() - ADMIN_RATE_LIMIT_WINDOW_MS
+  for (const [ip, entry] of adminLoginAttempts.entries()) {
+    if (entry.windowStart < cutoff) adminLoginAttempts.delete(ip)
+  }
+}, 30 * 60 * 1000)
+
 app.post('/api/admin/login', async (req, res) => {
   try {
+    const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.socket.remoteAddress || 'unknown'
+    if (!checkAdminRateLimit(ip)) {
+      return res.status(429).json({ error: { message: 'Muitas tentativas. Aguarde 15 minutos.' } })
+    }
+
     const { user, password } = req.body?.json || req.body || {}
     if (!user || !password) return res.status(400).json({ error: { message: 'Usuário e senha obrigatórios' } })
     const cred = await getAdminCredentials()
@@ -1850,7 +2112,8 @@ app.post('/api/admin/config', adminAuthMiddleware, async (req, res) => {
     const roletaSegments = Array.isArray(segs) && segs.length === 8
       ? segs.map((sg, i) => ({ label: String(sg?.label ?? ''), value: Number(sg?.value) ?? 0 }))
       : DEFAULT_ROLETA_SEGMENTS
-    const value = { depositoMin, saqueMin, saqueMax, roletaMinWithdraw, roletaBonusDays, roletaDailySpins, bonusPrimeiroDep, bonusPrimeiroDepPercent, roletaSegments }
+    const whatsappUrl = String(body.whatsappUrl || '').trim().slice(0, 200)
+    const value = { depositoMin, saqueMin, saqueMax, roletaMinWithdraw, roletaBonusDays, roletaDailySpins, bonusPrimeiroDep, bonusPrimeiroDepPercent, roletaSegments, whatsappUrl }
     await prisma.setting.upsert({
       where: { id: 'config' },
       create: { id: 'config', value },
@@ -2008,10 +2271,11 @@ app.get('/api/settings', async (req, res) => {
       pageTitle: v.pageTitle || 'A73',
       depositoMin: cfg.depositoMin ?? 10,
       saqueMin: cfg.saqueMin ?? 20,
-      saqueMax: cfg.saqueMax ?? 40000
+      saqueMax: cfg.saqueMax ?? 40000,
+      whatsappUrl: cfg.whatsappUrl || ''
     })
   } catch (e) {
-    return res.json({ logo: '/s5/app-icon/1222508/LOGO.jpg', banner: '/s5/1770954153806/9999.jpg', loadingBanner: '/s5/app-icon/1222508/LOGO.jpg', siteName: 'A73.com', pageTitle: 'A73', depositoMin: 10, saqueMin: 20, saqueMax: 40000 })
+    return res.json({ logo: '/s5/app-icon/1222508/LOGO.jpg', banner: '/s5/1770954153806/9999.jpg', loadingBanner: '/s5/app-icon/1222508/LOGO.jpg', siteName: 'A73.com', pageTitle: 'A73', depositoMin: 10, saqueMin: 20, saqueMax: 40000, whatsappUrl: '' })
   }
 })
 

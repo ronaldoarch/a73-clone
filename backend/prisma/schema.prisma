@@ -52,6 +52,10 @@ model AfiliadoData {
   bonusPromoReclamados Json     @default("[]")  // [{ pessoas, valor }]
   bonusVipColetados    Json     @default("[]")  // [{ nivel, valor }]
   balance             Float    @default(0)     // Saldo para jogos (Seamless iGameWin)
+  vipDiarioColetadoEm  DateTime?               // última coleta do bônus diário VIP
+  vipSemanalColetadoEm DateTime?               // última coleta do bônus semanal VIP
+  vipMensalColetadoEm  DateTime?               // última coleta do bônus mensal VIP
+  rolloverPendente     Float    @default(0)    // rollover restante antes de permitir saque de bônus VIP
   updatedAt            DateTime @updatedAt
 }
 

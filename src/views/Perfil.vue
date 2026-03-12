@@ -31,7 +31,7 @@
           <div class="perfil-avatar">{{ selectedAvatar }}</div>
           <div class="perfil-user-info">
             <span class="perfil-phone">{{ account }}</span>
-            <span class="perfil-vip-badge">VIP 0</span>
+            <span class="perfil-vip-badge">VIP {{ nivelVip }}</span>
             <span class="perfil-id">ID {{ userId }}</span>
             <button type="button" class="perfil-copy-btn" @click="copyId" aria-label="Copiar ID">
               📋
@@ -68,7 +68,7 @@
               <span class="perfil-vip-icon-wrap">
                 <ion-icon name="ribbon" class="perfil-vip-crown" />
               </span>
-              <span class="perfil-vip-badge-card">VIP 0</span>
+              <span class="perfil-vip-badge-card">VIP {{ nivelVip }}</span>
               <span class="perfil-vip-nivel-label">Nível Atual</span>
             </div>
             <button type="button" class="perfil-vip-detalhes-btn" @click="$router.push('/main/vip/')">
@@ -81,7 +81,7 @@
               <span class="perfil-vip-icon-wrap perfil-vip-icon-sm">
                 <ion-icon name="ribbon" class="perfil-vip-crown" />
               </span>
-              VIP 0
+              VIP {{ nivelVip }}
             </span>
             <div class="perfil-vip-bar">
               <div class="perfil-vip-progress" :style="{ width: vipProgress + '%' }"></div>
@@ -90,7 +90,7 @@
               <span class="perfil-vip-icon-wrap perfil-vip-icon-sm">
                 <ion-icon name="ribbon" class="perfil-vip-crown" />
               </span>
-              VIP 1
+              VIP {{ Math.min(nivelVip + 1, 15) }}
             </span>
           </div>
           <div class="perfil-vip-criteria-block">
@@ -130,6 +130,11 @@
             Código de Resgate
             <ion-icon name="chevron-forward" />
           </a>
+          <a href="#" class="perfil-menu-item" @click.prevent="showChangePwd = true">
+            <ion-icon name="lock-closed" />
+            Alterar Senha
+            <ion-icon name="chevron-forward" />
+          </a>
           <a href="#" class="perfil-menu-item">
             <ion-icon name="shield-checkmark" />
             Centro de Segurança
@@ -142,6 +147,26 @@
         </div>
       </div>
     </ion-content>
+
+    <!-- Modal alterar senha -->
+    <div v-if="showChangePwd" class="fund-password-overlay" @click.self="showChangePwd = false">
+      <div class="fund-password-modal-content perfil-change-pwd-modal">
+        <h3 class="perfil-change-pwd-title">Alterar Senha</h3>
+        <div class="perfil-change-pwd-fields">
+          <input v-model="changePwdCurrent" type="password" class="perfil-change-pwd-input" placeholder="Senha atual" autocomplete="current-password" />
+          <input v-model="changePwdNew" type="password" class="perfil-change-pwd-input" placeholder="Nova senha (mín. 6 caracteres)" autocomplete="new-password" />
+          <input v-model="changePwdConfirm" type="password" class="perfil-change-pwd-input" placeholder="Confirmar nova senha" autocomplete="new-password" />
+        </div>
+        <div class="perfil-change-pwd-actions">
+          <ion-button expand="block" class="perfil-change-pwd-btn" :disabled="changePwdLoading" @click="submitChangePwd">
+            {{ changePwdLoading ? 'Aguarde...' : 'Confirmar' }}
+          </ion-button>
+          <ion-button expand="block" fill="outline" class="perfil-change-pwd-btn-cancel" @click="showChangePwd = false">
+            Cancelar
+          </ion-button>
+        </div>
+      </div>
+    </div>
 
     <!-- Modal senha de fundo (ao clicar em Saque) - overlay fora do ion-content -->
     <div v-if="showSaqueModal" class="fund-password-overlay" @click.self="showSaqueModal = false">
@@ -168,6 +193,8 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAfiliado } from '@/composables/useAfiliado'
+import { afiliadoApi } from '@/api/afiliado'
+import { useToast } from '@/composables/useToast'
 import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButton, IonIcon,
   onIonViewWillEnter
@@ -177,15 +204,51 @@ const AVATAR_DEFAULT = '👤'
 const selectedAvatar = ref(localStorage.getItem('userAvatar') || AVATAR_DEFAULT)
 
 const router = useRouter()
-const { balanceFormatted, refresh } = useAfiliado()
+const { balanceFormatted, refresh, nivelVip, comissaoHoje, vipProgresso, idIndicacao, fmt } = useAfiliado()
 const account = computed(() => localStorage.getItem('account') || '')
-const userId = ref('4180019537')
+const userId = computed(() => idIndicacao.value || '4180019537')
 const isLoggedIn = ref(!!localStorage.getItem('token'))
-const bonusToday = ref('0,00')
-const currentWager = ref('0,00')
-const requiredWager = ref('100,00')
-const vipProgress = ref(0)
+const bonusToday = computed(() => fmt(comissaoHoje.value ?? 0))
+const currentWager = computed(() => vipProgresso.value.apostaAtual)
+const requiredWager = computed(() => vipProgresso.value.apostaProximo)
+const vipProgress = computed(() => vipProgresso.value.progresso)
 const showSaqueModal = ref(false)
+const toast = useToast()
+
+// Alterar senha
+const showChangePwd = ref(false)
+const changePwdCurrent = ref('')
+const changePwdNew = ref('')
+const changePwdConfirm = ref('')
+const changePwdLoading = ref(false)
+
+async function submitChangePwd() {
+  if (!changePwdCurrent.value || !changePwdNew.value) {
+    toast.error('Preencha todos os campos')
+    return
+  }
+  if (changePwdNew.value.length < 6) {
+    toast.error('Nova senha deve ter no mínimo 6 caracteres')
+    return
+  }
+  if (changePwdNew.value !== changePwdConfirm.value) {
+    toast.error('As senhas não coincidem')
+    return
+  }
+  changePwdLoading.value = true
+  try {
+    await afiliadoApi.changePassword({ currentPassword: changePwdCurrent.value, newPassword: changePwdNew.value })
+    toast.success('Senha alterada com sucesso!')
+    showChangePwd.value = false
+    changePwdCurrent.value = ''
+    changePwdNew.value = ''
+    changePwdConfirm.value = ''
+  } catch (e) {
+    toast.error(e.message)
+  } finally {
+    changePwdLoading.value = false
+  }
+}
 
 function onConfirmarSenhaFundo() {
   showSaqueModal.value = false
@@ -209,7 +272,7 @@ onIonViewWillEnter(() => {
 })
 
 function copyId() {
-  navigator.clipboard?.writeText(userId.value)
+  navigator.clipboard?.writeText(String(userId.value))
 }
 function refreshBalance() {
   refresh()
@@ -652,4 +715,37 @@ function logout() {
   --border-radius: 12px;
   height: 48px;
 }
+.perfil-change-pwd-modal {
+  padding: 24px 20px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.perfil-change-pwd-title {
+  color: #fff;
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin: 0;
+  text-align: center;
+}
+.perfil-change-pwd-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.perfil-change-pwd-input {
+  width: 100%;
+  padding: 10px 14px;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 10px;
+  color: #fff;
+  font-size: 0.95rem;
+  outline: none;
+  box-sizing: border-box;
+}
+.perfil-change-pwd-input::placeholder { color: #9ca3af; }
+.perfil-change-pwd-actions { display: flex; flex-direction: column; gap: 8px; }
+.perfil-change-pwd-btn { --background: #22c55e; --color: #fff; font-weight: 700; }
+.perfil-change-pwd-btn-cancel { --border-color: rgba(255,255,255,0.3); --color: #9ca3af; }
 </style>

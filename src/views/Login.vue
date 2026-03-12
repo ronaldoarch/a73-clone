@@ -81,18 +81,8 @@ async function handleLogin() {
     try {
       res = await api.login({ account: phone.value, phone: phone.value, password: password.value })
     } catch (e) {
-      // API indisponível: login demo com qualquer telefone + senha
-      if (!phone.value.trim() || !password.value.trim()) {
-        error.value = 'Preencha telefone e senha'
-        toast.error('Preencha telefone e senha')
-        return
-      }
-      localStorage.setItem('token', 'demo-' + Date.now())
-      localStorage.setItem('account', phone.value)
-      sessionStorage.setItem('showRoletaNovos', '1')
-    sessionStorage.setItem('showBonusDiario', '1')
-      toast.success('Login realizado! (modo demo)')
-      router.push('/main/inicio/')
+      error.value = 'Serviço indisponível. Tente novamente em instantes.'
+      toast.error(error.value)
       return
     }
     if (res.error) {

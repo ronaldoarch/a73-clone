@@ -326,6 +326,10 @@ function normalizeAccount(v) {
 // tRPC-style user.login
 app.post('/api/frontend/trpc/user.login', async (req, res) => {
   try {
+    const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.socket.remoteAddress || 'unknown'
+    if (!userLoginLimiter.check(ip)) {
+      return res.status(429).json({ error: { message: 'Muitas tentativas de login. Aguarde 15 minutos.' } })
+    }
     const { account, phone, password } = req.body?.json || req.body || {}
     const login = account || phone
     if (!login || !password) {
@@ -338,12 +342,13 @@ app.post('/api/frontend/trpc/user.login', async (req, res) => {
         user = await prisma.user.findFirst({ where: { account: loginNorm } })
       }
     }
+    // Mensagem genérica para evitar enumeração de contas
     if (!user) {
-      return res.json({ error: { message: 'Usuário não encontrado' } })
+      return res.json({ error: { message: 'Credenciais inválidas' } })
     }
     const ok = await bcrypt.compare(password, user.password)
     if (!ok) {
-      return res.json({ error: { message: 'Senha incorreta' } })
+      return res.json({ error: { message: 'Credenciais inválidas' } })
     }
     await ensureAfiliado(user.id, user.account)
     const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '7d' })
@@ -366,18 +371,25 @@ app.post('/api/frontend/trpc/user.login', async (req, res) => {
 // tRPC-style user.register
 app.post('/api/frontend/trpc/user.register', async (req, res) => {
   try {
+    const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.socket.remoteAddress || 'unknown'
+    if (!userRegisterLimiter.check(ip)) {
+      return res.status(429).json({ error: { message: 'Muitos cadastros a partir deste endereço. Aguarde 1 hora.' } })
+    }
     const data = req.body?.json || req.body || {}
     const { phone, account, password, confirmPassword, pid } = data
     const acc = account || phone
     if (!acc || !password) {
       return res.json({ error: { message: 'Telefone e senha obrigatórios' } })
     }
+    if (typeof password !== 'string' || password.length < 6) {
+      return res.json({ error: { message: 'Senha deve ter no mínimo 6 caracteres' } })
+    }
     if (password !== confirmPassword) {
       return res.json({ error: { message: 'As senhas não coincidem' } })
     }
     const phoneClean = normalizeAccount(acc)
-    if (phoneClean.length < 10) {
-      return res.json({ error: { message: 'Telefone inválido (mínimo 10 dígitos)' } })
+    if (phoneClean.length < 10 || phoneClean.length > 15) {
+      return res.json({ error: { message: 'Telefone inválido' } })
     }
     const exists = await prisma.user.findUnique({ where: { account: phoneClean } })
     if (exists) {
@@ -581,11 +593,13 @@ app.post('/api/deposito/pix', authMiddleware, async (req, res) => {
     const v = parseFloat(valor)
     const cfg = await getAppConfig()
     const minDep = cfg.depositoMin ?? 10
-    if (!v || v < minDep) return res.json({ error: { message: `Valor mínimo R$ ${minDep.toFixed(2)}` } })
+    if (!Number.isFinite(v) || v <= 0) return res.json({ error: { message: 'Valor inválido' } })
+    if (v < minDep) return res.json({ error: { message: `Valor mínimo R$ ${minDep.toFixed(2)}` } })
     if (v > 50000) return res.json({ error: { message: 'Valor máximo R$ 50.000,00' } })
     const doc = String(cpf || '').replace(/\D/g, '')
     if (doc.length !== 11) return res.json({ error: { message: 'CPF inválido (11 dígitos)' } })
-    if (!nome || !String(nome).trim()) return res.json({ error: { message: 'Nome completo obrigatório' } })
+    const nomeDeposito = String(nome || '').trim()
+    if (!nomeDeposito || nomeDeposito.length > 120) return res.json({ error: { message: 'Nome completo obrigatório' } })
     const user = await prisma.user.findUnique({ where: { id: req.userId } })
     if (!user) return res.status(401).json({ error: { message: 'Usuário não encontrado' } })
     const deposit = await prisma.deposit.create({
@@ -601,7 +615,7 @@ app.post('/api/deposito/pix', authMiddleware, async (req, res) => {
       externalId,
       amount: v,
       document: doc,
-      name: String(nome).trim().slice(0, 100),
+      name: nomeDeposito.slice(0, 100),
       identification: `Depósito A73 - ${user.account}`,
       description: `Depósito A73 - ${user.account}`,
       expire: 3600
@@ -860,6 +874,7 @@ app.post('/api/afiliado/reclamar-misterioso', authMiddleware, async (req, res) =
       data: {
         misteriosoReclamado: true,
         balance: { increment: premio },
+        rolloverPendente: { increment: premio }, // 1x rollover antes de sacar
         updatedAt: new Date()
       }
     })
@@ -1654,7 +1669,11 @@ app.get('/api/roleta', authMiddleware, async (req, res) => {
         }),
         prisma.afiliadoData.update({
           where: { userId: req.userId },
-          data: { balance: { increment: amount }, updatedAt: now }
+          data: {
+            balance: { increment: amount },
+            rolloverPendente: { increment: amount }, // 1x rollover antes de sacar
+            updatedAt: now
+          }
         })
       ])
       r = await prisma.roletaBonus.findUnique({ where: { userId: req.userId } })
@@ -1734,11 +1753,13 @@ app.post('/api/saque', authMiddleware, async (req, res) => {
     const cfg = await getAppConfig()
     const { valor, metodo, nome, cpfId } = req.body?.json || req.body || {}
     const v = parseFloat(valor)
-    if (!v || v < cfg.saqueMin) return res.json({ error: { message: `Valor mínimo R$ ${cfg.saqueMin.toFixed(2)}` } })
+    if (!Number.isFinite(v) || v <= 0) return res.json({ error: { message: 'Valor inválido' } })
+    if (v < cfg.saqueMin) return res.json({ error: { message: `Valor mínimo R$ ${cfg.saqueMin.toFixed(2)}` } })
     if (v > cfg.saqueMax) return res.json({ error: { message: `Valor máximo R$ ${cfg.saqueMax.toFixed(2).replace('.', ',')}` } })
     const chavePix = String(cpfId || '').trim()
-    if (!chavePix) return res.json({ error: { message: 'Chave PIX é obrigatória' } })
-    if (!String(nome || '').trim()) return res.json({ error: { message: 'Nome do recebedor é obrigatório' } })
+    if (!chavePix || chavePix.length > 77) return res.json({ error: { message: 'Chave PIX inválida' } })
+    const nomeRecebedor = String(nome || '').trim()
+    if (!nomeRecebedor || nomeRecebedor.length > 120) return res.json({ error: { message: 'Nome do recebedor é obrigatório' } })
     const user = await prisma.user.findUnique({ where: { id: req.userId } })
     const af = await ensureAfiliado(req.userId, user?.account || '')
     const saldo = af.balance ?? 0
@@ -1761,7 +1782,7 @@ app.post('/api/saque', authMiddleware, async (req, res) => {
           userId: req.userId,
           valor: v,
           metodo: metodo || 'pix',
-          nome: nome || null,
+          nome: nomeRecebedor || null,
           cpfId: chavePix,
           status: 'pendente'
         }
@@ -1772,7 +1793,7 @@ app.post('/api/saque', authMiddleware, async (req, res) => {
     if (/^\d+$/.test(key) && (key.length === 11 || key.length === 14)) {
       key = key.replace(/\D/g, '')
     }
-    const name = String(nome || user?.account || 'Cliente').trim()
+    const name = nomeRecebedor || user?.account || 'Cliente'
 
     const refundAndFail = async (errorMsg) => {
       await prisma.$transaction([
@@ -1813,6 +1834,30 @@ app.post('/api/saque', authMiddleware, async (req, res) => {
 })
 
 // ========== Admin APIs ==========
+
+// Rate limit in-memory reutilizável (login usuário + admin + registro)
+function makeRateLimiter(max, windowMs) {
+  const attempts = new Map()
+  setInterval(() => {
+    const cutoff = Date.now() - windowMs
+    for (const [k, e] of attempts.entries()) {
+      if (e.windowStart < cutoff) attempts.delete(k)
+    }
+  }, 30 * 60 * 1000)
+  return {
+    check(key) {
+      const now = Date.now()
+      const e = attempts.get(key) || { count: 0, windowStart: now }
+      if (now - e.windowStart > windowMs) { e.count = 0; e.windowStart = now }
+      e.count++
+      attempts.set(key, e)
+      return e.count <= max
+    }
+  }
+}
+
+const userLoginLimiter    = makeRateLimiter(10, 15 * 60 * 1000)  // 10 tentativas / 15 min por IP
+const userRegisterLimiter = makeRateLimiter(5, 60 * 60 * 1000)   // 5 registros / hora por IP
 
 // Rate limit in-memory para login admin: máx 10 tentativas por IP em 15 minutos
 const adminLoginAttempts = new Map()

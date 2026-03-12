@@ -107,7 +107,7 @@ import { afiliadoApi } from '@/api/afiliado'
 import { useToast } from '@/composables/useToast'
 
 const { balanceFormatted, balance, rolloverPendente, refresh } = useAfiliado()
-const { saqueMin, saqueMax } = useSettings()
+const { saqueMin, saqueMax, whatsappUrl } = useSettings()
 const toast = useToast()
 const loading = ref(false)
 const isLoggedIn = computed(() => !!localStorage.getItem('token'))
@@ -133,7 +133,7 @@ function setMax() {
 }
 
 function openSupport() {
-  window.open('https://wa.me/', '_blank')
+  window.open(whatsappUrl.value || 'https://wa.me/', '_blank')
 }
 
 async function retirarAgora() {

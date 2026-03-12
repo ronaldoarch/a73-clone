@@ -233,7 +233,8 @@ async function getAppConfig() {
       roletaDailySpins: v.roletaDailySpins ?? 1,
       bonusPrimeiroDep: v.bonusPrimeiroDep ?? 0,
       bonusPrimeiroDepPercent: v.bonusPrimeiroDepPercent ?? 0,
-      roletaSegments
+      roletaSegments,
+      whatsappUrl: v.whatsappUrl || ''
     }
   } catch (e) { return { depositoMin: 10, saqueMin: 20, saqueMax: 40000, roletaMinWithdraw: 100, roletaBonusDays: 3, roletaDailySpins: 1, bonusPrimeiroDep: 0, bonusPrimeiroDepPercent: 0, roletaSegments: DEFAULT_ROLETA_SEGMENTS } }
 }
@@ -2111,7 +2112,8 @@ app.post('/api/admin/config', adminAuthMiddleware, async (req, res) => {
     const roletaSegments = Array.isArray(segs) && segs.length === 8
       ? segs.map((sg, i) => ({ label: String(sg?.label ?? ''), value: Number(sg?.value) ?? 0 }))
       : DEFAULT_ROLETA_SEGMENTS
-    const value = { depositoMin, saqueMin, saqueMax, roletaMinWithdraw, roletaBonusDays, roletaDailySpins, bonusPrimeiroDep, bonusPrimeiroDepPercent, roletaSegments }
+    const whatsappUrl = String(body.whatsappUrl || '').trim().slice(0, 200)
+    const value = { depositoMin, saqueMin, saqueMax, roletaMinWithdraw, roletaBonusDays, roletaDailySpins, bonusPrimeiroDep, bonusPrimeiroDepPercent, roletaSegments, whatsappUrl }
     await prisma.setting.upsert({
       where: { id: 'config' },
       create: { id: 'config', value },
@@ -2269,10 +2271,11 @@ app.get('/api/settings', async (req, res) => {
       pageTitle: v.pageTitle || 'A73',
       depositoMin: cfg.depositoMin ?? 10,
       saqueMin: cfg.saqueMin ?? 20,
-      saqueMax: cfg.saqueMax ?? 40000
+      saqueMax: cfg.saqueMax ?? 40000,
+      whatsappUrl: cfg.whatsappUrl || ''
     })
   } catch (e) {
-    return res.json({ logo: '/s5/app-icon/1222508/LOGO.jpg', banner: '/s5/1770954153806/9999.jpg', loadingBanner: '/s5/app-icon/1222508/LOGO.jpg', siteName: 'A73.com', pageTitle: 'A73', depositoMin: 10, saqueMin: 20, saqueMax: 40000 })
+    return res.json({ logo: '/s5/app-icon/1222508/LOGO.jpg', banner: '/s5/1770954153806/9999.jpg', loadingBanner: '/s5/app-icon/1222508/LOGO.jpg', siteName: 'A73.com', pageTitle: 'A73', depositoMin: 10, saqueMin: 20, saqueMax: 40000, whatsappUrl: '' })
   }
 })
 

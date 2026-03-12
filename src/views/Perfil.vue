@@ -31,7 +31,7 @@
           <div class="perfil-avatar">{{ selectedAvatar }}</div>
           <div class="perfil-user-info">
             <span class="perfil-phone">{{ account }}</span>
-            <span class="perfil-vip-badge">VIP 0</span>
+            <span class="perfil-vip-badge">VIP {{ nivelVip }}</span>
             <span class="perfil-id">ID {{ userId }}</span>
             <button type="button" class="perfil-copy-btn" @click="copyId" aria-label="Copiar ID">
               📋
@@ -68,7 +68,7 @@
               <span class="perfil-vip-icon-wrap">
                 <ion-icon name="ribbon" class="perfil-vip-crown" />
               </span>
-              <span class="perfil-vip-badge-card">VIP 0</span>
+              <span class="perfil-vip-badge-card">VIP {{ nivelVip }}</span>
               <span class="perfil-vip-nivel-label">Nível Atual</span>
             </div>
             <button type="button" class="perfil-vip-detalhes-btn" @click="$router.push('/main/vip/')">
@@ -81,7 +81,7 @@
               <span class="perfil-vip-icon-wrap perfil-vip-icon-sm">
                 <ion-icon name="ribbon" class="perfil-vip-crown" />
               </span>
-              VIP 0
+              VIP {{ nivelVip }}
             </span>
             <div class="perfil-vip-bar">
               <div class="perfil-vip-progress" :style="{ width: vipProgress + '%' }"></div>
@@ -90,7 +90,7 @@
               <span class="perfil-vip-icon-wrap perfil-vip-icon-sm">
                 <ion-icon name="ribbon" class="perfil-vip-crown" />
               </span>
-              VIP 1
+              VIP {{ Math.min(nivelVip + 1, 15) }}
             </span>
           </div>
           <div class="perfil-vip-criteria-block">
@@ -204,14 +204,14 @@ const AVATAR_DEFAULT = '👤'
 const selectedAvatar = ref(localStorage.getItem('userAvatar') || AVATAR_DEFAULT)
 
 const router = useRouter()
-const { balanceFormatted, refresh } = useAfiliado()
+const { balanceFormatted, refresh, nivelVip, comissaoHoje, vipProgresso, idIndicacao, fmt } = useAfiliado()
 const account = computed(() => localStorage.getItem('account') || '')
-const userId = ref('4180019537')
+const userId = computed(() => idIndicacao.value || '4180019537')
 const isLoggedIn = ref(!!localStorage.getItem('token'))
-const bonusToday = ref('0,00')
-const currentWager = ref('0,00')
-const requiredWager = ref('100,00')
-const vipProgress = ref(0)
+const bonusToday = computed(() => fmt(comissaoHoje.value ?? 0))
+const currentWager = computed(() => vipProgresso.value.apostaAtual)
+const requiredWager = computed(() => vipProgresso.value.apostaProximo)
+const vipProgress = computed(() => vipProgresso.value.progresso)
 const showSaqueModal = ref(false)
 const toast = useToast()
 
@@ -272,7 +272,7 @@ onIonViewWillEnter(() => {
 })
 
 function copyId() {
-  navigator.clipboard?.writeText(userId.value)
+  navigator.clipboard?.writeText(String(userId.value))
 }
 function refreshBalance() {
   refresh()

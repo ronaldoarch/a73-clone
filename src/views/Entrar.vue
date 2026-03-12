@@ -164,7 +164,7 @@ import { useToast } from '@/composables/useToast'
 import QRCode from 'qrcode'
 
 const { refresh } = useAfiliado()
-const { depositoMin } = useSettings()
+const { depositoMin, whatsappUrl } = useSettings()
 const toast = useToast()
 const isLoggedIn = ref(!!localStorage.getItem('token'))
 
@@ -343,7 +343,7 @@ onUnmounted(() => {
 })
 
 function openSupport() {
-  window.open('https://wa.me/', '_blank')
+  window.open(whatsappUrl.value || 'https://wa.me/', '_blank')
 }
 </script>
 

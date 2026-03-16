@@ -524,9 +524,6 @@ async function maybeShowRoletaNovos() {
     const eligible = await checkRoletaNovosEligible()
     if (eligible) showRoletaNovosModal.value = true
     sessionStorage.removeItem('showRoletaNovos')
-  } else if (firstVisit && !isLoggedIn.value) {
-    sessionStorage.setItem('roleta_novos_offer_seen', '1')
-    showRoletaNovosModal.value = true
   }
 }
 

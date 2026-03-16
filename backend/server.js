@@ -151,10 +151,14 @@ app.post('/api/webhook/gatebox', async (req, res) => {
   }
 })
 
-/** Gera pid único a partir do account */
+/** Gera pid único a partir do account (hash polinomial para evitar colisões) */
 function generatePid(account) {
-  const hash = Math.abs(String(account).split('').reduce((a, c) => a + c.charCodeAt(0), 0))
-  return '4' + String(hash).padStart(9, '0')
+  const s = String(account)
+  let h = 0
+  for (let i = 0; i < s.length; i++) {
+    h = Math.imul(31, h) + s.charCodeAt(i) | 0
+  }
+  return '4' + String(Math.abs(h) % 1000000000).padStart(9, '0')
 }
 
 /** Middleware para verificar JWT */
@@ -422,7 +426,9 @@ app.post('/api/frontend/trpc/user.register', async (req, res) => {
         indicatorId
       }
     })
-    const pidNovo = generatePid(phoneClean)
+    let pidNovo = generatePid(phoneClean)
+    const pidExists = await prisma.afiliadoData.findUnique({ where: { pid: pidNovo } })
+    if (pidExists) pidNovo = '4' + String(Date.now() % 1000000000).padStart(9, '0')
     await prisma.afiliadoData.create({
       data: {
         userId: user.id,

@@ -9,7 +9,7 @@ export const api = {
     })
     const json = await res.json()
     if (json.result?.data?.json) return json.result.data.json
-    if (json.error) return { error: json.error.message }
+    if (json.error) return { error: (typeof json.error === 'string' ? json.error : json.error?.message) || 'Erro desconhecido' }
     return json
   },
 
@@ -24,7 +24,7 @@ export const api = {
     })
     const json = await res.json()
     if (json.result?.data?.json) return json.result.data.json
-    if (json.error) return { error: json.error.message }
+    if (json.error) return { error: (typeof json.error === 'string' ? json.error : json.error?.message) || 'Erro desconhecido' }
     return json
   }
 }

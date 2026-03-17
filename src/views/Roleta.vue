@@ -225,9 +225,10 @@ function segmentIconInnerStyle(index) {
   const segCenterDeg = index * angle + angle / 2
   const offset = SEGMENT_OFFSETS[index] ?? -55
   const rotateToCenter = 180 - segCenterDeg + offset
-  const translateX = [-22, -22, -22, -22, -18, -22, -22, -22][index] ?? 0
+  const translateX = [-28, -28, -28, -28, -23, -28, -28, -28][index] ?? 0
+  const radius = 70
   return {
-    transform: `translate(${translateX}px, -55px) rotate(${rotateToCenter}deg)`
+    transform: `translate(${translateX}px, -${radius}px) rotate(${rotateToCenter}deg)`
   }
 }
 
@@ -411,15 +412,15 @@ onMounted(async () => {
   flex-direction: column;
   align-items: center;
   padding: 20px 0;
-  min-height: 320px;
+  min-height: 400px;
 }
 .roleta-wheel-bg {
   position: absolute;
   top: calc(50% - 20px);
   left: 50%;
   transform: translate(-50%, -50%);
-  width: 340px;
-  height: 340px;
+  width: 400px;
+  height: 400px;
   object-fit: contain;
   object-position: center;
   z-index: 1;
@@ -430,8 +431,8 @@ onMounted(async () => {
   top: calc(50% - 20px);
   left: 50%;
   transform: translate(-50%, -50%);
-  width: 340px;
-  height: 340px;
+  width: 400px;
+  height: 400px;
   object-fit: contain;
   object-position: center;
   z-index: 10;
@@ -441,10 +442,10 @@ onMounted(async () => {
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 220px;
-  height: 220px;
-  margin-top: -110px;
-  margin-left: -110px;
+  width: 280px;
+  height: 280px;
+  margin-top: -140px;
+  margin-left: -140px;
   z-index: 5;
   transform-origin: 50% 50%;
   transition: transform 4s cubic-bezier(0.17, 0.67, 0.12, 0.99);
@@ -461,10 +462,10 @@ onMounted(async () => {
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 220px;
-  height: 220px;
-  margin-top: -110px;
-  margin-left: -110px;
+  width: 280px;
+  height: 280px;
+  margin-top: -140px;
+  margin-left: -140px;
   z-index: 6;
   pointer-events: none;
 }
@@ -472,10 +473,10 @@ onMounted(async () => {
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 50px;
-  height: 50px;
-  margin-left: -25px;
-  margin-top: -25px;
+  width: 60px;
+  height: 60px;
+  margin-left: -30px;
+  margin-top: -30px;
   transform-origin: 50% 50%;
   display: flex;
   align-items: center;
@@ -491,12 +492,12 @@ onMounted(async () => {
   gap: 2px;
 }
 .roleta-segment-icon-img {
-  width: 28px;
-  height: 28px;
+  width: 34px;
+  height: 34px;
   object-fit: contain;
 }
 .roleta-segment-value {
-  font-size: 0.55rem;
+  font-size: 0.65rem;
   font-weight: 800;
   color: #fff;
   text-shadow: 0 1px 2px rgba(0,0,0,0.8);

@@ -269,10 +269,13 @@ async function doSpin() {
 
 function closeResult() {
   showResult.value = false
+  // Fecha o modal da roleta imediatamente após o usuário ver o resultado
+  close()
 }
 </script>
 
 <style scoped>
+/* Mesmo tamanho da home: centralizado com margens laterais 16px */
 .roleta-novos-overlay {
   position: fixed;
   inset: 0;
@@ -286,10 +289,9 @@ function closeResult() {
   box-sizing: border-box;
 }
 .roleta-novos-modal {
-  width: min(100%, 420px);
+  width: min(calc(100vw - 32px), 420px);
   max-width: 420px;
-  height: auto;
-  max-height: min(90vh, 700px);
+  max-height: min(calc(100vh - 32px), 700px);
   background: #2d1b4e;
   border-radius: 16px;
   overflow-y: auto;
@@ -297,7 +299,6 @@ function closeResult() {
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
-  align-self: center;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
   box-sizing: border-box;
 }
@@ -327,8 +328,8 @@ function closeResult() {
 .roleta-novos-stage {
   position: relative;
   flex: 1;
-  min-height: 280px;
-  max-height: 380px;
+  min-height: 380px;
+  max-height: 460px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -347,8 +348,8 @@ function closeResult() {
 }
 .roleta-novos-wheel-wrap {
   position: relative;
-  width: 240px;
-  height: 240px;
+  width: 380px;
+  height: 380px;
   display: flex;
   align-items: center;
   justify-content: center;

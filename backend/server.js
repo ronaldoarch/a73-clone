@@ -381,7 +381,8 @@ app.post('/api/frontend/trpc/user.login', async (req, res) => {
     })
   } catch (e) {
     console.error('login error:', e)
-    return res.status(500).json({ error: { message: e.message || 'Erro interno' } })
+    const msg = process.env.NODE_ENV === 'production' ? 'Erro interno' : (e.message || String(e))
+    return res.status(500).json({ error: { message: msg } })
   }
 })
 

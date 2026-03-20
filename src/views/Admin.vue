@@ -1740,8 +1740,16 @@ async function uploadLogo() {
     const token = localStorage.getItem(ADMIN_TOKEN_KEY)
     if (token) headers['Authorization'] = `Bearer ${token}`
     const r = await fetch(apiUrl('/api/upload/logo'), { method: 'POST', headers, body: fd })
-    const data = await r.json()
-    if (data.ok) {
+    const txt = await r.text()
+    let data
+    try {
+      data = JSON.parse(txt)
+    } catch (_) {
+      showUploadMsg('logo', r.status === 413 ? 'Arquivo muito grande (máx. 10 MB)' : (txt || `Erro ${r.status}`), true)
+      return
+    }
+    const errMsg = typeof data?.error === 'string' ? data.error : data?.error?.message
+    if (data?.ok && data?.url) {
       const ts = '?t=' + Date.now()
       logoUrl.value = (data.url.startsWith('http') ? data.url : apiUrl(data.url)) + (data.url.includes('?') ? '' : ts)
       await loadSettings()
@@ -1749,7 +1757,7 @@ async function uploadLogo() {
       logoFile.value = null
       if (logoInput.value) logoInput.value.value = ''
     } else {
-      showUploadMsg('logo', data.error || 'Erro', true)
+      showUploadMsg('logo', errMsg || (r.status === 401 ? 'Faça login no admin novamente' : 'Erro ao enviar'), true)
     }
   } catch (e) {
     showUploadMsg('logo', 'Erro ao enviar: ' + (e.message || 'Verifique a conexão'), true)

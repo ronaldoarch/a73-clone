@@ -325,6 +325,7 @@ async function ensureAfiliado(userId, account) {
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     const dir = path.join(__dirname, 'uploads')
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
     cb(null, dir)
   },
   filename: (req, file, cb) => {
@@ -332,7 +333,7 @@ const storage = multer.diskStorage({
     cb(null, `${file.fieldname}-${Date.now()}${ext}`)
   }
 })
-const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } })
+const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 } })
 
 // Normaliza telefone para só dígitos (evita "11 99999-9999" vs "11999999999")
 function normalizeAccount(v) {
@@ -490,8 +491,20 @@ app.post('/api/user/change-password', authMiddleware, async (req, res) => {
   }
 })
 
+// Multer error handler - retorna JSON em vez de HTML
+function uploadLogoHandler(req, res, next) {
+  upload.single('file')(req, res, (err) => {
+    if (err) {
+      if (err.code === 'LIMIT_FILE_SIZE') return res.status(413).json({ ok: false, error: 'Arquivo muito grande. Máximo 10 MB.' })
+      console.error('multer logo:', err)
+      return res.status(500).json({ ok: false, error: err.message || 'Erro ao processar arquivo' })
+    }
+    next()
+  })
+}
+
 // Upload logo (requer admin)
-app.post('/api/upload/logo', upload.single('file'), adminAuthMiddleware, async (req, res) => {
+app.post('/api/upload/logo', uploadLogoHandler, adminAuthMiddleware, async (req, res) => {
   try {
     if (!req.file) {
       return res.json({ ok: false, error: 'Nenhum arquivo enviado' })

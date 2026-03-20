@@ -9,10 +9,12 @@ import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import { PrismaClient } from '@prisma/client'
 import { setPrisma, gateboxCreatePix, gateboxPixStatus, gateboxWithdraw, gateboxBalance } from './gatebox.js'
+import { setPrisma as setCyberPrisma, cyberCreatePix, cyberGetTransaction, cyberWithdraw, cyberBalance } from './cyber.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const prisma = new PrismaClient()
 setPrisma(prisma)
+setCyberPrisma(prisma)
 
 const app = express()
 const PORT = process.env.PORT || 3000
@@ -151,6 +153,58 @@ app.post('/api/webhook/gatebox', async (req, res) => {
   }
 })
 
+// POST webhook Cyber Payment - recebe eventos PIX (pix.in.confirmation, etc.)
+app.post('/api/webhook/cyber', async (req, res) => {
+  const webhookToken = process.env.CYBER_WEBHOOK_SECRET
+  if (webhookToken) {
+    const sig = req.headers['x-webhook-signature'] || req.headers['x-cyber-signature'] || ''
+    if (sig !== webhookToken) {
+      console.warn('Webhook Cyber: assinatura inválida')
+      return res.status(401).json({ ok: false })
+    }
+  }
+  const body = req.body || {}
+  const eventType = body.type || ''
+  res.status(200).json({ ok: true })
+  try {
+    if (eventType !== 'pix.in.confirmation') return
+    const data = body.data || {}
+    const orderId = data.metadata?.order_id || data.metadata?.externalId
+    const transactionId = data.transactionId || data.id
+    if (!orderId && !transactionId) {
+      console.log('Webhook Cyber: sem order_id nem transactionId', { keys: Object.keys(data) })
+      return
+    }
+    let deposit = null
+    if (orderId) {
+      const claimed = await prisma.deposit.updateMany({
+        where: { id: orderId, status: 'pendente' },
+        data: { status: 'processando' }
+      })
+      if (claimed.count > 0) {
+        deposit = await prisma.deposit.findUnique({ where: { id: orderId }, include: { user: true } })
+      }
+    }
+    if (!deposit && transactionId) {
+      const claimed = await prisma.deposit.updateMany({
+        where: { externalId: transactionId, status: 'pendente' },
+        data: { status: 'processando' }
+      })
+      if (claimed.count > 0) {
+        deposit = await prisma.deposit.findFirst({
+          where: { externalId: transactionId },
+          include: { user: true }
+        })
+      }
+    }
+    if (!deposit) return
+    await confirmarDepositoPix(deposit)
+    console.log('Webhook Cyber: depósito', deposit.id, 'confirmado')
+  } catch (e) {
+    console.error('Webhook Cyber:', e)
+  }
+})
+
 /** Gera pid único a partir do account (hash polinomial para evitar colisões) */
 function generatePid(account) {
   const s = String(account)
@@ -238,9 +292,10 @@ async function getAppConfig() {
       bonusPrimeiroDep: v.bonusPrimeiroDep ?? 0,
       bonusPrimeiroDepPercent: v.bonusPrimeiroDepPercent ?? 0,
       roletaSegments,
-      whatsappUrl: v.whatsappUrl || ''
+      whatsappUrl: v.whatsappUrl || '',
+      paymentProvider: v.paymentProvider || 'gatebox'
     }
-  } catch (e) { return { depositoMin: 10, saqueMin: 20, saqueMax: 40000, roletaMinWithdraw: 100, roletaBonusDays: 3, roletaDailySpins: 1, bonusPrimeiroDep: 0, bonusPrimeiroDepPercent: 0, roletaSegments: DEFAULT_ROLETA_SEGMENTS } }
+  } catch (e) { return { depositoMin: 10, saqueMin: 20, saqueMax: 40000, roletaMinWithdraw: 100, roletaBonusDays: 3, roletaDailySpins: 1, bonusPrimeiroDep: 0, bonusPrimeiroDepPercent: 0, roletaSegments: DEFAULT_ROLETA_SEGMENTS, paymentProvider: 'gatebox' } }
 }
 
 /** Confirma depósito PIX e credita saldo (usado por polling e webhook)
@@ -642,13 +697,14 @@ app.get('/api/afiliado', authMiddleware, async (req, res) => {
   }
 })
 
-// POST depósito PIX (Gatebox) - gera QR e cria Deposit pendente
+// POST depósito PIX (Gatebox ou Cyber) - gera QR e cria Deposit pendente
 app.post('/api/deposito/pix', authMiddleware, async (req, res) => {
   try {
-    const { valor, cpf, nome } = req.body?.json || req.body || {}
+    const { valor, cpf, nome, email } = req.body?.json || req.body || {}
     const v = parseFloat(valor)
     const cfg = await getAppConfig()
     const minDep = cfg.depositoMin ?? 10
+    const provider = cfg.paymentProvider || 'gatebox'
     if (!Number.isFinite(v) || v <= 0) return res.json({ error: { message: 'Valor inválido' } })
     if (v < minDep) return res.json({ error: { message: `Valor mínimo R$ ${minDep.toFixed(2)}` } })
     if (v > 50000) return res.json({ error: { message: 'Valor máximo R$ 50.000,00' } })
@@ -666,44 +722,61 @@ app.post('/api/deposito/pix', authMiddleware, async (req, res) => {
         externalId: null
       }
     })
-    const externalId = deposit.id
-    const result = await gateboxCreatePix({
-      externalId,
-      amount: v,
-      document: doc,
-      name: nomeDeposito.slice(0, 100),
-      identification: `Depósito A73 - ${user.account}`,
-      description: `Depósito A73 - ${user.account}`,
-      expire: 3600
-    })
-    if (!result.ok) {
-      await prisma.deposit.update({ where: { id: deposit.id }, data: { status: 'erro' } })
-      return res.json({ error: { message: result.error || 'Erro ao gerar PIX' } })
+    const userEmail = email || `${user.account}@pix.place`
+    const userPhone = user.phone || user.account
+    let result, externalId, copyPaste, qrcode
+    if (provider === 'cyber') {
+      result = await cyberCreatePix({
+        amount: v,
+        document: doc,
+        name: nomeDeposito,
+        email: userEmail,
+        phone: userPhone,
+        description: `Depósito - ${user.account}`,
+        metadata: { order_id: deposit.id }
+      })
+      if (!result.ok) {
+        await prisma.deposit.update({ where: { id: deposit.id }, data: { status: 'erro' } })
+        return res.json({ error: { message: result.error || 'Erro ao gerar PIX' } })
+      }
+      const d = result.data || {}
+      externalId = d.id || d.transactionId
+      copyPaste = d.copyPaste || ''
+      qrcode = d.qrcode || ''
+    } else {
+      externalId = deposit.id
+      result = await gateboxCreatePix({
+        externalId,
+        amount: v,
+        document: doc,
+        name: nomeDeposito.slice(0, 100),
+        identification: `Depósito A73 - ${user.account}`,
+        description: `Depósito A73 - ${user.account}`,
+        expire: 3600
+      })
+      if (!result.ok) {
+        await prisma.deposit.update({ where: { id: deposit.id }, data: { status: 'erro' } })
+        return res.json({ error: { message: result.error || 'Erro ao gerar PIX' } })
+      }
+      const d = result.data || {}
+      const nested = d.data || d.result || d.body || {}
+      const all = { ...d, ...(typeof nested === 'object' ? nested : {}) }
+      copyPaste = all.copyPaste || all.brCode || all.pixCopiaECola || all.payload || all.pixKey || all.pixCopyPaste || ''
+      qrcode = all.qrcode || all.qrCode || all.qrCodeBase64 || all.imagemQrCode || all.qrCodeImage || ''
+      if (!copyPaste || !qrcode) {
+        const flat = JSON.stringify(d)
+        const pixMatch = flat.match(/"00020[^"]{100,}"/)
+        if (pixMatch && !copyPaste) copyPaste = pixMatch[0].replace(/^"|"$/g, '')
+        const b64Match = flat.match(/"([A-Za-z0-9+/]{100,}=*)"/)
+        if (b64Match && !qrcode && /^[A-Za-z0-9+/=]+$/.test(b64Match[1])) qrcode = `data:image/png;base64,${b64Match[1]}`
+      }
     }
     await prisma.deposit.update({ where: { id: deposit.id }, data: { externalId } })
-    const d = result.data || {}
-    const nested = d.data || d.result || d.body || {}
-    const all = { ...d, ...(typeof nested === 'object' ? nested : {}) }
-    let copyPaste = all.copyPaste || all.brCode || all.pixCopiaECola || all.payload || all.pixKey || all.pixCopyPaste || ''
-    let qrcode = all.qrcode || all.qrCode || all.qrCodeBase64 || all.imagemQrCode || all.qrCodeImage || ''
-    if (!copyPaste || !qrcode) {
-      const flat = JSON.stringify(d)
-      const pixMatch = flat.match(/"00020[^"]{100,}"/)
-      if (pixMatch && !copyPaste) copyPaste = pixMatch[0].replace(/^"|"$/g, '')
-      const b64Match = flat.match(/"([A-Za-z0-9+/]{100,}=*)"/)
-      if (b64Match && !qrcode && /^[A-Za-z0-9+/=]+$/.test(b64Match[1])) qrcode = `data:image/png;base64,${b64Match[1]}`
-    }
     if (!copyPaste && !qrcode) {
-      const keys = Object.keys(all)
-      const sample = JSON.stringify(d).slice(0, 800)
-      console.warn('Gatebox PIX: resposta sem qrcode/copyPaste. Keys:', keys, 'Sample:', sample)
+      console.warn('PIX: resposta sem qrcode/copyPaste. Provider:', provider)
       await prisma.deposit.update({ where: { id: deposit.id }, data: { status: 'erro' } })
-      const debug = process.env.NODE_ENV !== 'production' ? { keys, sample } : undefined
       return res.json({
-        error: {
-          message: 'Não foi possível gerar o PIX. Verifique os dados e tente novamente.',
-          ...(debug && { debug })
-        }
+        error: { message: 'Não foi possível gerar o PIX. Verifique os dados e tente novamente.' }
       })
     }
     return res.json({
@@ -741,12 +814,23 @@ app.get('/api/deposito/pix/status/:externalId', authMiddleware, async (req, res)
     if (deposit.status === 'concluido') {
       return res.json({ result: { data: { json: { status: 'concluido', valor: deposit.valor } } } })
     }
-    const statusResult = await gateboxPixStatus({ externalId })
-    if (!statusResult.ok) {
-      return res.json({ result: { data: { json: { status: 'pendente', error: statusResult.error } } } })
+    const isCyber = externalId.startsWith('txn_')
+    let paid = false
+    if (isCyber) {
+      const statusResult = await cyberGetTransaction(externalId)
+      if (!statusResult.ok) {
+        return res.json({ result: { data: { json: { status: 'pendente', error: statusResult.error } } } })
+      }
+      const st = statusResult.data?.status || ''
+      paid = ['APPROVED', 'PAID', 'CONCLUIDO', 'concluido', 'pago'].includes(String(st).toUpperCase())
+    } else {
+      const statusResult = await gateboxPixStatus({ externalId })
+      if (!statusResult.ok) {
+        return res.json({ result: { data: { json: { status: 'pendente', error: statusResult.error } } } })
+      }
+      const st = statusResult.data?.status || statusResult.data?.transactionStatus || (statusResult.data?.paid ? 'PAID' : 'PENDING')
+      paid = ['PAID', 'PAID_OUT', 'CONCLUIDO', 'concluido', 'pago'].includes(String(st).toUpperCase())
     }
-    const st = statusResult.data?.status || statusResult.data?.transactionStatus || (statusResult.data?.paid ? 'PAID' : 'PENDING')
-    const paid = ['PAID', 'PAID_OUT', 'CONCLUIDO', 'concluido', 'pago'].includes(String(st).toUpperCase())
     if (paid) {
       await confirmarDepositoPix(deposit)
       return res.json({ result: { data: { json: { status: 'concluido', valor: deposit.valor } } } })
@@ -1873,17 +1957,29 @@ app.post('/api/saque', authMiddleware, async (req, res) => {
     }
 
     let withdrawResult
+    const cfg = await getAppConfig()
+    const useCyber = cfg.paymentProvider === 'cyber'
     try {
-      withdrawResult = await gateboxWithdraw({
-        externalId: withdrawal.id,
-        key,
-        name,
-        amount: v,
-        documentNumber: /^\d{11}$|^\d{14}$/.test(key) ? key : undefined,
-        description: `Saque A73 - ${user?.account || req.userId}`
-      })
+      if (useCyber) {
+        const keyType = key.includes('@') ? 'EMAIL' : (/^\d{11}$/.test(key) ? 'CPF' : /^\d{14}$/.test(key) ? 'CNPJ' : 'RANDOM')
+        withdrawResult = await cyberWithdraw({
+          amount: v,
+          pixKey: key,
+          pixKeyType: keyType,
+          description: `Saque A73 - ${user?.account || req.userId}`
+        })
+      } else {
+        withdrawResult = await gateboxWithdraw({
+          externalId: withdrawal.id,
+          key,
+          name,
+          amount: v,
+          documentNumber: /^\d{11}$|^\d{14}$/.test(key) ? key : undefined,
+          description: `Saque A73 - ${user?.account || req.userId}`
+        })
+      }
     } catch (gateboxErr) {
-      console.error('Gatebox withdraw error:', gateboxErr)
+      console.error('Withdraw error:', gateboxErr)
       return refundAndFail('Erro de conexão com o gateway. Tente novamente.')
     }
 
@@ -2058,16 +2154,25 @@ app.patch('/api/admin/saques/:id', adminAuthMiddleware, async (req, res) => {
       key = key.replace(/\D/g, '')
     }
     const name = String(w.nome || w.user?.account || 'Cliente').trim()
-    const withdrawResult = await gateboxWithdraw({
-      externalId: id,
-      key,
-      name,
-      amount: w.valor,
-      documentNumber: /^\d{11}$|^\d{14}$/.test(key) ? key : undefined,
-      description: `Saque A73 - ${w.user?.account || w.userId}`
-    })
+    const cfg = await getAppConfig()
+    const useCyber = cfg.paymentProvider === 'cyber'
+    const withdrawResult = useCyber
+      ? await cyberWithdraw({
+          amount: w.valor,
+          pixKey: key,
+          pixKeyType: key.includes('@') ? 'EMAIL' : (/^\d{11}$/.test(key) ? 'CPF' : /^\d{14}$/.test(key) ? 'CNPJ' : 'RANDOM'),
+          description: `Saque A73 - ${w.user?.account || w.userId}`
+        })
+      : await gateboxWithdraw({
+          externalId: id,
+          key,
+          name,
+          amount: w.valor,
+          documentNumber: /^\d{11}$|^\d{14}$/.test(key) ? key : undefined,
+          description: `Saque A73 - ${w.user?.account || w.userId}`
+        })
     if (!withdrawResult.ok) {
-      return res.status(400).json({ ok: false, error: withdrawResult.error || 'Erro ao enviar PIX via Gatebox' })
+      return res.status(400).json({ ok: false, error: withdrawResult.error || 'Erro ao enviar PIX' })
     }
     await prisma.withdrawal.update({ where: { id }, data: { status: 'concluido', updatedAt: new Date() } })
     return res.json({ ok: true, status: 'concluido' })
@@ -2133,7 +2238,8 @@ app.post('/api/admin/config', adminAuthMiddleware, async (req, res) => {
       ? segs.map((sg, i) => ({ label: String(sg?.label ?? ''), value: Number(sg?.value) ?? 0 }))
       : DEFAULT_ROLETA_SEGMENTS
     const whatsappUrl = String(body.whatsappUrl || '').trim().slice(0, 200)
-    const value = { depositoMin, saqueMin, saqueMax, roletaMinWithdraw, roletaBonusDays, roletaDailySpins, bonusPrimeiroDep, bonusPrimeiroDepPercent, roletaSegments, whatsappUrl }
+    const paymentProvider = ['gatebox', 'cyber'].includes(String(body.paymentProvider || '').toLowerCase()) ? String(body.paymentProvider).toLowerCase() : 'gatebox'
+    const value = { depositoMin, saqueMin, saqueMax, roletaMinWithdraw, roletaBonusDays, roletaDailySpins, bonusPrimeiroDep, bonusPrimeiroDepPercent, roletaSegments, whatsappUrl, paymentProvider }
     await prisma.setting.upsert({
       where: { id: 'config' },
       create: { id: 'config', value },
@@ -2198,6 +2304,60 @@ app.post('/api/admin/gatebox/test-pix', adminAuthMiddleware, async (req, res) =>
     })
   } catch (e) {
     console.error('admin gatebox test-pix:', e)
+    return res.status(500).json({ ok: false, error: e.message })
+  }
+})
+
+app.get('/api/admin/cyber', adminAuthMiddleware, async (req, res) => {
+  try {
+    const s = await prisma.setting.findUnique({ where: { id: 'cyber' } })
+    const v = s?.value || {}
+    return res.json({
+      apiKey: v.apiKey ? '••••••' : '',
+      apiUrl: v.apiUrl || 'https://api.escalecyber.com/v1'
+    })
+  } catch (e) {
+    return res.json({ apiKey: '', apiUrl: 'https://api.escalecyber.com/v1' })
+  }
+})
+
+app.post('/api/admin/cyber', adminAuthMiddleware, async (req, res) => {
+  try {
+    const { apiKey, apiUrl } = req.body?.json || req.body || {}
+    const s = await prisma.setting.findUnique({ where: { id: 'cyber' } })
+    const v = (s?.value && typeof s.value === 'object') ? { ...s.value } : {}
+    v.apiUrl = (apiUrl || 'https://api.escalecyber.com/v1').replace(/\/$/, '')
+    if (apiKey && apiKey !== '••••••') v.apiKey = String(apiKey).trim()
+    await prisma.setting.upsert({
+      where: { id: 'cyber' },
+      create: { id: 'cyber', value: v },
+      update: { value: v }
+    })
+    return res.json({ ok: true })
+  } catch (e) {
+    console.error('admin cyber save:', e)
+    return res.status(500).json({ ok: false, error: e.message })
+  }
+})
+
+app.post('/api/admin/cyber/test-pix', adminAuthMiddleware, async (req, res) => {
+  try {
+    const result = await cyberCreatePix({
+      amount: 0.1,
+      document: '12345678901',
+      name: 'Teste Debug',
+      email: 'teste@example.com',
+      phone: '11999999999',
+      description: 'Teste PIX Cyber'
+    })
+    return res.json({
+      ok: result.ok,
+      raw: result.data,
+      keys: result.data ? Object.keys(result.data) : [],
+      error: result.error
+    })
+  } catch (e) {
+    console.error('admin cyber test-pix:', e)
     return res.status(500).json({ ok: false, error: e.message })
   }
 })
@@ -2296,6 +2456,38 @@ app.get('/api/settings', async (req, res) => {
     })
   } catch (e) {
     return res.json({ logo: '/s5/app-icon/1222508/LOGO.jpg', banner: '/s5/1770954153806/9999.jpg', loadingBanner: '/s5/app-icon/1222508/LOGO.jpg', siteName: '35m', pageTitle: '35m', depositoMin: 10, saqueMin: 20, saqueMax: 40000, whatsappUrl: '' })
+  }
+})
+
+// GET manifest (PWA) - dinâmico com base em settings (nome e logo)
+app.get('/api/manifest', async (req, res) => {
+  try {
+    const main = await prisma.setting.findUnique({ where: { id: 'main' } })
+    const v = main?.value || {}
+    const siteName = v.siteName || '35m'
+    const shortName = siteName.length > 12 ? siteName.slice(0, 11) + '…' : siteName
+    const logo = main?.logo || '/assets/logo-35m.svg'
+    const manifest = {
+      name: siteName,
+      short_name: shortName,
+      description: `Plataforma ${siteName}`,
+      theme_color: '#4D087B',
+      background_color: '#0f0f14',
+      display: 'standalone',
+      orientation: 'portrait',
+      start_url: '/',
+      icons: [
+        { src: logo, sizes: 'any', type: logo.endsWith('.svg') ? 'image/svg+xml' : 'image/png', purpose: 'any' },
+        { src: logo, sizes: '192x192', type: logo.endsWith('.svg') ? 'image/svg+xml' : 'image/png', purpose: 'any maskable' }
+      ]
+    }
+    res.setHeader('Content-Type', 'application/manifest+json')
+    res.setHeader('Cache-Control', 'public, max-age=300')
+    return res.json(manifest)
+  } catch (e) {
+    const fallback = { name: '35m', short_name: '35m', theme_color: '#4D087B', background_color: '#0f0f14', display: 'standalone', start_url: '/', icons: [{ src: '/assets/logo-35m.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any maskable' }] }
+    res.setHeader('Content-Type', 'application/manifest+json')
+    return res.json(fallback)
   }
 })
 

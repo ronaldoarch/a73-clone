@@ -254,6 +254,43 @@
           </div>
         </section>
 
+        <!-- Cyber Payment -->
+        <section v-show="activeSection === 'cyber'" class="admin-section">
+          <div class="card">
+            <h3>Cyber Payment - Gateway PIX</h3>
+            <p class="card-label" style="margin-bottom: 1rem;">Configure a API Key da Cyber Payment (Escale Cyber) para depósitos e saques via PIX. Base: https://api.escalecyber.com/v1</p>
+            <div class="form-group" style="margin-bottom: 1rem;">
+              <label>URL do Webhook (configure no painel Cyber)</label>
+              <div class="webhook-url-wrap">
+                <input :value="cyberWebhookUrl" readonly class="webhook-url-input" />
+                <button type="button" class="btn btn-outline" @click="copyCyberWebhookUrl">Copiar</button>
+              </div>
+              <span class="form-hint">Use esta URL no painel Cyber → Webhooks. Eventos: pix.in.confirmation</span>
+            </div>
+            <div v-if="cyberLoading" class="card-label">Carregando...</div>
+            <form v-else @submit.prevent="saveCyber" class="config-form">
+              <div class="form-group">
+                <label>URL da API</label>
+                <input v-model="cyberConfig.apiUrl" type="url" placeholder="https://api.escalecyber.com/v1" />
+              </div>
+              <div class="form-group">
+                <label>API Key</label>
+                <input v-model="cyberConfig.apiKey" type="password" placeholder="••••••" />
+                <span class="form-hint">Deixe em branco para manter a chave atual</span>
+              </div>
+              <button type="submit" class="btn btn-primary" :disabled="cyberSaving">{{ cyberSaving ? 'Salvando...' : 'Salvar' }}</button>
+              <button type="button" class="btn btn-outline" style="margin-left: 0.5rem;" :disabled="cyberTestLoading" @click="testCyberPix">
+                {{ cyberTestLoading ? 'Testando...' : 'Testar PIX' }}
+              </button>
+              <span v-if="cyberMsg" class="config-msg" :class="{ error: cyberError }">{{ cyberMsg }}</span>
+              <div v-if="cyberTestResult" class="gatebox-test-result">
+                <strong>Resposta Cyber:</strong>
+                <pre>{{ cyberTestResult }}</pre>
+              </div>
+            </form>
+          </div>
+        </section>
+
         <!-- Configurações -->
         <section v-show="activeSection === 'config'" class="admin-section">
           <div class="card">
@@ -293,6 +330,14 @@
                   <label>Bônus 1º depósito (% do valor)</label>
                   <input v-model.number="appConfig.bonusPrimeiroDepPercent" type="number" min="0" max="100" step="0.5" />
                 </div>
+              </div>
+              <div class="form-group">
+                <label>Gateway de pagamento (PIX/Saque)</label>
+                <select v-model="appConfig.paymentProvider" class="admin-select" style="max-width: 200px;">
+                  <option value="gatebox">Gatebox</option>
+                  <option value="cyber">Cyber Payment</option>
+                </select>
+                <span class="form-hint">Define qual API será usada para depósitos PIX e saques.</span>
               </div>
               <div class="form-group">
                 <label>URL do WhatsApp (suporte)</label>
@@ -824,7 +869,7 @@ const defaultTheme = {
 
 const router = useRouter()
 const route = useRoute()
-const VALID_SECTIONS = ['dashboard', 'usuarios', 'depositos', 'saques', 'afiliados', 'config', 'roleta', 'gatebox', 'jogos', 'provedores', 'tema', 'midia', 'promocoes']
+const VALID_SECTIONS = ['dashboard', 'usuarios', 'depositos', 'saques', 'afiliados', 'config', 'roleta', 'gatebox', 'cyber', 'jogos', 'provedores', 'tema', 'midia', 'promocoes']
 
 const ADMIN_TOKEN_KEY = 'admin_token'
 const adminLoggedIn = ref(!!localStorage.getItem(ADMIN_TOKEN_KEY))
@@ -860,7 +905,7 @@ function selectSection(id) {
   router.replace({ path: `/admin/${id}` })
 }
 
-const titles = { dashboard: 'Dashboard', usuarios: 'Usuários', depositos: 'Depósitos', saques: 'Saques', afiliados: 'Afiliados', config: 'Configurações', roleta: 'Roleta', gatebox: 'Gatebox PIX', jogos: 'API de Jogos', provedores: 'Provedores na Home', tema: 'Tema', midia: 'Logo e Banners', promocoes: 'Promoções (Eventos)' }
+const titles = { dashboard: 'Dashboard', usuarios: 'Usuários', depositos: 'Depósitos', saques: 'Saques', afiliados: 'Afiliados', config: 'Configurações', roleta: 'Roleta', gatebox: 'Gatebox PIX', cyber: 'Cyber Payment', jogos: 'API de Jogos', provedores: 'Provedores na Home', tema: 'Tema', midia: 'Logo e Banners', promocoes: 'Promoções (Eventos)' }
 
 const sections = [
   { id: 'dashboard', label: 'Dashboard', icon: () => h('svg', { fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z' })]) },
@@ -871,6 +916,7 @@ const sections = [
   { id: 'config', label: 'Configurações', icon: () => h('svg', { fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z' }), h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M15 12a3 3 0 11-6 0 3 3 0 016 0z' })]) },
   { id: 'roleta', label: 'Roleta', icon: () => h('svg', { fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z' }), h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M21 12a9 9 0 11-18 0 9 9 0 0118 0z' })]) },
   { id: 'gatebox', label: 'Gatebox PIX', icon: () => h('svg', { fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z' })]) },
+  { id: 'cyber', label: 'Cyber Payment', icon: () => h('svg', { fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z' })]) },
   { id: 'jogos', label: 'API de Jogos', icon: () => h('svg', { fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z' }), h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M21 12a9 9 0 11-18 0 9 9 0 0118 0z' })]) },
   { id: 'provedores', label: 'Provedores na Home', icon: () => h('svg', { fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10' })]) },
   { id: 'tema', label: 'Tema', icon: () => h('svg', { fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' }, [h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01' })]) },
@@ -894,7 +940,7 @@ const saqueActionLoading = ref(null)
 const dashboard = ref({ usersCount: 0, depositsToday: 0, withdrawalsPending: 0, totalDeposits: 0, recentDeposits: [], recentWithdrawals: [] })
 const dashboardLoading = ref(false)
 
-const appConfig = ref({ depositoMin: 10, saqueMin: 20, saqueMax: 40000, roletaMinWithdraw: 100, roletaBonusDays: 3, roletaDailySpins: 1, bonusPrimeiroDep: 0, bonusPrimeiroDepPercent: 0, whatsappUrl: '' })
+const appConfig = ref({ depositoMin: 10, saqueMin: 20, saqueMax: 40000, roletaMinWithdraw: 100, roletaBonusDays: 3, roletaDailySpins: 1, bonusPrimeiroDep: 0, bonusPrimeiroDepPercent: 0, whatsappUrl: '', paymentProvider: 'gatebox' })
 const configLoading = ref(false)
 const configSaving = ref(false)
 const configMsg = ref('')
@@ -902,6 +948,8 @@ const configError = ref(false)
 
 const gateboxConfig = ref({ apiUrl: 'https://api.gatebox.com.br', username: '', password: '' })
 const gateboxLoading = ref(false)
+const cyberConfig = ref({ apiUrl: 'https://api.escalecyber.com/v1', apiKey: '' })
+const cyberLoading = ref(false)
 
 const DEFAULT_ROLETA_SEGMENTS = [
   { label: '30,00', value: 30 },
@@ -929,9 +977,19 @@ const gateboxMsg = ref('')
 const gateboxError = ref(false)
 const gateboxTestLoading = ref(false)
 const gateboxTestResult = ref('')
+const cyberSaving = ref(false)
+const cyberMsg = ref('')
+const cyberError = ref(false)
+const cyberTestLoading = ref(false)
+const cyberTestResult = ref('')
 const webhookUrl = computed(() => {
   const base = typeof window !== 'undefined' ? window.location.origin : ''
   return base ? `${base.replace(/\/$/, '')}/api/webhook/gatebox` : '/api/webhook/gatebox'
+})
+const cyberWebhookUrl = computed(() => {
+  const base = typeof window !== 'undefined' ? window.location.origin : ''
+  return base ? `${base.replace(/\/$/, '')}/api/webhook/cyber` : '/api/webhook/cyber'
+})
 })
 
 const goldApiBaseUrl = computed(() => {
@@ -977,7 +1035,7 @@ async function loadConfig() {
     const data = await r.json()
     appConfig.value = data
   } catch (e) {
-    appConfig.value = { depositoMin: 10, saqueMin: 20, saqueMax: 40000, roletaMinWithdraw: 100, roletaBonusDays: 3, roletaDailySpins: 1, bonusPrimeiroDep: 0, bonusPrimeiroDepPercent: 0, whatsappUrl: '' }
+    appConfig.value = { depositoMin: 10, saqueMin: 20, saqueMax: 40000, roletaMinWithdraw: 100, roletaBonusDays: 3, roletaDailySpins: 1, bonusPrimeiroDep: 0, bonusPrimeiroDepPercent: 0, whatsappUrl: '', paymentProvider: 'gatebox' }
   } finally {
     configLoading.value = false
   }
@@ -1023,6 +1081,22 @@ async function loadGatebox() {
     gateboxConfig.value = { apiUrl: 'https://api.gatebox.com.br', username: '', password: '' }
   } finally {
     gateboxLoading.value = false
+  }
+}
+
+async function loadCyber() {
+  cyberLoading.value = true
+  try {
+    const r = await adminFetch('/api/admin/cyber')
+    const data = await r.json()
+    cyberConfig.value = {
+      apiUrl: data.apiUrl || 'https://api.escalecyber.com/v1',
+      apiKey: data.apiKey || ''
+    }
+  } catch (e) {
+    cyberConfig.value = { apiUrl: 'https://api.escalecyber.com/v1', apiKey: '' }
+  } finally {
+    cyberLoading.value = false
   }
 }
 
@@ -1129,6 +1203,16 @@ function copyWebhookUrl() {
   }
 }
 
+function copyCyberWebhookUrl() {
+  const url = cyberWebhookUrl.value
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(url).then(() => {
+      cyberMsg.value = 'URL copiada!'
+      setTimeout(() => { cyberMsg.value = '' }, 2000)
+    })
+  }
+}
+
 async function testGateboxPix() {
   gateboxTestLoading.value = true
   gateboxTestResult.value = ''
@@ -1144,6 +1228,50 @@ async function testGateboxPix() {
     gateboxTestResult.value = 'Erro: ' + e.message
   } finally {
     gateboxTestLoading.value = false
+  }
+}
+
+async function saveCyber() {
+  cyberSaving.value = true
+  cyberMsg.value = ''
+  cyberError.value = false
+  try {
+    const r = await adminFetch('/api/admin/cyber', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(cyberConfig.value)
+    })
+    const data = await r.json()
+    if (data?.ok) {
+      cyberMsg.value = 'Configuração Cyber salva!'
+    } else {
+      cyberMsg.value = data?.error || 'Erro ao salvar'
+      cyberError.value = true
+    }
+  } catch (e) {
+    cyberMsg.value = e.message || 'Erro ao salvar'
+    cyberError.value = true
+  } finally {
+    cyberSaving.value = false
+  }
+  setTimeout(() => { cyberMsg.value = '' }, 4000)
+}
+
+async function testCyberPix() {
+  cyberTestLoading.value = true
+  cyberTestResult.value = ''
+  try {
+    const r = await adminFetch('/api/admin/cyber/test-pix', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({})
+    })
+    const data = await r.json()
+    cyberTestResult.value = JSON.stringify(data, null, 2)
+  } catch (e) {
+    cyberTestResult.value = 'Erro: ' + e.message
+  } finally {
+    cyberTestLoading.value = false
   }
 }
 
@@ -1875,6 +2003,7 @@ watch(activeSection, async (s) => {
   if (s === 'config') loadConfig()
   if (s === 'roleta') loadRoleta()
   if (s === 'gatebox') loadGatebox()
+  if (s === 'cyber') loadCyber()
   if (s === 'promocoes') loadPromocoes()
 })
 

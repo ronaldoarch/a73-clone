@@ -9,8 +9,8 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       manifest: {
-        name: 'A73',
-        short_name: 'A73',
+        name: '35m',
+        short_name: '35m',
         description: 'Plataforma de jogos A73',
         theme_color: '#4D087B',
         background_color: '#0f0f14',
@@ -18,16 +18,14 @@ export default defineConfig({
         orientation: 'portrait',
         start_url: '/',
         icons: [
-          { src: '/assets/hot-platform-36-gold.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any maskable' }
+          { src: '/assets/logo-35m.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any maskable' }
         ]
       },
       workbox: {
         skipWaiting: true,
         clientsClaim: true,
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
-        globIgnores: [
-          '**/hot-platform-36-gold.svg'
-        ],
+        globIgnores: [],
         maximumFileSizeToCacheInBytes: 20 * 1024 * 1024,
         // Nunca cachear /api e /uploads (evita Cache.put em 404 e dados desatualizados)
         navigateFallbackDenylist: [/^\/api/, /^\/uploads/],

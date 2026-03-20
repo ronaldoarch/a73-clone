@@ -11,7 +11,7 @@ export default defineConfig({
       manifest: {
         name: '35m',
         short_name: '35m',
-        description: 'Plataforma de jogos A73',
+        description: 'Plataforma de jogos 35m',
         theme_color: '#4D087B',
         background_color: '#0f0f14',
         display: 'standalone',

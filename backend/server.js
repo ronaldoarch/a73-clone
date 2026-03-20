@@ -2287,15 +2287,15 @@ app.get('/api/settings', async (req, res) => {
       logo: main?.logo || defaultLogo,
       banner: main?.banner || '/s5/1770954153806/9999.jpg',
       loadingBanner: v.loadingBanner || main?.logo || defaultLogo,
-      siteName: v.siteName || 'A73.com',
-      pageTitle: v.pageTitle || 'A73',
+      siteName: v.siteName || '35m',
+      pageTitle: v.pageTitle || '35m',
       depositoMin: cfg.depositoMin ?? 10,
       saqueMin: cfg.saqueMin ?? 20,
       saqueMax: cfg.saqueMax ?? 40000,
       whatsappUrl: cfg.whatsappUrl || ''
     })
   } catch (e) {
-    return res.json({ logo: '/s5/app-icon/1222508/LOGO.jpg', banner: '/s5/1770954153806/9999.jpg', loadingBanner: '/s5/app-icon/1222508/LOGO.jpg', siteName: 'A73.com', pageTitle: 'A73', depositoMin: 10, saqueMin: 20, saqueMax: 40000, whatsappUrl: '' })
+    return res.json({ logo: '/s5/app-icon/1222508/LOGO.jpg', banner: '/s5/1770954153806/9999.jpg', loadingBanner: '/s5/app-icon/1222508/LOGO.jpg', siteName: '35m', pageTitle: '35m', depositoMin: 10, saqueMin: 20, saqueMax: 40000, whatsappUrl: '' })
   }
 })
 
@@ -2345,8 +2345,8 @@ app.post('/api/settings/branding', adminAuthMiddleware, async (req, res) => {
     const { siteName, pageTitle } = req.body?.json || req.body || {}
     const s = await prisma.setting.findUnique({ where: { id: 'main' } })
     const v = (s?.value && typeof s.value === 'object') ? { ...s.value } : {}
-    if (typeof siteName === 'string') v.siteName = siteName.trim() || 'A73.com'
-    if (typeof pageTitle === 'string') v.pageTitle = pageTitle.trim() || 'A73'
+    if (typeof siteName === 'string') v.siteName = siteName.trim() || '35m'
+    if (typeof pageTitle === 'string') v.pageTitle = pageTitle.trim() || '35m'
     await prisma.setting.upsert({
       where: { id: 'main' },
       create: { id: 'main', logo: null, banner: null, value: v },

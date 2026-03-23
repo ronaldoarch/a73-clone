@@ -1,5 +1,6 @@
 import 'dotenv/config'
 import fs from 'fs'
+import crypto from 'crypto'
 import express from 'express'
 import cors from 'cors'
 import path from 'path'
@@ -9,7 +10,12 @@ import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import { PrismaClient } from '@prisma/client'
 import { setPrisma, gateboxCreatePix, gateboxPixStatus, gateboxWithdraw, gateboxBalance } from './gatebox.js'
-import { setPrisma as setCyberPrisma, cyberCreatePix, cyberGetTransaction, cyberWithdraw, cyberBalance } from './cyber.js'
+import {
+  setPrisma as setCyberPrisma,
+  cyberCreatePix, cyberGetTransaction,
+  cyberWithdraw, cyberBalance,
+  invalidateCyberConfigCache, verifyWebhookSignature
+} from './cyber.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const prisma = new PrismaClient()
@@ -72,7 +78,12 @@ app.use((req, res, next) => {
 
 app.use(cors(corsOpts))
 app.options('*', cors(corsOpts))
-app.use(express.json())
+// Captura raw body para rotas de webhook (necessário para validação HMAC)
+app.use(express.json({
+  verify: (req, _res, buf) => {
+    if (req.path.startsWith('/api/webhook/')) req.rawBody = buf
+  }
+}))
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')))
 
 // POST webhook Gatebox - recebe eventos PIX (PIX_PAY_IN, etc.) - sem auth
@@ -153,55 +164,169 @@ app.post('/api/webhook/gatebox', async (req, res) => {
   }
 })
 
-// POST webhook Cyber Payment - recebe eventos PIX (pix.in.confirmation, etc.)
+// POST webhook Cyber Payment v1.5.0 - recebe todos eventos PIX in/out
 app.post('/api/webhook/cyber', async (req, res) => {
-  const webhookToken = process.env.CYBER_WEBHOOK_SECRET
-  if (webhookToken) {
+  // Validação HMAC-SHA256 usando X-Webhook-Signature
+  const webhookSecret = process.env.CYBER_WEBHOOK_SECRET
+  if (webhookSecret) {
     const sig = req.headers['x-webhook-signature'] || req.headers['x-cyber-signature'] || ''
-    if (sig !== webhookToken) {
-      console.warn('Webhook Cyber: assinatura inválida')
-      return res.status(401).json({ ok: false })
+    const rawBody = req.rawBody
+    if (rawBody) {
+      if (!verifyWebhookSignature(rawBody, sig, webhookSecret)) {
+        console.warn('Webhook Cyber: assinatura HMAC inválida')
+        return res.status(401).json({ ok: false })
+      }
+    } else {
+      // Fallback: comparação direta (sem raw body disponível)
+      if (sig !== webhookSecret) {
+        console.warn('Webhook Cyber: token inválido')
+        return res.status(401).json({ ok: false })
+      }
     }
   }
+
   const body = req.body || {}
   const eventType = body.type || ''
+  const data = body.data || {}
+
+  // Responde 200 imediatamente (evita timeout no gateway)
   res.status(200).json({ ok: true })
+
   try {
-    if (eventType !== 'pix.in.confirmation') return
-    const data = body.data || {}
-    const orderId = data.metadata?.order_id || data.metadata?.externalId
-    const transactionId = data.transactionId || data.id
-    if (!orderId && !transactionId) {
-      console.log('Webhook Cyber: sem order_id nem transactionId', { keys: Object.keys(data) })
+    // ── PIX RECEBIDO ──────────────────────────────────────────────
+    if (eventType === 'pix.in.confirmation') {
+      const orderId = data.metadata?.order_id || data.metadata?.externalId
+      const txnId = data.transactionId || data.id
+      if (!orderId && !txnId) {
+        console.log('Webhook Cyber pix.in.confirmation: sem referência', { keys: Object.keys(data) })
+        return
+      }
+      let deposit = null
+      // Busca por order_id (nosso Deposit.id enviado nos metadados)
+      if (orderId) {
+        const claimed = await prisma.deposit.updateMany({
+          where: { id: orderId, status: 'pendente' },
+          data: { status: 'processando' }
+        })
+        if (claimed.count > 0) {
+          deposit = await prisma.deposit.findUnique({ where: { id: orderId }, include: { user: true } })
+        }
+      }
+      // Fallback: busca por externalId (transactionId da Cyber)
+      if (!deposit && txnId) {
+        const claimed = await prisma.deposit.updateMany({
+          where: { externalId: txnId, status: 'pendente' },
+          data: { status: 'processando' }
+        })
+        if (claimed.count > 0) {
+          deposit = await prisma.deposit.findFirst({ where: { externalId: txnId }, include: { user: true } })
+        }
+      }
+      if (!deposit) {
+        console.log('Webhook Cyber pix.in.confirmation: depósito não encontrado ou já processado', { orderId, txnId })
+        return
+      }
+      await confirmarDepositoPix(deposit)
+      console.log('Webhook Cyber pix.in.confirmation: depósito', deposit.id, 'confirmado')
       return
     }
-    let deposit = null
-    if (orderId) {
-      const claimed = await prisma.deposit.updateMany({
-        where: { id: orderId, status: 'pendente' },
-        data: { status: 'processando' }
-      })
-      if (claimed.count > 0) {
-        deposit = await prisma.deposit.findUnique({ where: { id: orderId }, include: { user: true } })
-      }
-    }
-    if (!deposit && transactionId) {
-      const claimed = await prisma.deposit.updateMany({
-        where: { externalId: transactionId, status: 'pendente' },
-        data: { status: 'processando' }
-      })
-      if (claimed.count > 0) {
-        deposit = await prisma.deposit.findFirst({
-          where: { externalId: transactionId },
-          include: { user: true }
+
+    if (eventType === 'pix.in.expired') {
+      const txnId = data.transactionId || data.id
+      if (txnId) {
+        await prisma.deposit.updateMany({
+          where: { externalId: txnId, status: { in: ['pendente', 'processando'] } },
+          data: { status: 'expirado' }
         })
+        console.log('Webhook Cyber pix.in.expired:', txnId)
       }
+      return
     }
-    if (!deposit) return
-    await confirmarDepositoPix(deposit)
-    console.log('Webhook Cyber: depósito', deposit.id, 'confirmado')
+
+    if (eventType === 'pix.in.failed') {
+      const txnId = data.transactionId || data.id
+      if (txnId) {
+        await prisma.deposit.updateMany({
+          where: { externalId: txnId, status: { in: ['pendente', 'processando'] } },
+          data: { status: 'erro' }
+        })
+        console.log('Webhook Cyber pix.in.failed:', txnId, data.reason || '')
+      }
+      return
+    }
+
+    // ── PIX ENVIADO (SAQUES) ──────────────────────────────────────
+    if (eventType === 'pix.out.processing') {
+      const withdrawalId = data.withdrawalId || data.id
+      if (withdrawalId) {
+        await prisma.withdrawal.updateMany({
+          where: { externalId: withdrawalId, status: 'pendente' },
+          data: { status: 'processando', updatedAt: new Date() }
+        })
+        console.log('Webhook Cyber pix.out.processing:', withdrawalId)
+      }
+      return
+    }
+
+    if (eventType === 'pix.out.confirmation') {
+      const withdrawalId = data.withdrawalId || data.id
+      if (withdrawalId) {
+        await prisma.withdrawal.updateMany({
+          where: { externalId: withdrawalId, status: { in: ['pendente', 'processando'] } },
+          data: { status: 'concluido', updatedAt: new Date() }
+        })
+        console.log('Webhook Cyber pix.out.confirmation:', withdrawalId)
+      }
+      return
+    }
+
+    if (eventType === 'pix.out.failure') {
+      const withdrawalId = data.withdrawalId || data.id
+      if (!withdrawalId) return
+      // Busca o saque para devolver saldo ao usuário
+      const w = await prisma.withdrawal.findFirst({
+        where: { externalId: withdrawalId, status: { in: ['pendente', 'processando'] } }
+      })
+      if (w) {
+        await prisma.$transaction([
+          prisma.withdrawal.update({
+            where: { id: w.id },
+            data: { status: 'recusado', updatedAt: new Date() }
+          }),
+          prisma.afiliadoData.update({
+            where: { userId: w.userId },
+            data: {
+              balance: { increment: w.valor },
+              valorSaque: { decrement: w.valor },
+              numSaques: { decrement: 1 },
+              updatedAt: new Date()
+            }
+          })
+        ])
+        console.log('Webhook Cyber pix.out.failure: saque', w.id, 'recusado, saldo devolvido. Motivo:', data.reason || '')
+      }
+      return
+    }
+
+    if (eventType === 'pix.out.reversal') {
+      // Saque estornado — mesmo tratamento que failure (saldo já devolvido externamente)
+      const withdrawalId = data.withdrawalId || data.id
+      if (withdrawalId) {
+        await prisma.withdrawal.updateMany({
+          where: { externalId: withdrawalId, status: { not: 'recusado' } },
+          data: { status: 'recusado', updatedAt: new Date() }
+        })
+        console.log('Webhook Cyber pix.out.reversal:', withdrawalId)
+      }
+      return
+    }
+
+    // Eventos informativos sem ação necessária
+    if (!['pix.in.processing', 'pix.in.reversal.processing'].includes(eventType)) {
+      console.log('Webhook Cyber: evento não tratado:', eventType)
+    }
   } catch (e) {
-    console.error('Webhook Cyber:', e)
+    console.error('Webhook Cyber:', eventType, e)
   }
 })
 
@@ -840,8 +965,16 @@ app.get('/api/deposito/pix/status/:externalId', authMiddleware, async (req, res)
       if (!statusResult.ok) {
         return res.json({ result: { data: { json: { status: 'pendente', error: statusResult.error } } } })
       }
-      const st = statusResult.data?.status || ''
-      paid = ['APPROVED', 'PAID', 'CONCLUIDO', 'concluido', 'pago'].includes(String(st).toUpperCase())
+      const st = String(statusResult.data?.status || '').toUpperCase()
+      if (st === 'EXPIRED') {
+        await prisma.deposit.updateMany({ where: { externalId, status: 'pendente' }, data: { status: 'expirado' } })
+        return res.json({ result: { data: { json: { status: 'expirado' } } } })
+      }
+      if (st === 'FAILED') {
+        await prisma.deposit.updateMany({ where: { externalId, status: 'pendente' }, data: { status: 'erro' } })
+        return res.json({ result: { data: { json: { status: 'erro' } } } })
+      }
+      paid = ['APPROVED', 'PAID'].includes(st)
     } else {
       const statusResult = await gateboxPixStatus({ externalId })
       if (!statusResult.ok) {
@@ -1981,7 +2114,7 @@ app.post('/api/saque', authMiddleware, async (req, res) => {
           amount: v,
           pixKey: key,
           pixKeyType: keyType,
-          description: `Saque A73 - ${user?.account || req.userId}`
+          description: `Saque - ${user?.account || req.userId}`
         })
       } else {
         withdrawResult = await gateboxWithdraw({
@@ -1990,11 +2123,11 @@ app.post('/api/saque', authMiddleware, async (req, res) => {
           name,
           amount: v,
           documentNumber: /^\d{11}$|^\d{14}$/.test(key) ? key : undefined,
-          description: `Saque A73 - ${user?.account || req.userId}`
+          description: `Saque - ${user?.account || req.userId}`
         })
       }
-    } catch (gateboxErr) {
-      console.error('Withdraw error:', gateboxErr)
+    } catch (gwErr) {
+      console.error('Withdraw error:', gwErr)
       return refundAndFail('Erro de conexão com o gateway. Tente novamente.')
     }
 
@@ -2002,7 +2135,16 @@ app.post('/api/saque', authMiddleware, async (req, res) => {
       return refundAndFail(withdrawResult.error || 'Erro ao enviar PIX. Tente novamente ou entre em contato com o suporte.')
     }
 
-    await prisma.withdrawal.update({ where: { id: withdrawal.id }, data: { status: 'concluido', updatedAt: new Date() } })
+    if (useCyber) {
+      // Cyber é assíncrono: confirma via webhook pix.out.confirmation
+      const cyberWithdrawalId = withdrawResult.data?.withdrawalId
+      await prisma.withdrawal.update({
+        where: { id: withdrawal.id },
+        data: { status: 'processando', externalId: cyberWithdrawalId || null, updatedAt: new Date() }
+      })
+    } else {
+      await prisma.withdrawal.update({ where: { id: withdrawal.id }, data: { status: 'concluido', updatedAt: new Date() } })
+    }
     return res.json({ result: { data: { json: { ok: true, valor: v, saldoRestante: saldo - v } } } })
   } catch (e) {
     console.error('saque:', e)
@@ -2096,9 +2238,9 @@ app.get('/api/admin/dashboard', adminAuthMiddleware, async (req, res) => {
     const [usersCount, depositsToday, withdrawalsPending, recentDeposits, recentWithdrawals, totalDeposits] = await Promise.all([
       prisma.user.count(),
       prisma.deposit.aggregate({ where: { createdAt: { gte: today, lt: todayEnd } }, _sum: { valor: true } }),
-      prisma.withdrawal.aggregate({ where: { status: 'pendente' }, _sum: { valor: true } }),
+      prisma.withdrawal.aggregate({ where: { status: { in: ['pendente', 'processando'] } }, _sum: { valor: true } }),
       prisma.deposit.findMany({ orderBy: { createdAt: 'desc' }, take: 5, include: { user: { select: { account: true } } } }),
-      prisma.withdrawal.findMany({ where: { status: 'pendente' }, orderBy: { createdAt: 'desc' }, take: 5, include: { user: { select: { account: true } } } }),
+      prisma.withdrawal.findMany({ where: { status: { in: ['pendente', 'processando'] } }, orderBy: { createdAt: 'desc' }, take: 5, include: { user: { select: { account: true } } } }),
       prisma.deposit.aggregate({ _sum: { valor: true } })
     ])
     return res.json({
@@ -2107,7 +2249,7 @@ app.get('/api/admin/dashboard', adminAuthMiddleware, async (req, res) => {
       withdrawalsPending: withdrawalsPending._sum.valor ?? 0,
       totalDeposits: totalDeposits._sum.valor ?? 0,
       recentDeposits: recentDeposits.map(d => ({ user: maskAccount(d.user?.account), valor: d.valor, status: 'Aprovado', data: d.createdAt?.toISOString?.()?.slice(0, 16)?.replace('T', ' ') })),
-      recentWithdrawals: recentWithdrawals.map(w => ({ user: maskAccount(w.user?.account), valor: w.valor, status: 'Pendente', data: w.createdAt?.toISOString?.()?.slice(0, 16)?.replace('T', ' ') }))
+      recentWithdrawals: recentWithdrawals.map(w => ({ user: maskAccount(w.user?.account), valor: w.valor, status: w.status, data: w.createdAt?.toISOString?.()?.slice(0, 16)?.replace('T', ' ') }))
     })
   } catch (e) {
     console.error('admin dashboard:', e)
@@ -2119,7 +2261,10 @@ app.get('/api/admin/saques', adminAuthMiddleware, async (req, res) => {
   try {
     const status = req.query.status || ''
     const limit = Math.min(parseInt(req.query.limit) || 50, 100)
-    const where = status ? { status } : {}
+    // "pendente" inclui processando (saques Cyber aguardando webhook)
+    const where = status === 'pendente'
+      ? { status: { in: ['pendente', 'processando'] } }
+      : status ? { status } : {}
     const list = await prisma.withdrawal.findMany({
       where,
       orderBy: { createdAt: 'desc' },
@@ -2152,7 +2297,7 @@ app.patch('/api/admin/saques/:id', adminAuthMiddleware, async (req, res) => {
     }
     const w = await prisma.withdrawal.findUnique({ where: { id }, include: { user: { select: { account: true } } } })
     if (!w) return res.status(404).json({ ok: false, error: 'Saque não encontrado' })
-    if (w.status !== 'pendente') return res.status(400).json({ ok: false, error: 'Saque já processado' })
+    if (!['pendente', 'processando'].includes(w.status)) return res.status(400).json({ ok: false, error: 'Saque já finalizado' })
     if (status === 'recusado') {
       await prisma.$transaction([
         prisma.withdrawal.update({ where: { id }, data: { status: 'recusado', updatedAt: new Date() } }),
@@ -2176,7 +2321,7 @@ app.patch('/api/admin/saques/:id', adminAuthMiddleware, async (req, res) => {
           amount: w.valor,
           pixKey: key,
           pixKeyType: key.includes('@') ? 'EMAIL' : (/^\d{11}$/.test(key) ? 'CPF' : /^\d{14}$/.test(key) ? 'CNPJ' : 'RANDOM'),
-          description: `Saque A73 - ${w.user?.account || w.userId}`
+          description: `Saque - ${w.user?.account || w.userId}`
         })
       : await gateboxWithdraw({
           externalId: id,
@@ -2184,10 +2329,19 @@ app.patch('/api/admin/saques/:id', adminAuthMiddleware, async (req, res) => {
           name,
           amount: w.valor,
           documentNumber: /^\d{11}$|^\d{14}$/.test(key) ? key : undefined,
-          description: `Saque A73 - ${w.user?.account || w.userId}`
+          description: `Saque - ${w.user?.account || w.userId}`
         })
     if (!withdrawResult.ok) {
       return res.status(400).json({ ok: false, error: withdrawResult.error || 'Erro ao enviar PIX' })
+    }
+    if (useCyber) {
+      // Cyber é assíncrono: confirmação via webhook pix.out.confirmation
+      const cyberWithdrawalId = withdrawResult.data?.withdrawalId
+      await prisma.withdrawal.update({
+        where: { id },
+        data: { status: 'processando', externalId: cyberWithdrawalId || null, updatedAt: new Date() }
+      })
+      return res.json({ ok: true, status: 'processando' })
     }
     await prisma.withdrawal.update({ where: { id }, data: { status: 'concluido', updatedAt: new Date() } })
     return res.json({ ok: true, status: 'concluido' })
@@ -2349,6 +2503,7 @@ app.post('/api/admin/cyber', adminAuthMiddleware, async (req, res) => {
       create: { id: 'cyber', value: v },
       update: { value: v }
     })
+    invalidateCyberConfigCache()
     return res.json({ ok: true })
   } catch (e) {
     console.error('admin cyber save:', e)

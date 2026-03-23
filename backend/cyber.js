@@ -1,40 +1,73 @@
 /**
- * Cyber Payment API - Gateway de pagamentos (PIX, Boleto, Cartão)
+ * Cyber Payment API v1.5.0 - Gateway de pagamentos
  * https://api.escalecyber.com/v1
  * Autenticação: X-API-Key
  */
+import crypto from 'crypto'
+
 const CYBER_API = 'https://api.escalecyber.com/v1'
 
 let _prisma = null
 function setPrisma(p) { _prisma = p }
 
+/** Cache de config para evitar DB hit a cada request — TTL 60s */
+let _cfgCache = null
+let _cfgCacheAt = 0
+
 async function getCyberConfig() {
+  if (_cfgCache && Date.now() - _cfgCacheAt < 60_000) return _cfgCache
   if (!_prisma) return null
   try {
     const s = await _prisma.setting.findUnique({ where: { id: 'cyber' } })
     const v = s?.value
     if (v && typeof v === 'object' && v.apiKey) {
-      return {
+      _cfgCache = {
         apiKey: v.apiKey,
         apiUrl: (v.apiUrl || CYBER_API).replace(/\/$/, '')
       }
+      _cfgCacheAt = Date.now()
+      return _cfgCache
     }
   } catch (e) {}
   return null
 }
 
-export { setPrisma }
+/** Invalida o cache de config (chamar após salvar settings do Cyber) */
+export function invalidateCyberConfigCache() {
+  _cfgCache = null
+  _cfgCacheAt = 0
+}
 
 /**
- * Criar transação PIX - retorna QR Code e código copia e cola
+ * Valida assinatura HMAC-SHA256 do webhook
+ * O header X-Webhook-Signature contém HMAC-SHA256(rawBody, secret) em hex
+ * O secret pode vir com prefixo "whsec_" que é removido antes do cálculo
+ */
+export function verifyWebhookSignature(rawBody, signature, secret) {
+  if (!secret || !signature) return false
+  try {
+    const key = secret.replace(/^whsec_/, '')
+    const expected = crypto.createHmac('sha256', key).update(rawBody).digest('hex')
+    // Aceita com ou sem prefixo "sha256="
+    const sig = signature.replace(/^sha256=/, '')
+    return crypto.timingSafeEqual(Buffer.from(sig, 'hex'), Buffer.from(expected, 'hex'))
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Criar transação PIX — retorna QR Code e código copia e cola
  */
 export async function cyberCreatePix({ amount, document, name, email, phone, description, metadata = {} }) {
   const cfg = await getCyberConfig()
   if (!cfg) return { ok: false, error: 'Cyber Payment não configurado' }
+
   const doc = String(document || '').replace(/\D/g, '')
-  const docType = doc.length === 11 ? 'cpf' : 'cnpj'
-  const phoneFormatted = String(phone || '').replace(/\D/g, '')
-  const phoneIntl = phoneFormatted.length >= 10 ? '55' + phoneFormatted : '5511999999999'
+  const docType = doc.length === 14 ? 'cnpj' : 'cpf'
+  const phoneRaw = String(phone || '').replace(/\D/g, '')
+  const phoneIntl = phoneRaw.length >= 10 ? (phoneRaw.startsWith('55') ? phoneRaw : '55' + phoneRaw) : '5511999999999'
+
   try {
     const body = {
       amount: parseFloat(amount),
@@ -48,47 +81,45 @@ export async function cyberCreatePix({ amount, document, name, email, phone, des
     }
     const r = await fetch(`${cfg.apiUrl}/payments/transactions`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-Key': cfg.apiKey
-      },
+      headers: { 'Content-Type': 'application/json', 'X-API-Key': cfg.apiKey },
       body: JSON.stringify(body)
     })
     const data = await r.json()
     if (!data?.success || !data?.data) {
-      return { ok: false, error: data?.message || data?.error || 'Erro ao criar PIX' }
+      return { ok: false, error: data?.message || data?.error || `Erro ao criar PIX [${r.status}]` }
     }
     const d = data.data
     const pix = d.pix || {}
     const qrCode = pix.qrCode || {}
     const copyPaste = qrCode.emv || ''
-    const qrcode = qrCode.image || (typeof qrCode.emv === 'string' ? null : '')
+    const rawImg = qrCode.image || ''
+    const qrcode = rawImg ? (rawImg.startsWith('data:') ? rawImg : `data:image/png;base64,${rawImg}`) : null
     return {
       ok: true,
       data: {
         id: d.id,
-        external_id: d.external_id,
+        externalId: d.external_id,
         transactionId: d.id,
         copyPaste,
-        qrcode: qrcode ? (qrcode.startsWith('data:') ? qrcode : `data:image/png;base64,${qrcode}`) : null,
-        status: d.status
+        qrcode,
+        status: d.status,
+        expireAt: pix.expirationDate ? new Date(pix.expirationDate * 1000).toISOString() : null
       }
     }
   } catch (e) {
-    console.error('Cyber create PIX:', e)
+    console.error('Cyber createPix:', e)
     return { ok: false, error: e.message }
   }
 }
 
 /**
- * Buscar transação por ID
+ * Buscar transação PIX por ID
  */
 export async function cyberGetTransaction(transactionId) {
   const cfg = await getCyberConfig()
   if (!cfg) return { ok: false, error: 'Cyber Payment não configurado' }
   try {
     const r = await fetch(`${cfg.apiUrl}/payments/transactions/${transactionId}`, {
-      method: 'GET',
       headers: { 'X-API-Key': cfg.apiKey }
     })
     const data = await r.json()
@@ -97,19 +128,25 @@ export async function cyberGetTransaction(transactionId) {
     }
     return { ok: true, data: data.data }
   } catch (e) {
-    console.error('Cyber get transaction:', e)
+    console.error('Cyber getTransaction:', e)
     return { ok: false, error: e.message }
   }
 }
 
 /**
- * Criar saque PIX
+ * Criar solicitação de saque PIX
+ * Retorna { ok, data: { withdrawalId, status, ... } }
  */
 export async function cyberWithdraw({ amount, pixKey, pixKeyType, description }) {
   const cfg = await getCyberConfig()
   if (!cfg) return { ok: false, error: 'Cyber Payment não configurado' }
-  const typeMap = { cpf: 'CPF', cnpj: 'CNPJ', email: 'EMAIL', phone: 'PHONE', telefone: 'PHONE' }
-  const keyType = typeMap[String(pixKeyType || 'cpf').toLowerCase()] || 'CPF'
+
+  const typeMap = {
+    cpf: 'CPF', cnpj: 'CNPJ', email: 'EMAIL',
+    phone: 'PHONE', telefone: 'PHONE', random: 'RANDOM', evp: 'RANDOM'
+  }
+  const keyType = typeMap[String(pixKeyType || '').toLowerCase()] || 'CPF'
+
   try {
     const body = {
       amount: parseFloat(amount),
@@ -119,17 +156,24 @@ export async function cyberWithdraw({ amount, pixKey, pixKeyType, description })
     }
     const r = await fetch(`${cfg.apiUrl}/payments/withdrawals`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-Key': cfg.apiKey
-      },
+      headers: { 'Content-Type': 'application/json', 'X-API-Key': cfg.apiKey },
       body: JSON.stringify(body)
     })
     const data = await r.json()
-    if (!data?.success) {
-      return { ok: false, error: data?.message || data?.error || 'Erro ao criar saque' }
+    if (!data?.success || !data?.data) {
+      return { ok: false, error: data?.message || data?.error || `Erro ao criar saque [${r.status}]` }
     }
-    return { ok: true, data: data.data }
+    const d = data.data
+    return {
+      ok: true,
+      data: {
+        withdrawalId: d.id || d.withdrawal_id,
+        transactionId: d.transactionId || d.transaction_id,
+        status: d.status,
+        amount: d.amount,
+        netAmount: d.netAmount || d.net_amount
+      }
+    }
   } catch (e) {
     console.error('Cyber withdraw:', e)
     return { ok: false, error: e.message }
@@ -137,14 +181,34 @@ export async function cyberWithdraw({ amount, pixKey, pixKeyType, description })
 }
 
 /**
- * Consultar saldo
+ * Buscar saque por ID externo (withdrawal_id da Cyber)
+ */
+export async function cyberGetWithdrawal(withdrawalId) {
+  const cfg = await getCyberConfig()
+  if (!cfg) return { ok: false, error: 'Cyber Payment não configurado' }
+  try {
+    const r = await fetch(`${cfg.apiUrl}/payments/withdrawals`, {
+      headers: { 'X-API-Key': cfg.apiKey }
+    })
+    const data = await r.json()
+    if (!data?.success) return { ok: false, error: data?.message || 'Erro ao listar saques' }
+    const item = (data.data || []).find(w => (w.id || w.withdrawal_id) === withdrawalId)
+    if (!item) return { ok: false, error: 'Saque não encontrado' }
+    return { ok: true, data: item }
+  } catch (e) {
+    console.error('Cyber getWithdrawal:', e)
+    return { ok: false, error: e.message }
+  }
+}
+
+/**
+ * Consultar saldo disponível
  */
 export async function cyberBalance() {
   const cfg = await getCyberConfig()
   if (!cfg) return { ok: false, error: 'Cyber Payment não configurado' }
   try {
     const r = await fetch(`${cfg.apiUrl}/organizations/balance`, {
-      method: 'GET',
       headers: { 'X-API-Key': cfg.apiKey }
     })
     const data = await r.json()
@@ -155,3 +219,5 @@ export async function cyberBalance() {
     return { ok: false, error: e.message }
   }
 }
+
+export { setPrisma }

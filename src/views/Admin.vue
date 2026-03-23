@@ -72,7 +72,7 @@
                 <thead><tr><th>Atividade recente</th><th>Valor</th><th>Status</th><th>Data</th></tr></thead>
                 <tbody>
                   <tr v-for="(d, i) in dashboard.recentDeposits" :key="'d-' + i"><td>Depósito - {{ d.user }}</td><td>R$ {{ formatBr(d.valor) }}</td><td><span class="badge badge-success">{{ d.status }}</span></td><td>{{ d.data }}</td></tr>
-                  <tr v-for="(w, i) in dashboard.recentWithdrawals" :key="'w-' + i"><td>Saque - {{ w.user }}</td><td>R$ {{ formatBr(w.valor) }}</td><td><span class="badge badge-pending">{{ w.status }}</span></td><td>{{ w.data }}</td></tr>
+                  <tr v-for="(w, i) in dashboard.recentWithdrawals" :key="'w-' + i"><td>Saque - {{ w.user }}</td><td>R$ {{ formatBr(w.valor) }}</td><td><span :class="['badge', w.status === 'concluido' ? 'badge-success' : w.status === 'recusado' ? 'badge-danger' : w.status === 'processando' ? 'badge-warning' : 'badge-pending']">{{ w.status }}</span></td><td>{{ w.data }}</td></tr>
                   <tr v-if="dashboard.recentDeposits.length === 0 && dashboard.recentWithdrawals.length === 0"><td colspan="4" class="admin-empty">Nenhuma atividade recente</td></tr>
                 </tbody>
               </table>
@@ -163,13 +163,14 @@
                   <td>R$ {{ formatBr(s.valor) }}</td>
                   <td>{{ s.metodo }}</td>
                   <td>{{ s.nome || s.cpfId || '-' }}</td>
-                  <td><span :class="['badge', s.status === 'concluido' ? 'badge-success' : s.status === 'recusado' ? 'badge-danger' : 'badge-pending']">{{ s.status }}</span></td>
+                  <td><span :class="['badge', s.status === 'concluido' ? 'badge-success' : s.status === 'recusado' ? 'badge-danger' : s.status === 'processando' ? 'badge-warning' : 'badge-pending']">{{ s.status }}</span></td>
                   <td>{{ s.createdAt }}</td>
                   <td>
                     <template v-if="s.status === 'pendente'">
                       <button type="button" class="btn btn-primary btn-sm" :disabled="saqueActionLoading === s.id" @click="aprovarSaque(s.id)">Aprovar</button>
                       <button type="button" class="btn btn-ghost btn-sm btn-danger" :disabled="saqueActionLoading === s.id" @click="rejeitarSaque(s.id)">Recusar</button>
                     </template>
+                    <span v-else-if="s.status === 'processando'">Aguardando confirmação</span>
                     <span v-else>-</span>
                   </td>
                 </tr>
@@ -2156,6 +2157,7 @@ tr:hover { background: rgba(255,255,255,0.02); }
 .badge { display: inline-block; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 500; }
 .badge-success { background: rgba(16, 185, 129, 0.2); color: var(--success); }
 .badge-pending { background: rgba(245, 158, 11, 0.2); color: var(--primary); }
+.badge-warning { background: rgba(255, 196, 9, 0.2); color: var(--warning, #ffc409); }
 .badge-danger { background: rgba(239, 68, 68, 0.2); color: var(--danger); }
 .btn { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.5rem 1rem; border-radius: 8px; font-weight: 500; cursor: pointer; border: none; font-size: 0.875rem; transition: all 0.2s; }
 .btn-primary { background: var(--primary); color: #000; }

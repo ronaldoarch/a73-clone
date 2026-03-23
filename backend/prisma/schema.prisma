@@ -120,17 +120,19 @@ model GameTxnLog {
 }
 
 model Withdrawal {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  valor     Float
-  metodo    String   // cpf, pix, etc
-  nome      String?
-  cpfId     String?
-  status    String   @default("pendente")  // pendente, processando, concluido, recusado
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  valor      Float
+  metodo     String   // cpf, pix, etc
+  nome       String?
+  cpfId      String?
+  externalId String?  // ID do saque no gateway (ex: wd_xxx da Cyber)
+  status     String   @default("pendente")  // pendente, processando, concluido, recusado
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   @@index([userId, status])
   @@index([status, createdAt])
+  @@index([externalId])
 }

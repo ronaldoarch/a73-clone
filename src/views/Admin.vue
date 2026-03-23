@@ -991,7 +991,6 @@ const cyberWebhookUrl = computed(() => {
   const base = typeof window !== 'undefined' ? window.location.origin : ''
   return base ? `${base.replace(/\/$/, '')}/api/webhook/cyber` : '/api/webhook/cyber'
 })
-})
 
 const goldApiBaseUrl = computed(() => {
   const fromBackend = igameConfig.value?.site_endpoint

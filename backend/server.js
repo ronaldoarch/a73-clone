@@ -1957,7 +1957,6 @@ app.post('/api/saque', authMiddleware, async (req, res) => {
     }
 
     let withdrawResult
-    const cfg = await getAppConfig()
     const useCyber = cfg.paymentProvider === 'cyber'
     try {
       if (useCyber) {

@@ -255,9 +255,12 @@ async function getAdminCredentials() {
       return { user: v.user, passwordHash: v.passwordHash, fromDb: true }
     }
   } catch (e) { /* ignore */ }
+  if (!process.env.ADMIN_USER || !process.env.ADMIN_PASSWORD) {
+    console.error('[SECURITY] ADMIN_USER e ADMIN_PASSWORD devem ser definidos no .env')
+  }
   return {
     user: process.env.ADMIN_USER || 'admin',
-    password: process.env.ADMIN_PASSWORD || 'admin123',
+    password: process.env.ADMIN_PASSWORD || null,
     fromDb: false
   }
 }
@@ -273,8 +276,16 @@ const DEFAULT_ROLETA_SEGMENTS = [
   { label: '??', value: 5 }
 ]
 
+/** Cache em memória para getAppConfig — TTL de 60 segundos */
+let _appConfigCache = null
+let _appConfigCacheAt = 0
+const APP_CONFIG_TTL = 60_000
+
 /** Configurações da plataforma (Saque, Roleta, Bônus) */
 async function getAppConfig() {
+  if (_appConfigCache && Date.now() - _appConfigCacheAt < APP_CONFIG_TTL) {
+    return _appConfigCache
+  }
   try {
     const s = await prisma.setting.findUnique({ where: { id: 'config' } })
     const v = s?.value || {}
@@ -282,7 +293,7 @@ async function getAppConfig() {
     const roletaSegments = Array.isArray(segs) && segs.length === 8
       ? segs.map(sg => ({ label: String(sg?.label ?? ''), value: Number(sg?.value) ?? 0 }))
       : DEFAULT_ROLETA_SEGMENTS
-    return {
+    _appConfigCache = {
       depositoMin: v.depositoMin ?? 10,
       saqueMin: v.saqueMin ?? 20,
       saqueMax: v.saqueMax ?? 40000,
@@ -295,7 +306,15 @@ async function getAppConfig() {
       whatsappUrl: v.whatsappUrl || '',
       paymentProvider: v.paymentProvider || 'gatebox'
     }
+    _appConfigCacheAt = Date.now()
+    return _appConfigCache
   } catch (e) { return { depositoMin: 10, saqueMin: 20, saqueMax: 40000, roletaMinWithdraw: 100, roletaBonusDays: 3, roletaDailySpins: 1, bonusPrimeiroDep: 0, bonusPrimeiroDepPercent: 0, roletaSegments: DEFAULT_ROLETA_SEGMENTS, paymentProvider: 'gatebox' } }
+}
+
+/** Invalida o cache de config (chamar após salvar settings) */
+function invalidateAppConfigCache() {
+  _appConfigCache = null
+  _appConfigCacheAt = 0
 }
 
 /** Confirma depósito PIX e credita saldo (usado por polling e webhook)
@@ -646,15 +665,15 @@ app.get('/api/afiliado', authMiddleware, async (req, res) => {
     const user = await prisma.user.findUnique({ where: { id: req.userId } })
     let af = await ensureAfiliado(req.userId, user?.account || '')
     af = await checkMisteriosoReset(af, user)
-    const subordinados = await prisma.user.findMany({
-      where: { indicatorId: req.userId },
-      include: { afiliado: true }
+    const subEfetivos = await prisma.user.count({
+      where: {
+        indicatorId: req.userId,
+        afiliado: {
+          valorDeposito: { gte: PROMO_DEP_MIN },
+          apostaAcumulada: { gte: PROMO_APOSTA_MIN }
+        }
+      }
     })
-    const subEfetivos = subordinados.filter(u => {
-      const a = u.afiliado
-      if (!a) return false
-      return (a.valorDeposito ?? 0) >= PROMO_DEP_MIN && (a.apostaAcumulada ?? 0) >= PROMO_APOSTA_MIN
-    }).length
     const data = {
       pid: af.pid,
       balance: af.balance ?? 0,
@@ -944,18 +963,16 @@ app.post('/api/afiliado/reclamar-promo', authMiddleware, async (req, res) => {
         return res.json({ error: { message: `Bônus Promo expirado. Disponível apenas nos primeiros ${PROMO_EXPIRA_DIAS} dias após o registro.` } })
       }
     }
-    const subordinados = await prisma.user.findMany({
-      where: { indicatorId: req.userId },
-      include: { afiliado: true }
+    const subEfetivosCount = await prisma.user.count({
+      where: {
+        indicatorId: req.userId,
+        afiliado: {
+          valorDeposito: { gte: PROMO_DEP_MIN },
+          apostaAcumulada: { gte: PROMO_APOSTA_MIN }
+        }
+      }
     })
-    const subEfetivos = subordinados.filter(u => {
-      const a = u.afiliado
-      if (!a) return false
-      const dep = a.valorDeposito ?? 0
-      const aposta = a.apostaAcumulada ?? 0
-      return dep >= PROMO_DEP_MIN && aposta >= PROMO_APOSTA_MIN
-    })
-    if (subEfetivos.length < p) return res.json({ error: { message: `Subordinados efetivos insuficientes (${subEfetivos.length}/${p}). Necessário: depósito ≥ ${PROMO_DEP_MIN} e apostas ≥ ${PROMO_APOSTA_MIN} por subordinado.` } })
+    if (subEfetivosCount < p) return res.json({ error: { message: `Subordinados efetivos insuficientes (${subEfetivosCount}/${p}). Necessário: depósito ≥ ${PROMO_DEP_MIN} e apostas ≥ ${PROMO_APOSTA_MIN} por subordinado.` } })
     const reclamados = Array.isArray(af.bonusPromoReclamados) ? af.bonusPromoReclamados : []
     if (reclamados.some(x => x.pessoas === p)) return res.json({ error: { message: 'Já reclamado' } })
     reclamados.push({ pessoas: p, valor: r.valor })
@@ -1655,13 +1672,12 @@ app.get('/api/ranking', async (req, res) => {
     const limit = Math.min(parseInt(req.query.limit) || 20, 50)
     const agg = await prisma.gameTxnLog.groupBy({
       by: ['userId'],
-      _sum: { delta: true }
+      _sum: { delta: true },
+      having: { delta: { _sum: { gt: 0 } } },
+      orderBy: { _sum: { delta: 'desc' } },
+      take: limit
     })
-    const sorted = agg
-      .map(({ userId, _sum }) => ({ userId, lucro: _sum?.delta ?? 0 }))
-      .filter((x) => x.lucro > 0)
-      .sort((a, b) => b.lucro - a.lucro)
-      .slice(0, limit)
+    const sorted = agg.map(({ userId, _sum }) => ({ userId, lucro: _sum?.delta ?? 0 }))
     const userIds = sorted.map((x) => x.userId)
     const users = await prisma.user.findMany({
       where: { id: { in: userIds } },
@@ -2077,14 +2093,14 @@ app.get('/api/admin/dashboard', adminAuthMiddleware, async (req, res) => {
     today.setHours(0, 0, 0, 0)
     const todayEnd = new Date(today)
     todayEnd.setDate(todayEnd.getDate() + 1)
-    const [usersCount, depositsToday, withdrawalsPending, recentDeposits, recentWithdrawals] = await Promise.all([
+    const [usersCount, depositsToday, withdrawalsPending, recentDeposits, recentWithdrawals, totalDeposits] = await Promise.all([
       prisma.user.count(),
       prisma.deposit.aggregate({ where: { createdAt: { gte: today, lt: todayEnd } }, _sum: { valor: true } }),
       prisma.withdrawal.aggregate({ where: { status: 'pendente' }, _sum: { valor: true } }),
       prisma.deposit.findMany({ orderBy: { createdAt: 'desc' }, take: 5, include: { user: { select: { account: true } } } }),
-      prisma.withdrawal.findMany({ where: { status: 'pendente' }, orderBy: { createdAt: 'desc' }, take: 5, include: { user: { select: { account: true } } } })
+      prisma.withdrawal.findMany({ where: { status: 'pendente' }, orderBy: { createdAt: 'desc' }, take: 5, include: { user: { select: { account: true } } } }),
+      prisma.deposit.aggregate({ _sum: { valor: true } })
     ])
-    const totalDeposits = await prisma.deposit.aggregate({ _sum: { valor: true } })
     return res.json({
       usersCount,
       depositsToday: depositsToday._sum.valor ?? 0,
@@ -2244,6 +2260,7 @@ app.post('/api/admin/config', adminAuthMiddleware, async (req, res) => {
       create: { id: 'config', value },
       update: { value }
     })
+    invalidateAppConfigCache()
     return res.json({ ok: true })
   } catch (e) {
     console.error('admin config save:', e)

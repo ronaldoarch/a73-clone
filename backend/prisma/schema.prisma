@@ -20,6 +20,9 @@ model User {
   afiliado           AfiliadoData?
   depositos          Deposit[]
   withdrawals        Withdrawal[]
+
+  @@index([indicatorId])
+  @@index([createdAt])
 }
 
 model AfiliadoData {
@@ -67,6 +70,9 @@ model Deposit {
   status     String   @default("concluido")  // concluido, pendente (aguardando PIX)
   externalId String?  // id conciliação Gatebox
   createdAt  DateTime @default(now())
+
+  @@index([userId, status, createdAt])
+  @@index([status, createdAt])
 }
 
 model Setting {
@@ -109,6 +115,8 @@ model GameTxnLog {
   balanceBefore Float @default(0)
   balanceAfter  Float @default(0)
   createdAt  DateTime @default(now())
+
+  @@index([userId, createdAt])
 }
 
 model Withdrawal {
@@ -122,4 +130,7 @@ model Withdrawal {
   status    String   @default("pendente")  // pendente, processando, concluido, recusado
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([userId, status])
+  @@index([status, createdAt])
 }

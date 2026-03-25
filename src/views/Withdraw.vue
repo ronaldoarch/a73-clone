@@ -77,7 +77,7 @@
               placeholder="CPF (11 dígitos), e-mail, telefone ou chave aleatória"
             />
             <p class="withdraw-hint">
-              CPF, CNPJ, e-mail, telefone (com DDD) ou chave aleatória. Celular com 11 dígitos é detectado automaticamente (não confunde com CPF inválido).
+              CPF, CNPJ, e-mail, telefone (com DDD, com ou sem +55) ou chave aleatória. Celular com 11 dígitos é tratado como telefone quando não for CPF válido.
             </p>
           </div>
 

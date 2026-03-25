@@ -20,6 +20,13 @@ function isValidCpfDigits(d) {
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
+/** Telefone PIX no padrão internacional BR sem "+" (ex.: 5511987654321), como na OpenAPI Cyber */
+function phoneDigitsBr(national10or11) {
+  const d = String(national10or11 || '').replace(/\D/g, '')
+  if (d.length !== 10 && d.length !== 11) return d
+  return `55${d}`
+}
+
 /**
  * @param {string} raw - Chave como digitada (máscara permitida)
  * @returns {{ normalizedKey: string, pixKeyType: 'CPF'|'CNPJ'|'EMAIL'|'PHONE'|'RANDOM' }}
@@ -66,14 +73,14 @@ export function parsePixKeyForWithdrawal(raw) {
   if (digits.length === 13 && digits.startsWith('55')) {
     const national = digits.slice(2)
     if (national.length === 11) {
-      return { normalizedKey: national, pixKeyType: 'PHONE' }
+      return { normalizedKey: phoneDigitsBr(national), pixKeyType: 'PHONE' }
     }
   }
 
   if (digits.length === 12 && digits.startsWith('55')) {
     const national = digits.slice(2)
     if (national.length === 10) {
-      return { normalizedKey: national, pixKeyType: 'PHONE' }
+      return { normalizedKey: phoneDigitsBr(national), pixKeyType: 'PHONE' }
     }
   }
 
@@ -81,11 +88,11 @@ export function parsePixKeyForWithdrawal(raw) {
     if (isValidCpfDigits(digits)) {
       return { normalizedKey: digits, pixKeyType: 'CPF' }
     }
-    return { normalizedKey: digits, pixKeyType: 'PHONE' }
+    return { normalizedKey: phoneDigitsBr(digits), pixKeyType: 'PHONE' }
   }
 
   if (digits.length === 10) {
-    return { normalizedKey: digits, pixKeyType: 'PHONE' }
+    return { normalizedKey: phoneDigitsBr(digits), pixKeyType: 'PHONE' }
   }
 
   // Texto alfanumérico (EVP legada ou outro formato)

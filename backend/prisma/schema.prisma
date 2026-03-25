@@ -67,8 +67,9 @@ model Deposit {
   userId     String
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   valor      Float
-  status     String   @default("concluido")  // concluido, pendente (aguardando PIX)
-  externalId String?  // id conciliação Gatebox
+  status     String   @default("concluido")  // concluido, pendente, processando, expirado, erro, estornado, reembolsando (transiente, estorno PIX)
+  externalId String?  // id conciliação Gatebox / txn_ Cyber
+  creditJson Json?    // snapshot do crédito em confirmarDepositoPix (estorno pix.in.reversal.confirmation)
   createdAt  DateTime @default(now())
 
   @@index([userId, status, createdAt])

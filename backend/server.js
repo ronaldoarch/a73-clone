@@ -255,6 +255,29 @@ app.post('/api/webhook/cyber', async (req, res) => {
       return
     }
 
+    if (eventType === 'pix.in.reversal.confirmation') {
+      const orderId = data.metadata?.order_id || data.metadata?.externalId
+      const txnId = data.transactionId || data.id
+      let dep = null
+      if (orderId) {
+        dep = await prisma.deposit.findFirst({ where: { id: String(orderId), status: 'concluido' } })
+      }
+      if (!dep && txnId) {
+        dep = await prisma.deposit.findFirst({ where: { externalId: String(txnId), status: 'concluido' } })
+      }
+      if (!dep) {
+        console.log('Webhook Cyber pix.in.reversal.confirmation: depósito concluído não encontrado', { orderId, txnId })
+        return
+      }
+      try {
+        const r = await estornarDepositoPixPorReembolsoGateway(dep)
+        if (r.ok && !r.skipped) console.log('Webhook Cyber pix.in.reversal.confirmation: depósito', dep.id, 'estornado')
+      } catch (err) {
+        console.error('Webhook Cyber pix.in.reversal.confirmation:', dep.id, err)
+      }
+      return
+    }
+
     // ── PIX ENVIADO (SAQUES) ──────────────────────────────────────
     if (eventType === 'pix.out.processing') {
       const withdrawalId = data.withdrawalId || data.id
@@ -321,8 +344,11 @@ app.post('/api/webhook/cyber', async (req, res) => {
       return
     }
 
-    // Eventos informativos sem ação necessária
-    if (!['pix.in.processing', 'pix.in.reversal.processing'].includes(eventType)) {
+    const cyberWebhookInfoOnly = [
+      'pix.in.processing',
+      'pix.in.reversal.processing'
+    ]
+    if (!cyberWebhookInfoOnly.includes(eventType)) {
       console.log('Webhook Cyber: evento não tratado:', eventType)
     }
   } catch (e) {
@@ -406,6 +432,25 @@ let _appConfigCache = null
 let _appConfigCacheAt = 0
 const APP_CONFIG_TTL = 60_000
 
+/**
+ * Gateway efetivo para PIX (depósito/saque), respeitando flags gateboxEnabled / cyberEnabled.
+ * paymentProvider no banco: preferência ('gatebox' | 'cyber' | 'none').
+ */
+function getActivePixProvider(cfg) {
+  const gateboxEnabled = cfg.gateboxEnabled !== false
+  const cyberEnabled = cfg.cyberEnabled !== false
+  let pref = String(cfg.paymentProvider || 'gatebox').toLowerCase()
+  if (!['gatebox', 'cyber', 'none'].includes(pref)) pref = 'gatebox'
+  if (!gateboxEnabled && !cyberEnabled) return 'none'
+  if (pref === 'none') return 'none'
+  if (pref === 'gatebox') {
+    if (gateboxEnabled) return 'gatebox'
+    return cyberEnabled ? 'cyber' : 'none'
+  }
+  if (cyberEnabled) return 'cyber'
+  return gateboxEnabled ? 'gatebox' : 'none'
+}
+
 /** Configurações da plataforma (Saque, Roleta, Bônus) */
 async function getAppConfig() {
   if (_appConfigCache && Date.now() - _appConfigCacheAt < APP_CONFIG_TTL) {
@@ -418,7 +463,11 @@ async function getAppConfig() {
     const roletaSegments = Array.isArray(segs) && segs.length === 8
       ? segs.map(sg => ({ label: String(sg?.label ?? ''), value: Number(sg?.value) ?? 0 }))
       : DEFAULT_ROLETA_SEGMENTS
-    _appConfigCache = {
+    let paymentProvider = String(v.paymentProvider || 'gatebox').toLowerCase()
+    if (!['gatebox', 'cyber', 'none'].includes(paymentProvider)) paymentProvider = 'gatebox'
+    const gateboxEnabled = v.gateboxEnabled !== false
+    const cyberEnabled = v.cyberEnabled !== false
+    const base = {
       depositoMin: v.depositoMin ?? 10,
       saqueMin: v.saqueMin ?? 20,
       saqueMax: v.saqueMax ?? 40000,
@@ -429,11 +478,21 @@ async function getAppConfig() {
       bonusPrimeiroDepPercent: v.bonusPrimeiroDepPercent ?? 0,
       roletaSegments,
       whatsappUrl: v.whatsappUrl || '',
-      paymentProvider: v.paymentProvider || 'gatebox'
+      paymentProvider,
+      gateboxEnabled,
+      cyberEnabled
     }
+    base.activePixProvider = getActivePixProvider(base)
+    base.pixEnabled = base.activePixProvider !== 'none'
+    _appConfigCache = base
     _appConfigCacheAt = Date.now()
     return _appConfigCache
-  } catch (e) { return { depositoMin: 10, saqueMin: 20, saqueMax: 40000, roletaMinWithdraw: 100, roletaBonusDays: 3, roletaDailySpins: 1, bonusPrimeiroDep: 0, bonusPrimeiroDepPercent: 0, roletaSegments: DEFAULT_ROLETA_SEGMENTS, paymentProvider: 'gatebox' } }
+  } catch (e) {
+    const fallback = { depositoMin: 10, saqueMin: 20, saqueMax: 40000, roletaMinWithdraw: 100, roletaBonusDays: 3, roletaDailySpins: 1, bonusPrimeiroDep: 0, bonusPrimeiroDepPercent: 0, roletaSegments: DEFAULT_ROLETA_SEGMENTS, paymentProvider: 'gatebox', gateboxEnabled: true, cyberEnabled: true }
+    fallback.activePixProvider = getActivePixProvider(fallback)
+    fallback.pixEnabled = fallback.activePixProvider !== 'none'
+    return fallback
+  }
 }
 
 /** Invalida o cache de config (chamar após salvar settings) */
@@ -465,13 +524,30 @@ async function confirmarDepositoPix(deposit, bonusExtra = 0) {
   const apostaNova = af.apostaAcumulada + deposit.valor * 5
   let nivelVip = af.nivelVip
   let bonusVipReclamar = af.bonusVipReclamar
+  const oldBonusVipReclamar = bonusVipReclamar
   const prox = niveisVip[Math.min(nivelVip + 1, 15)]
+  let nivelVipIncreased = false
   if (apostaNova >= prox.aposta && nivelVip < 15) {
     nivelVip++
     bonusVipReclamar += prox.bonus
+    nivelVipIncreased = true
   }
-  await prisma.$transaction([
-    prisma.deposit.update({ where: { id: deposit.id }, data: { status: 'concluido' } }),
+  const bonusVipDelta = nivelVipIncreased ? (bonusVipReclamar - oldBonusVipReclamar) : 0
+  const indicator = (await prisma.user.findUnique({ where: { id: deposit.userId }, select: { indicatorId: true } }))?.indicatorId
+  const creditJson = {
+    v: 1,
+    balanceIncrement,
+    rebate,
+    bonusPrimeiro,
+    bonusExtra: Number(bonusExtra) || 0,
+    apostaDelta: deposit.valor * 5,
+    nivelVipIncreased,
+    bonusVipDelta,
+    indicatorId: indicator || null,
+    indicatorRebate: indicator ? rebate : 0
+  }
+  const ops = [
+    prisma.deposit.update({ where: { id: deposit.id }, data: { status: 'concluido', creditJson } }),
     prisma.afiliadoData.update({
       where: { userId: deposit.userId },
       data: {
@@ -488,10 +564,9 @@ async function confirmarDepositoPix(deposit, bonusExtra = 0) {
         updatedAt: new Date()
       }
     })
-  ])
-  const indicator = (await prisma.user.findUnique({ where: { id: deposit.userId } }))?.indicatorId
+  ]
   if (indicator) {
-    await prisma.afiliadoData.update({
+    ops.push(prisma.afiliadoData.update({
       where: { userId: indicator },
       data: {
         comissaoPendente: { increment: rebate },
@@ -499,8 +574,100 @@ async function confirmarDepositoPix(deposit, bonusExtra = 0) {
         comissaoHoje: { increment: rebate },
         updatedAt: new Date()
       }
-    })
+    }))
   }
+  await prisma.$transaction(ops)
+}
+
+/** Normaliza snapshot gravado em confirmarDepositoPix para estorno (Cyber pix.in.reversal.confirmation) */
+function creditSnapshotForReversal(deposit, raw) {
+  if (raw && typeof raw === 'object' && raw.v === 1) {
+    return {
+      balanceIncrement: Number(raw.balanceIncrement) || deposit.valor,
+      rebate: Number(raw.rebate) >= 0 ? Number(raw.rebate) : deposit.valor * 0.05,
+      apostaDelta: Number(raw.apostaDelta) > 0 ? Number(raw.apostaDelta) : deposit.valor * 5,
+      nivelVipIncreased: !!raw.nivelVipIncreased,
+      bonusVipDelta: Math.max(0, Number(raw.bonusVipDelta) || 0),
+      indicatorId: raw.indicatorId || null,
+      indicatorRebate: Math.max(0, Number(raw.indicatorRebate) || 0)
+    }
+  }
+  const rebate = deposit.valor * 0.05
+  return {
+    balanceIncrement: deposit.valor,
+    rebate,
+    apostaDelta: deposit.valor * 5,
+    nivelVipIncreased: false,
+    bonusVipDelta: 0,
+    indicatorId: null,
+    indicatorRebate: 0,
+    legacy: true
+  }
+}
+
+/**
+ * Estorna crédito de depósito já concluído (gateway Cyber: charge REFUNDED).
+ * Idempotente: reenvio do webhook ou concorrência não duplica débito (claim atômico).
+ */
+async function estornarDepositoPixPorReembolsoGateway(deposit) {
+  const d = await prisma.deposit.findUnique({ where: { id: deposit.id } })
+  if (!d || d.status === 'estornado') return { ok: true, skipped: true }
+  if (d.status !== 'concluido') return { ok: false, error: 'Depósito não está concluído' }
+
+  let snap = creditSnapshotForReversal(d, d.creditJson)
+  if (snap.legacy) {
+    const u = await prisma.user.findUnique({ where: { id: d.userId }, select: { indicatorId: true } })
+    if (u?.indicatorId) {
+      snap = { ...snap, indicatorId: u.indicatorId, indicatorRebate: snap.rebate }
+    }
+  }
+
+  const applied = await prisma.$transaction(async (tx) => {
+    const claimed = await tx.deposit.updateMany({
+      where: { id: d.id, status: 'concluido' },
+      data: { status: 'reembolsando' }
+    })
+    if (claimed.count === 0) return false
+    const cur = await tx.deposit.findUnique({ where: { id: d.id } })
+    if (!cur) return
+    const af = await tx.afiliadoData.findUnique({ where: { userId: cur.userId } })
+    if (!af) throw new Error('AfiliadoData não encontrado')
+    const newNumDepositos = Math.max(0, (af.numDepositos ?? 0) - 1)
+    const newNivelVip = snap.nivelVipIncreased ? Math.max(0, (af.nivelVip ?? 0) - 1) : (af.nivelVip ?? 0)
+    const bonusVipDec = Math.min(snap.bonusVipDelta, af.bonusVipReclamar ?? 0)
+
+    await tx.afiliadoData.update({
+      where: { userId: cur.userId },
+      data: {
+        balance: { decrement: snap.balanceIncrement },
+        valorDeposito: { decrement: cur.valor },
+        numDepositos: newNumDepositos,
+        depositoMisterioso: { decrement: cur.valor },
+        coletavelRebate: { decrement: snap.rebate },
+        comissaoPendente: { decrement: snap.rebate },
+        comissaoHoje: { decrement: snap.rebate },
+        apostaAcumulada: { decrement: snap.apostaDelta },
+        nivelVip: newNivelVip,
+        bonusVipReclamar: { decrement: bonusVipDec },
+        updatedAt: new Date()
+      }
+    })
+    if (snap.indicatorId && snap.indicatorRebate > 0) {
+      await tx.afiliadoData.update({
+        where: { userId: snap.indicatorId },
+        data: {
+          coletavelRebate: { decrement: snap.indicatorRebate },
+          comissaoPendente: { decrement: snap.indicatorRebate },
+          comissaoHoje: { decrement: snap.indicatorRebate },
+          updatedAt: new Date()
+        }
+      })
+    }
+    await tx.deposit.update({ where: { id: cur.id }, data: { status: 'estornado' } })
+    return true
+  })
+  if (!applied) return { ok: true, skipped: true }
+  return { ok: true }
 }
 
 /** Garante AfiliadoData para o usuário */
@@ -848,7 +1015,10 @@ app.post('/api/deposito/pix', authMiddleware, async (req, res) => {
     const v = parseFloat(valor)
     const cfg = await getAppConfig()
     const minDep = cfg.depositoMin ?? 10
-    const provider = cfg.paymentProvider || 'gatebox'
+    const provider = getActivePixProvider(cfg)
+    if (provider === 'none') {
+      return res.json({ error: { message: 'Depósito PIX indisponível no momento. Tente mais tarde ou fale com o suporte.' } })
+    }
     if (!Number.isFinite(v) || v <= 0) return res.json({ error: { message: 'Valor inválido' } })
     if (v < minDep) return res.json({ error: { message: `Valor mínimo R$ ${minDep.toFixed(2)}` } })
     if (v > 50000) return res.json({ error: { message: 'Valor máximo R$ 50.000,00' } })
@@ -2065,6 +2235,9 @@ app.post('/api/saque', authMiddleware, async (req, res) => {
     if (saldo < v) return res.json({ error: { message: 'Saldo insuficiente' } })
     const rollover = af.rolloverPendente ?? 0
     if (rollover > 0) return res.json({ error: { message: `Requisito de rollover não cumprido. Aposte mais R$ ${rollover.toFixed(2)} para liberar o saque.` } })
+    if (getActivePixProvider(cfg) === 'none') {
+      return res.json({ error: { message: 'Saque PIX indisponível no momento. Entre em contato com o suporte.' } })
+    }
 
     const [, withdrawal] = await prisma.$transaction([
       prisma.afiliadoData.update({
@@ -2106,7 +2279,7 @@ app.post('/api/saque', authMiddleware, async (req, res) => {
     }
 
     let withdrawResult
-    const useCyber = cfg.paymentProvider === 'cyber'
+    const useCyber = getActivePixProvider(cfg) === 'cyber'
     try {
       if (useCyber) {
         const keyType = key.includes('@') ? 'EMAIL' : (/^\d{11}$/.test(key) ? 'CPF' : /^\d{14}$/.test(key) ? 'CNPJ' : 'RANDOM')
@@ -2315,7 +2488,10 @@ app.patch('/api/admin/saques/:id', adminAuthMiddleware, async (req, res) => {
     }
     const name = String(w.nome || w.user?.account || 'Cliente').trim()
     const cfg = await getAppConfig()
-    const useCyber = cfg.paymentProvider === 'cyber'
+    if (getActivePixProvider(cfg) === 'none') {
+      return res.status(400).json({ ok: false, error: 'Nenhum gateway PIX ativo. Ative Cyber ou Gatebox nas configurações.' })
+    }
+    const useCyber = getActivePixProvider(cfg) === 'cyber'
     const withdrawResult = useCyber
       ? await cyberWithdraw({
           amount: w.valor,
@@ -2387,28 +2563,77 @@ app.get('/api/admin/config', adminAuthMiddleware, async (req, res) => {
     const cfg = await getAppConfig()
     return res.json(cfg)
   } catch (e) {
-    return res.json({ depositoMin: 10, saqueMin: 20, saqueMax: 40000, roletaMinWithdraw: 100, roletaBonusDays: 3, roletaDailySpins: 1, bonusPrimeiroDep: 0, bonusPrimeiroDepPercent: 0, roletaSegments: DEFAULT_ROLETA_SEGMENTS })
+    const fb = { depositoMin: 10, saqueMin: 20, saqueMax: 40000, roletaMinWithdraw: 100, roletaBonusDays: 3, roletaDailySpins: 1, bonusPrimeiroDep: 0, bonusPrimeiroDepPercent: 0, roletaSegments: DEFAULT_ROLETA_SEGMENTS, paymentProvider: 'gatebox', gateboxEnabled: true, cyberEnabled: true }
+    fb.activePixProvider = getActivePixProvider(fb)
+    fb.pixEnabled = fb.activePixProvider !== 'none'
+    return res.json(fb)
   }
 })
 
 app.post('/api/admin/config', adminAuthMiddleware, async (req, res) => {
   try {
     const body = req.body?.json || req.body || {}
-    const depositoMin = Math.max(1, parseInt(body.depositoMin, 10) || 10)
-    const saqueMin = Math.max(1, parseInt(body.saqueMin, 10) || 20)
-    const saqueMax = Math.min(1000000, Math.max(saqueMin, parseInt(body.saqueMax, 10) || 40000))
-    const roletaMinWithdraw = Math.max(1, parseInt(body.roletaMinWithdraw, 10) || 100)
-    const roletaBonusDays = Math.max(1, Math.min(30, parseInt(body.roletaBonusDays, 10) || 3))
-    const roletaDailySpins = Math.max(1, Math.min(10, parseInt(body.roletaDailySpins, 10) || 1))
-    const bonusPrimeiroDep = Math.max(0, parseFloat(body.bonusPrimeiroDep) || 0)
-    const bonusPrimeiroDepPercent = Math.max(0, Math.min(100, parseFloat(body.bonusPrimeiroDepPercent) || 0))
+    const prev = (await prisma.setting.findUnique({ where: { id: 'config' } }))?.value || {}
+
+    const depositoMin = body.depositoMin !== undefined && body.depositoMin !== null
+      ? Math.max(1, parseInt(body.depositoMin, 10) || 10)
+      : (prev.depositoMin ?? 10)
+    const saqueMin = body.saqueMin !== undefined && body.saqueMin !== null
+      ? Math.max(1, parseInt(body.saqueMin, 10) || 20)
+      : (prev.saqueMin ?? 20)
+    let saqueMax = body.saqueMax !== undefined && body.saqueMax !== null
+      ? parseInt(body.saqueMax, 10) || 40000
+      : (prev.saqueMax ?? 40000)
+    saqueMax = Math.min(1000000, Math.max(saqueMin, saqueMax))
+
+    const roletaMinWithdraw = body.roletaMinWithdraw !== undefined && body.roletaMinWithdraw !== null
+      ? Math.max(1, parseInt(body.roletaMinWithdraw, 10) || 100)
+      : (prev.roletaMinWithdraw ?? 100)
+    const roletaBonusDays = body.roletaBonusDays !== undefined && body.roletaBonusDays !== null
+      ? Math.max(1, Math.min(30, parseInt(body.roletaBonusDays, 10) || 3))
+      : (prev.roletaBonusDays ?? 3)
+    const roletaDailySpins = body.roletaDailySpins !== undefined && body.roletaDailySpins !== null
+      ? Math.max(1, Math.min(10, parseInt(body.roletaDailySpins, 10) || 1))
+      : (prev.roletaDailySpins ?? 1)
+    const bonusPrimeiroDep = body.bonusPrimeiroDep !== undefined && body.bonusPrimeiroDep !== null
+      ? Math.max(0, parseFloat(body.bonusPrimeiroDep) || 0)
+      : (prev.bonusPrimeiroDep ?? 0)
+    const bonusPrimeiroDepPercent = body.bonusPrimeiroDepPercent !== undefined && body.bonusPrimeiroDepPercent !== null
+      ? Math.max(0, Math.min(100, parseFloat(body.bonusPrimeiroDepPercent) || 0))
+      : (prev.bonusPrimeiroDepPercent ?? 0)
+
     const segs = body.roletaSegments
-    const roletaSegments = Array.isArray(segs) && segs.length === 8
-      ? segs.map((sg, i) => ({ label: String(sg?.label ?? ''), value: Number(sg?.value) ?? 0 }))
-      : DEFAULT_ROLETA_SEGMENTS
-    const whatsappUrl = String(body.whatsappUrl || '').trim().slice(0, 200)
-    const paymentProvider = ['gatebox', 'cyber'].includes(String(body.paymentProvider || '').toLowerCase()) ? String(body.paymentProvider).toLowerCase() : 'gatebox'
-    const value = { depositoMin, saqueMin, saqueMax, roletaMinWithdraw, roletaBonusDays, roletaDailySpins, bonusPrimeiroDep, bonusPrimeiroDepPercent, roletaSegments, whatsappUrl, paymentProvider }
+    const roletaSegments = (segs !== undefined && Array.isArray(segs) && segs.length === 8)
+      ? segs.map((sg) => ({ label: String(sg?.label ?? ''), value: Number(sg?.value) ?? 0 }))
+      : (Array.isArray(prev.roletaSegments) && prev.roletaSegments.length === 8
+        ? prev.roletaSegments.map(sg => ({ label: String(sg?.label ?? ''), value: Number(sg?.value) ?? 0 }))
+        : DEFAULT_ROLETA_SEGMENTS)
+
+    const whatsappUrl = body.whatsappUrl !== undefined
+      ? String(body.whatsappUrl || '').trim().slice(0, 200)
+      : String(prev.whatsappUrl || '').trim().slice(0, 200)
+
+    const gateboxEnabled = typeof body.gateboxEnabled === 'boolean'
+      ? body.gateboxEnabled
+      : (typeof prev.gateboxEnabled === 'boolean' ? prev.gateboxEnabled : true)
+    const cyberEnabled = typeof body.cyberEnabled === 'boolean'
+      ? body.cyberEnabled
+      : (typeof prev.cyberEnabled === 'boolean' ? prev.cyberEnabled : true)
+
+    let paymentProvider = body.paymentProvider !== undefined
+      ? String(body.paymentProvider || '').toLowerCase()
+      : String(prev.paymentProvider || 'gatebox').toLowerCase()
+    if (!['gatebox', 'cyber', 'none'].includes(paymentProvider)) paymentProvider = 'gatebox'
+
+    if (!gateboxEnabled && !cyberEnabled) paymentProvider = 'none'
+    else if (paymentProvider === 'gatebox' && !gateboxEnabled) paymentProvider = cyberEnabled ? 'cyber' : 'none'
+    else if (paymentProvider === 'cyber' && !cyberEnabled) paymentProvider = gateboxEnabled ? 'gatebox' : 'none'
+
+    const value = {
+      depositoMin, saqueMin, saqueMax, roletaMinWithdraw, roletaBonusDays, roletaDailySpins,
+      bonusPrimeiroDep, bonusPrimeiroDepPercent, roletaSegments, whatsappUrl,
+      paymentProvider, gateboxEnabled, cyberEnabled
+    }
     await prisma.setting.upsert({
       where: { id: 'config' },
       create: { id: 'config', value },
@@ -2537,7 +2762,7 @@ app.get('/api/admin/depositos', adminAuthMiddleware, async (req, res) => {
   try {
     const limit = Math.min(parseInt(req.query.limit) || 50, 100)
     const statusFilter = (req.query.status || '').trim().toLowerCase()
-    const where = statusFilter && ['pendente', 'concluido', 'erro'].includes(statusFilter)
+    const where = statusFilter && ['pendente', 'concluido', 'erro', 'estornado', 'processando', 'expirado', 'reembolsando'].includes(statusFilter)
       ? { status: statusFilter }
       : {}
     const list = await prisma.deposit.findMany({
@@ -2604,15 +2829,14 @@ app.post('/api/admin/usuarios/:id/add-bonus', adminAuthMiddleware, async (req, r
   }
 })
 
-// GET settings (logo, banner, siteName, pageTitle, depositoMin, saqueMin, saqueMax) - público
+// GET settings (logo, banner, siteName, pageTitle, depositoMin, saqueMin, saqueMax, pixEnabled) - público
 app.get('/api/settings', async (req, res) => {
   try {
-    const [main, config] = await Promise.all([
+    const [main, appCfg] = await Promise.all([
       prisma.setting.findUnique({ where: { id: 'main' } }),
-      prisma.setting.findUnique({ where: { id: 'config' } })
+      getAppConfig()
     ])
     const v = main?.value || {}
-    const cfg = config?.value || {}
     const defaultLogo = '/s5/app-icon/1222508/LOGO.jpg'
     return res.json({
       logo: main?.logo || defaultLogo,
@@ -2620,13 +2844,15 @@ app.get('/api/settings', async (req, res) => {
       loadingBanner: v.loadingBanner || main?.logo || defaultLogo,
       siteName: v.siteName || '35m',
       pageTitle: v.pageTitle || '35m',
-      depositoMin: cfg.depositoMin ?? 10,
-      saqueMin: cfg.saqueMin ?? 20,
-      saqueMax: cfg.saqueMax ?? 40000,
-      whatsappUrl: cfg.whatsappUrl || ''
+      depositoMin: appCfg.depositoMin ?? 10,
+      saqueMin: appCfg.saqueMin ?? 20,
+      saqueMax: appCfg.saqueMax ?? 40000,
+      whatsappUrl: appCfg.whatsappUrl || '',
+      pixEnabled: appCfg.pixEnabled !== false,
+      activePixProvider: appCfg.activePixProvider || 'gatebox'
     })
   } catch (e) {
-    return res.json({ logo: '/s5/app-icon/1222508/LOGO.jpg', banner: '/s5/1770954153806/9999.jpg', loadingBanner: '/s5/app-icon/1222508/LOGO.jpg', siteName: '35m', pageTitle: '35m', depositoMin: 10, saqueMin: 20, saqueMax: 40000, whatsappUrl: '' })
+    return res.json({ logo: '/s5/app-icon/1222508/LOGO.jpg', banner: '/s5/1770954153806/9999.jpg', loadingBanner: '/s5/app-icon/1222508/LOGO.jpg', siteName: '35m', pageTitle: '35m', depositoMin: 10, saqueMin: 20, saqueMax: 40000, whatsappUrl: '', pixEnabled: true, activePixProvider: 'gatebox' })
   }
 })
 

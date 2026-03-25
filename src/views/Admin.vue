@@ -27,7 +27,7 @@
         <div class="admin-logo">A73 Admin</div>
         <nav>
           <a
-            v-for="s in sections"
+            v-for="s in visibleSections"
             :key="s.id"
             :class="['nav-item', { active: activeSection === s.id }]"
             @click.prevent="selectSection(s.id)"
@@ -49,7 +49,7 @@
           <button class="admin-menu-btn" @click="sidebarOpen = true" aria-label="Abrir menu">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
           </button>
-          <h1>{{ titles[activeSection] }}</h1>
+          <h1>{{ titles[activeSection] || activeSection }}</h1>
           <div class="user-badge">
             <span class="dot"></span>
             <span>Admin</span>
@@ -333,12 +333,21 @@
                 </div>
               </div>
               <div class="form-group">
-                <label>Gateway de pagamento (PIX/Saque)</label>
-                <select v-model="appConfig.paymentProvider" class="admin-select" style="max-width: 200px;">
-                  <option value="gatebox">Gatebox</option>
-                  <option value="cyber">Cyber Payment</option>
+                <label>Gateways disponíveis</label>
+                <div class="admin-gateway-toggles">
+                  <label class="admin-check-label"><input type="checkbox" v-model="appConfig.gateboxEnabled" /> Gatebox</label>
+                  <label class="admin-check-label"><input type="checkbox" v-model="appConfig.cyberEnabled" /> Cyber Payment</label>
+                </div>
+                <span class="form-hint">Desmarque para desativar o gateway: some do menu lateral e não entra em depósito/saque. Para usar só Cyber, desmarque Gatebox e escolha Cyber em “Gateway ativo”.</span>
+              </div>
+              <div class="form-group">
+                <label>Gateway ativo (PIX depósito e saque)</label>
+                <select v-model="appConfig.paymentProvider" class="admin-select" style="max-width: 220px;">
+                  <option v-if="appConfig.gateboxEnabled !== false" value="gatebox">Gatebox</option>
+                  <option v-if="appConfig.cyberEnabled !== false" value="cyber">Cyber Payment</option>
+                  <option value="none">Nenhum (PIX desligado)</option>
                 </select>
-                <span class="form-hint">Define qual API será usada para depósitos PIX e saques.</span>
+                <span class="form-hint">Com ambos desmarcados acima, o sistema grava “nenhum” e o PIX fica indisponível para usuários.</span>
               </div>
               <div class="form-group">
                 <label>URL do WhatsApp (suporte)</label>
@@ -901,6 +910,8 @@ const sidebarOpen = ref(false)
 
 function selectSection(id) {
   if (!VALID_SECTIONS.includes(id)) id = 'dashboard'
+  if (id === 'gatebox' && appConfig.value.gateboxEnabled === false) id = 'config'
+  if (id === 'cyber' && appConfig.value.cyberEnabled === false) id = 'config'
   activeSection.value = id
   sidebarOpen.value = false
   router.replace({ path: `/admin/${id}` })
@@ -941,7 +952,29 @@ const saqueActionLoading = ref(null)
 const dashboard = ref({ usersCount: 0, depositsToday: 0, withdrawalsPending: 0, totalDeposits: 0, recentDeposits: [], recentWithdrawals: [] })
 const dashboardLoading = ref(false)
 
-const appConfig = ref({ depositoMin: 10, saqueMin: 20, saqueMax: 40000, roletaMinWithdraw: 100, roletaBonusDays: 3, roletaDailySpins: 1, bonusPrimeiroDep: 0, bonusPrimeiroDepPercent: 0, whatsappUrl: '', paymentProvider: 'gatebox' })
+const appConfig = ref({
+  depositoMin: 10, saqueMin: 20, saqueMax: 40000, roletaMinWithdraw: 100, roletaBonusDays: 3, roletaDailySpins: 1,
+  bonusPrimeiroDep: 0, bonusPrimeiroDepPercent: 0, whatsappUrl: '', paymentProvider: 'gatebox',
+  gateboxEnabled: true, cyberEnabled: true
+})
+const visibleSections = computed(() =>
+  sections.filter((s) => {
+    if (s.id === 'gatebox' && appConfig.value.gateboxEnabled === false) return false
+    if (s.id === 'cyber' && appConfig.value.cyberEnabled === false) return false
+    return true
+  })
+)
+
+watch(() => appConfig.value.gateboxEnabled, (on) => {
+  if (on === false && appConfig.value.paymentProvider === 'gatebox') {
+    appConfig.value.paymentProvider = appConfig.value.cyberEnabled !== false ? 'cyber' : 'none'
+  }
+})
+watch(() => appConfig.value.cyberEnabled, (on) => {
+  if (on === false && appConfig.value.paymentProvider === 'cyber') {
+    appConfig.value.paymentProvider = appConfig.value.gateboxEnabled !== false ? 'gatebox' : 'none'
+  }
+})
 const configLoading = ref(false)
 const configSaving = ref(false)
 const configMsg = ref('')
@@ -1033,9 +1066,14 @@ async function loadConfig() {
   try {
     const r = await adminFetch('/api/admin/config')
     const data = await r.json()
-    appConfig.value = data
+    appConfig.value = {
+      ...data,
+      gateboxEnabled: data.gateboxEnabled !== false,
+      cyberEnabled: data.cyberEnabled !== false,
+      paymentProvider: ['gatebox', 'cyber', 'none'].includes(data.paymentProvider) ? data.paymentProvider : 'gatebox'
+    }
   } catch (e) {
-    appConfig.value = { depositoMin: 10, saqueMin: 20, saqueMax: 40000, roletaMinWithdraw: 100, roletaBonusDays: 3, roletaDailySpins: 1, bonusPrimeiroDep: 0, bonusPrimeiroDepPercent: 0, whatsappUrl: '', paymentProvider: 'gatebox' }
+    appConfig.value = { depositoMin: 10, saqueMin: 20, saqueMax: 40000, roletaMinWithdraw: 100, roletaBonusDays: 3, roletaDailySpins: 1, bonusPrimeiroDep: 0, bonusPrimeiroDepPercent: 0, whatsappUrl: '', paymentProvider: 'gatebox', gateboxEnabled: true, cyberEnabled: true }
   } finally {
     configLoading.value = false
   }
@@ -1054,6 +1092,9 @@ async function saveConfig() {
     const data = await r.json()
     if (data?.ok) {
       configMsg.value = 'Configurações salvas!'
+      await loadConfig()
+      if (activeSection.value === 'gatebox' && appConfig.value.gateboxEnabled === false) selectSection('config')
+      if (activeSection.value === 'cyber' && appConfig.value.cyberEnabled === false) selectSection('config')
     } else {
       configMsg.value = data?.error || 'Erro ao salvar'
       configError.value = true
@@ -1140,6 +1181,10 @@ async function saveRoleta() {
       saqueMax: base.saqueMax ?? 40000,
       bonusPrimeiroDep: base.bonusPrimeiroDep ?? 0,
       bonusPrimeiroDepPercent: base.bonusPrimeiroDepPercent ?? 0,
+      whatsappUrl: base.whatsappUrl ?? '',
+      paymentProvider: base.paymentProvider ?? 'gatebox',
+      gateboxEnabled: base.gateboxEnabled !== false,
+      cyberEnabled: base.cyberEnabled !== false,
       roletaMinWithdraw: roletaConfig.value.roletaMinWithdraw,
       roletaBonusDays: roletaConfig.value.roletaBonusDays,
       roletaDailySpins: roletaConfig.value.roletaDailySpins,
@@ -1754,6 +1799,7 @@ async function adminLogin() {
       localStorage.setItem(ADMIN_TOKEN_KEY, data.token)
       adminLoggedIn.value = true
       loadIgamewinConfigFromBackend()
+      loadConfig()
     } else {
       adminLoginError.value = data?.error?.message || 'Credenciais inválidas'
     }
@@ -2083,7 +2129,13 @@ async function savePromocoes() {
 
 // Sincroniza seção com a URL (ex: /admin/usuarios)
 watch(() => route.params.section, (section) => {
-  if (section && VALID_SECTIONS.includes(section)) activeSection.value = section
+  let s = section
+  if (s && VALID_SECTIONS.includes(s)) {
+    if (s === 'gatebox' && appConfig.value.gateboxEnabled === false) s = 'config'
+    if (s === 'cyber' && appConfig.value.cyberEnabled === false) s = 'config'
+    activeSection.value = s
+    if (s !== section) router.replace({ path: `/admin/${s}` })
+  }
 }, { immediate: true })
 </script>
 
@@ -2097,6 +2149,9 @@ watch(() => route.params.section, (section) => {
 .form-group input { width: 100%; padding: 0.75rem 1rem; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 1rem; }
 .form-group input:focus { outline: none; border-color: var(--primary); }
 .form-hint { display: block; margin-top: 0.35rem; font-size: 0.75rem; color: var(--text-muted); }
+.admin-gateway-toggles { display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.35rem; }
+.admin-check-label { display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; color: var(--text); cursor: pointer; }
+.admin-check-label input { width: auto; accent-color: var(--primary); }
 .admin-login-box .btn { width: 100%; justify-content: center; padding: 0.875rem; margin-top: 0.5rem; }
 .admin-login-error { padding: 0.75rem; background: rgba(239,68,68,0.15); border: 1px solid var(--danger); border-radius: 8px; color: var(--danger); font-size: 0.875rem; margin-bottom: 1rem; }
 .link-site { display: block; text-align: center; margin-top: 1.5rem; color: var(--text-muted); text-decoration: none; font-size: 0.875rem; }

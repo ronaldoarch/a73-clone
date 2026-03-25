@@ -85,8 +85,12 @@ export async function cyberCreatePix({ amount, document, name, email, phone, des
       body: JSON.stringify(body)
     })
     const data = await r.json()
+    // OpenAPI: 201 + { success, data }; erros: { error: true, message }
+    if (data?.error === true && data?.message) {
+      return { ok: false, error: data.message }
+    }
     if (!data?.success || !data?.data) {
-      return { ok: false, error: data?.message || data?.error || `Erro ao criar PIX [${r.status}]` }
+      return { ok: false, error: data?.message || (typeof data?.error === 'string' ? data.error : null) || `Erro ao criar PIX [${r.status}]` }
     }
     const d = data.data
     const pix = d.pix || {}
@@ -123,6 +127,9 @@ export async function cyberGetTransaction(transactionId) {
       headers: { 'X-API-Key': cfg.apiKey }
     })
     const data = await r.json()
+    if (data?.error === true && data?.message) {
+      return { ok: false, error: data.message }
+    }
     if (!data?.success || !data?.data) {
       return { ok: false, error: data?.message || 'Transação não encontrada' }
     }
@@ -160,8 +167,11 @@ export async function cyberWithdraw({ amount, pixKey, pixKeyType, description })
       body: JSON.stringify(body)
     })
     const data = await r.json()
+    if (data?.error === true && data?.message) {
+      return { ok: false, error: data.message }
+    }
     if (!data?.success || !data?.data) {
-      return { ok: false, error: data?.message || data?.error || `Erro ao criar saque [${r.status}]` }
+      return { ok: false, error: data?.message || (typeof data?.error === 'string' ? data.error : null) || `Erro ao criar saque [${r.status}]` }
     }
     const d = data.data
     return {
@@ -181,20 +191,30 @@ export async function cyberWithdraw({ amount, pixKey, pixKeyType, description })
 }
 
 /**
- * Buscar saque por ID externo (withdrawal_id da Cyber)
+ * Buscar saque por ID (wd_...) — OpenAPI lista com paginação (default limit=10); percorre páginas.
  */
 export async function cyberGetWithdrawal(withdrawalId) {
   const cfg = await getCyberConfig()
   if (!cfg) return { ok: false, error: 'Cyber Payment não configurado' }
+  const limit = 100
+  let page = 1
   try {
-    const r = await fetch(`${cfg.apiUrl}/payments/withdrawals`, {
-      headers: { 'X-API-Key': cfg.apiKey }
-    })
-    const data = await r.json()
-    if (!data?.success) return { ok: false, error: data?.message || 'Erro ao listar saques' }
-    const item = (data.data || []).find(w => (w.id || w.withdrawal_id) === withdrawalId)
-    if (!item) return { ok: false, error: 'Saque não encontrado' }
-    return { ok: true, data: item }
+    while (page <= 50) {
+      const r = await fetch(`${cfg.apiUrl}/payments/withdrawals?limit=${limit}&page=${page}`, {
+        headers: { 'X-API-Key': cfg.apiKey }
+      })
+      const data = await r.json()
+      if (data?.error === true && data?.message) {
+        return { ok: false, error: data.message }
+      }
+      if (!data?.success) return { ok: false, error: data?.message || 'Erro ao listar saques' }
+      const list = Array.isArray(data.data) ? data.data : []
+      const item = list.find(w => (w.id || w.withdrawal_id) === withdrawalId)
+      if (item) return { ok: true, data: item }
+      if (list.length < limit) break
+      page++
+    }
+    return { ok: false, error: 'Saque não encontrado' }
   } catch (e) {
     console.error('Cyber getWithdrawal:', e)
     return { ok: false, error: e.message }
@@ -212,6 +232,9 @@ export async function cyberBalance() {
       headers: { 'X-API-Key': cfg.apiKey }
     })
     const data = await r.json()
+    if (data?.error === true && data?.message) {
+      return { ok: false, error: data.message }
+    }
     if (!data?.success) return { ok: false, error: data?.message || 'Erro ao consultar saldo' }
     return { ok: true, data: data.data }
   } catch (e) {

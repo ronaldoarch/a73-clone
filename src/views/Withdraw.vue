@@ -25,71 +25,76 @@
           suporte online.
         </a>
 
-        <h3 class="withdraw-section-title">Canais de Saque</h3>
-        <button type="button" class="withdraw-channel-btn withdraw-channel-pix">
-          PIX
-        </button>
-
-        <h3 class="withdraw-section-title">Conta Saldo</h3>
-        <p class="withdraw-balance">R$ {{ balanceFormatted }}</p>
-
-        <div class="withdraw-amount-row">
-          <input
-            v-model="amount"
-            type="text"
-            class="withdraw-amount-input"
-            :placeholder="`R$ ${(saqueMin || 20).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} - ${(saqueMax || 40000).toLocaleString('pt-BR', { minimumFractionDigits: 0 })}`"
-          />
-          <button type="button" class="withdraw-max-btn" @click="setMax">Máx.</button>
-        </div>
-
-        <div class="withdraw-quick-amounts">
-          <button
-            v-for="val in quickAmounts"
-            :key="val"
-            type="button"
-            class="withdraw-quick-btn"
-            @click="amount = formatVal(val)"
-          >
-            {{ formatVal(val) }}
+        <template v-if="pixEnabled">
+          <h3 class="withdraw-section-title">Canais de Saque</h3>
+          <button type="button" class="withdraw-channel-btn withdraw-channel-pix">
+            PIX
           </button>
-        </div>
 
-        <h3 class="withdraw-section-title">Dados para PIX (via Gatebox)</h3>
+          <h3 class="withdraw-section-title">Conta Saldo</h3>
+          <p class="withdraw-balance">R$ {{ balanceFormatted }}</p>
 
-        <div class="withdraw-field">
-          <label class="withdraw-label">Nome completo do recebedor</label>
-          <input
-            v-model="nome"
-            type="text"
-            class="withdraw-input"
-            placeholder="Nome como cadastrado no PIX"
-          />
-        </div>
-
-        <div class="withdraw-field">
-          <label class="withdraw-label">Chave PIX</label>
-          <input
-            v-model="chavePix"
-            type="text"
-            class="withdraw-input"
-            placeholder="CPF (11 dígitos), e-mail, telefone ou chave aleatória"
-          />
-          <p class="withdraw-hint">Informe a chave PIX onde deseja receber o valor</p>
-        </div>
-
-        <!-- Painel de rollover -->
-        <div v-if="rolloverPendente > 0" class="withdraw-rollover-aviso">
-          <ion-icon name="lock-closed" class="withdraw-rollover-icon" />
-          <div class="withdraw-rollover-text">
-            <strong>Saque bloqueado por rollover</strong>
-            <span>Aposte mais <strong>R$ {{ rolloverPendente.toFixed(2).replace('.', ',') }}</strong> para liberar o saque de bônus.</span>
+          <div class="withdraw-amount-row">
+            <input
+              v-model="amount"
+              type="text"
+              class="withdraw-amount-input"
+              :placeholder="`R$ ${(saqueMin || 20).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} - ${(saqueMax || 40000).toLocaleString('pt-BR', { minimumFractionDigits: 0 })}`"
+            />
+            <button type="button" class="withdraw-max-btn" @click="setMax">Máx.</button>
           </div>
-        </div>
 
-        <ion-button class="withdraw-submit-btn" expand="block" @click="retirarAgora" :disabled="loading || rolloverPendente > 0">
-          {{ loading ? 'Processando...' : rolloverPendente > 0 ? 'Bloqueado (rollover pendente)' : 'Retirar Agora' }}
-        </ion-button>
+          <div class="withdraw-quick-amounts">
+            <button
+              v-for="val in quickAmounts"
+              :key="val"
+              type="button"
+              class="withdraw-quick-btn"
+              @click="amount = formatVal(val)"
+            >
+              {{ formatVal(val) }}
+            </button>
+          </div>
+
+          <h3 class="withdraw-section-title">Dados para PIX</h3>
+
+          <div class="withdraw-field">
+            <label class="withdraw-label">Nome completo do recebedor</label>
+            <input
+              v-model="nome"
+              type="text"
+              class="withdraw-input"
+              placeholder="Nome como cadastrado no PIX"
+            />
+          </div>
+
+          <div class="withdraw-field">
+            <label class="withdraw-label">Chave PIX</label>
+            <input
+              v-model="chavePix"
+              type="text"
+              class="withdraw-input"
+              placeholder="CPF (11 dígitos), e-mail, telefone ou chave aleatória"
+            />
+            <p class="withdraw-hint">Informe a chave PIX onde deseja receber o valor</p>
+          </div>
+
+          <!-- Painel de rollover -->
+          <div v-if="rolloverPendente > 0" class="withdraw-rollover-aviso">
+            <ion-icon name="lock-closed" class="withdraw-rollover-icon" />
+            <div class="withdraw-rollover-text">
+              <strong>Saque bloqueado por rollover</strong>
+              <span>Aposte mais <strong>R$ {{ rolloverPendente.toFixed(2).replace('.', ',') }}</strong> para liberar o saque de bônus.</span>
+            </div>
+          </div>
+
+          <ion-button class="withdraw-submit-btn" expand="block" @click="retirarAgora" :disabled="loading || rolloverPendente > 0">
+            {{ loading ? 'Processando...' : rolloverPendente > 0 ? 'Bloqueado (rollover pendente)' : 'Retirar Agora' }}
+          </ion-button>
+        </template>
+        <div v-else class="withdraw-pix-unavailable">
+          <p>Saque via PIX não está disponível no momento. Entre em contato com o <a href="#" class="withdraw-support-link" @click.prevent="openSupport">suporte</a>.</p>
+        </div>
       </div>
     </ion-content>
   </ion-page>
@@ -107,7 +112,7 @@ import { afiliadoApi } from '@/api/afiliado'
 import { useToast } from '@/composables/useToast'
 
 const { balanceFormatted, balance, rolloverPendente, refresh } = useAfiliado()
-const { saqueMin, saqueMax, whatsappUrl } = useSettings()
+const { saqueMin, saqueMax, whatsappUrl, pixEnabled } = useSettings()
 const toast = useToast()
 const loading = ref(false)
 const isLoggedIn = computed(() => !!localStorage.getItem('token'))
@@ -137,6 +142,10 @@ function openSupport() {
 }
 
 async function retirarAgora() {
+  if (!pixEnabled.value) {
+    toast.error('Saque PIX indisponível no momento.')
+    return
+  }
   const v = parseFloat(String(amount.value).replace(/\./g, '').replace(',', '.')) || 0
   const min = saqueMin.value ?? 20
   const max = saqueMax.value ?? 40000
@@ -253,6 +262,19 @@ onIonViewWillEnter(() => {
 }
 .withdraw-support-link ion-icon {
   font-size: 1rem;
+}
+.withdraw-pix-unavailable {
+  margin-top: 1rem;
+  padding: 1rem;
+  border-radius: 12px;
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  color: #fecaca;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+.withdraw-pix-unavailable .withdraw-support-link {
+  margin-bottom: 0;
 }
 .withdraw-section-title {
   color: #fff;

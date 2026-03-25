@@ -70,82 +70,87 @@
           suporte online.
         </a>
 
-        <!-- Depósito on-line -->
-        <div class="deposit-online-wrap">
-          <span class="deposit-reco-badge">RECO</span>
-          <ion-button class="deposit-online-btn" expand="block" @click="selectOnlineDeposit">
-            Depósito on-line
+        <template v-if="pixEnabled">
+          <!-- Depósito on-line -->
+          <div class="deposit-online-wrap">
+            <span class="deposit-reco-badge">RECO</span>
+            <ion-button class="deposit-online-btn" expand="block" @click="selectOnlineDeposit">
+              Depósito on-line
+            </ion-button>
+          </div>
+
+          <div class="deposit-divider"></div>
+
+          <!-- Pagamento -->
+          <h3 class="deposit-section-title">Pagamento</h3>
+          <ion-button class="deposit-pix-btn" fill="outline" @click="selectPix">
+            <ion-icon name="flame" class="pix-flame" />
+            PIX
           </ion-button>
+
+          <!-- Montante -->
+          <h3 class="deposit-section-title">Montante</h3>
+          <div class="deposit-field">
+            <input
+              v-model="amountInput"
+              type="text"
+              class="deposit-amount-input"
+              placeholder="Digite o valor (ex: 10 ou 10,50)"
+              inputmode="decimal"
+              @blur="formatAmountInput"
+            />
+          </div>
+
+          <!-- Texto PIX -->
+          <p class="deposit-pix-promo">
+            🏠 Para garantir mais agilidade, pague via PIX! 🔥⚡ É rápido, seguro e a confirmação sai em segundos! 💰 Aproveite ao máximo os jogos e boa sorte nos ganhos! 🌸🌸🌸
+          </p>
+
+          <!-- Valores pré-definidos -->
+          <div class="deposit-amounts-grid">
+            <button
+              v-for="val in presetAmounts"
+              :key="val"
+              type="button"
+              class="deposit-amount-btn"
+              :class="{ active: selectedAmount === val || parseAmountInput(amountInput) === val }"
+              @click="selectAmount(val)"
+            >
+              {{ formatAmount(val) }}
+            </button>
+          </div>
+
+          <!-- CPF e Nome (obrigatórios para PIX) -->
+          <h3 class="deposit-section-title">Dados para PIX</h3>
+          <div class="deposit-field">
+            <label class="deposit-label">CPF (apenas números)</label>
+            <input
+              v-model="depositCpf"
+              type="text"
+              class="deposit-input"
+              placeholder="00000000000"
+              maxlength="14"
+              inputmode="numeric"
+            />
+          </div>
+          <div class="deposit-field">
+            <label class="deposit-label">Nome completo</label>
+            <input
+              v-model="depositNome"
+              type="text"
+              class="deposit-input"
+              placeholder="Nome como no documento"
+            />
+          </div>
+
+          <!-- Botão depositar -->
+          <ion-button class="deposit-now-btn" expand="block" @click="doDeposit">
+            Depositar Agora
+          </ion-button>
+        </template>
+        <div v-else class="deposit-pix-unavailable">
+          <p>Depósito via PIX não está disponível no momento. Entre em contato com o <a href="#" class="deposit-support-link" @click.prevent="openSupport">suporte</a>.</p>
         </div>
-
-        <div class="deposit-divider"></div>
-
-        <!-- Pagamento -->
-        <h3 class="deposit-section-title">Pagamento</h3>
-        <ion-button class="deposit-pix-btn" fill="outline" @click="selectPix">
-          <ion-icon name="flame" class="pix-flame" />
-          PIX
-        </ion-button>
-
-        <!-- Montante -->
-        <h3 class="deposit-section-title">Montante</h3>
-        <div class="deposit-field">
-          <input
-            v-model="amountInput"
-            type="text"
-            class="deposit-amount-input"
-            placeholder="Digite o valor (ex: 10 ou 10,50)"
-            inputmode="decimal"
-            @blur="formatAmountInput"
-          />
-        </div>
-
-        <!-- Texto PIX -->
-        <p class="deposit-pix-promo">
-          🏠 Para garantir mais agilidade, pague via PIX! 🔥⚡ É rápido, seguro e a confirmação sai em segundos! 💰 Aproveite ao máximo os jogos e boa sorte nos ganhos! 🌸🌸🌸
-        </p>
-
-        <!-- Valores pré-definidos -->
-        <div class="deposit-amounts-grid">
-          <button
-            v-for="val in presetAmounts"
-            :key="val"
-            type="button"
-            class="deposit-amount-btn"
-            :class="{ active: selectedAmount === val || parseAmountInput(amountInput) === val }"
-            @click="selectAmount(val)"
-          >
-            {{ formatAmount(val) }}
-          </button>
-        </div>
-
-        <!-- CPF e Nome (obrigatórios para PIX) -->
-        <h3 class="deposit-section-title">Dados para PIX</h3>
-        <div class="deposit-field">
-          <label class="deposit-label">CPF (apenas números)</label>
-          <input
-            v-model="depositCpf"
-            type="text"
-            class="deposit-input"
-            placeholder="00000000000"
-            maxlength="14"
-            inputmode="numeric"
-          />
-        </div>
-        <div class="deposit-field">
-          <label class="deposit-label">Nome completo</label>
-          <input
-            v-model="depositNome"
-            type="text"
-            class="deposit-input"
-            placeholder="Nome como no documento"
-          />
-        </div>
-
-        <!-- Botão depositar -->
-        <ion-button class="deposit-now-btn" expand="block" @click="doDeposit">
-          Depositar Agora
-        </ion-button>
       </div>
     </ion-content>
   </ion-page>
@@ -164,7 +169,7 @@ import { useToast } from '@/composables/useToast'
 import QRCode from 'qrcode'
 
 const { refresh } = useAfiliado()
-const { depositoMin, whatsappUrl } = useSettings()
+const { depositoMin, whatsappUrl, pixEnabled } = useSettings()
 const toast = useToast()
 const isLoggedIn = ref(!!localStorage.getItem('token'))
 
@@ -262,6 +267,10 @@ function validarCpf(cpf) {
 }
 
 async function doDeposit() {
+  if (!pixEnabled.value) {
+    toast.error('Depósito PIX indisponível no momento.')
+    return
+  }
   const valor = parseAmountInput(amountInput.value) || selectedAmount.value
   selectedAmount.value = valor
   const min = depositoMin.value ?? 10
@@ -400,6 +409,20 @@ function openSupport() {
 .deposit-support-link ion-icon {
   font-size: 1.1rem;
   color: #fbbf24;
+}
+
+.deposit-pix-unavailable {
+  margin-top: 1.25rem;
+  padding: 1rem;
+  border-radius: 12px;
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  color: #fecaca;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+.deposit-pix-unavailable .deposit-support-link {
+  margin-bottom: 0;
 }
 
 .deposit-online-wrap {

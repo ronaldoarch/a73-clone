@@ -14,6 +14,8 @@ const depositoMin = ref(10)
 const saqueMin = ref(20)
 const saqueMax = ref(40000)
 const whatsappUrl = ref('')
+const pixEnabled = ref(true)
+const activePixProvider = ref('gatebox')
 
 export function useSettings() {
   async function load() {
@@ -31,6 +33,9 @@ export function useSettings() {
       if (typeof data.saqueMin === 'number') saqueMin.value = data.saqueMin
       if (typeof data.saqueMax === 'number') saqueMax.value = data.saqueMax
       if (data.whatsappUrl) whatsappUrl.value = data.whatsappUrl
+      if (typeof data.pixEnabled === 'boolean') pixEnabled.value = data.pixEnabled
+      else pixEnabled.value = true
+      if (data.activePixProvider) activePixProvider.value = data.activePixProvider
       if (typeof document !== 'undefined') document.title = pageTitle.value
     } catch (e) {
       // mantém defaults
@@ -54,6 +59,8 @@ export function useSettings() {
     saqueMin,
     saqueMax,
     whatsappUrl,
+    pixEnabled,
+    activePixProvider,
     load
   }
 }

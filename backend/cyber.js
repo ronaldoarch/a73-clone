@@ -54,6 +54,22 @@ function parseCyberPixExpiration(raw) {
 }
 
 /**
+ * Campo image do QR pode vir como data URI, URL absoluta (https) ou base64 cru.
+ * Nunca prefixar URL com data:image/png;base64, — quebra o <img src>.
+ */
+function normalizeCyberQrImage(raw, apiUrl) {
+  const s = String(raw || '').trim()
+  if (!s) return null
+  if (s.startsWith('data:')) return s
+  if (/^https?:\/\//i.test(s)) return s
+  if (s.startsWith('/')) {
+    const origin = String(apiUrl || '').replace(/\/v1\/?$/i, '').replace(/\/$/, '') || ''
+    return origin ? `${origin}${s}` : null
+  }
+  return `data:image/png;base64,${s}`
+}
+
+/**
  * Valida assinatura HMAC-SHA256 do webhook
  * O header X-Webhook-Signature contém HMAC-SHA256(rawBody, secret) em hex
  * O secret pode vir com prefixo "whsec_" que é removido antes do cálculo
@@ -112,7 +128,7 @@ export async function cyberCreatePix({ amount, document, name, email, phone, des
     const qrCode = pix.qrCode || {}
     const copyPaste = qrCode.emv || ''
     const rawImg = qrCode.image || ''
-    const qrcode = rawImg ? (rawImg.startsWith('data:') ? rawImg : `data:image/png;base64,${rawImg}`) : null
+    const qrcode = normalizeCyberQrImage(rawImg, cfg.apiUrl)
     return {
       ok: true,
       data: {

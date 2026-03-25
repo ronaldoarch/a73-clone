@@ -61,6 +61,33 @@
           </ion-button>
         </div>
 
+        <!-- Resumo: depósitos, saques e atalho para jogos -->
+        <div class="perfil-relatorios-preview">
+          <div class="perfil-relatorios-header">
+            <h3 class="perfil-relatorios-title">Transações recentes</h3>
+            <button type="button" class="perfil-relatorios-ver" @click="$router.push('/main/relatorios/')">
+              Relatórios
+            </button>
+          </div>
+          <p class="perfil-relatorios-hint">Depósitos, saques e histórico de jogos na página de relatórios.</p>
+          <div v-if="relPreviewLoading" class="perfil-relatorios-loading">Carregando…</div>
+          <ul v-else-if="relPreviewRows.length" class="perfil-relatorios-list">
+            <li v-for="row in relPreviewRows" :key="row.kind + row.id" class="perfil-relatorios-li">
+              <span class="perfil-rel-badge" :class="row.kind === 'dep' ? 'dep' : 'saque'">
+                {{ row.kind === 'dep' ? 'Dep.' : 'Saque' }}
+              </span>
+              <span class="perfil-rel-mid">
+                <span class="perfil-rel-date">{{ formatRelData(row.createdAt) }}</span>
+                <span class="perfil-rel-status">{{ relStatusLabel(row) }}</span>
+              </span>
+              <span class="perfil-rel-val" :class="row.kind === 'dep' ? 'pos' : 'neg'">
+                {{ row.kind === 'dep' ? '+' : '−' }} R$ {{ formatRelMoney(row.valor) }}
+              </span>
+            </li>
+          </ul>
+          <p v-else class="perfil-relatorios-empty">Nenhuma transação recente.</p>
+        </div>
+
         <!-- VIP -->
         <div class="perfil-vip-section">
           <div class="perfil-vip-header">
@@ -215,6 +242,47 @@ const vipProgress = computed(() => vipProgresso.value.progresso)
 const showSaqueModal = ref(false)
 const toast = useToast()
 
+const relPreviewLoading = ref(false)
+const relPreviewRows = ref([])
+
+function formatRelMoney(v) {
+  return (Number(v) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+function formatRelData(iso) {
+  if (!iso) return '—'
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return '—'
+  return d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+}
+function relStatusLabel(row) {
+  if (row.kind === 'dep') {
+    const m = { concluido: 'OK', pendente: 'Pendente', expirado: 'Expirado', erro: 'Erro', estornado: 'Estornado' }
+    return m[row.status] || row.status || ''
+  }
+  const m = { concluido: 'OK', pendente: 'Pendente', processando: 'Proc.', recusado: 'Recusado' }
+  return m[row.status] || row.status || ''
+}
+
+async function loadRelPreview() {
+  if (!localStorage.getItem('token')) {
+    relPreviewRows.value = []
+    return
+  }
+  relPreviewLoading.value = true
+  try {
+    const data = await afiliadoApi.getRelatorios(100)
+    const d = (data?.depositos || []).map((x) => ({ kind: 'dep', ...x }))
+    const s = (data?.saques || []).map((x) => ({ kind: 'saque', ...x }))
+    relPreviewRows.value = [...d, ...s]
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+      .slice(0, 5)
+  } catch {
+    relPreviewRows.value = []
+  } finally {
+    relPreviewLoading.value = false
+  }
+}
+
 // Alterar senha
 const showChangePwd = ref(false)
 const changePwdCurrent = ref('')
@@ -264,11 +332,17 @@ onMounted(() => {
     selectedAvatar.value = AVATAR_DEFAULT
   }
   checkLogin()
-  if (isLoggedIn.value) refresh()
+  if (isLoggedIn.value) {
+    refresh()
+    loadRelPreview()
+  }
 })
 onIonViewWillEnter(() => {
   checkLogin()
-  if (isLoggedIn.value) refresh()
+  if (isLoggedIn.value) {
+    refresh()
+    loadRelPreview()
+  }
 })
 
 function copyId() {
@@ -462,6 +536,108 @@ function logout() {
 .perfil-action-btn ion-icon {
   font-size: 1.3rem;
   color: #fbbf24;
+}
+
+.perfil-relatorios-preview {
+  background: var(--color-bg-100);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 20px;
+}
+.perfil-relatorios-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.perfil-relatorios-title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #fff;
+}
+.perfil-relatorios-ver {
+  background: transparent;
+  border: 1px solid rgba(167, 139, 250, 0.5);
+  color: #c4b5fd;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.perfil-relatorios-hint {
+  margin: 0 0 10px;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  line-height: 1.35;
+}
+.perfil-relatorios-loading,
+.perfil-relatorios-empty {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  padding: 8px 0;
+}
+.perfil-relatorios-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.perfil-relatorios-li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 0.85rem;
+  color: #e5e7eb;
+}
+.perfil-relatorios-li:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+.perfil-rel-badge {
+  flex-shrink: 0;
+  font-size: 0.65rem;
+  font-weight: 800;
+  padding: 4px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+.perfil-rel-badge.dep {
+  background: rgba(34, 197, 94, 0.2);
+  color: #4ade80;
+}
+.perfil-rel-badge.saque {
+  background: rgba(239, 68, 68, 0.2);
+  color: #f87171;
+}
+.perfil-rel-mid {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.perfil-rel-date {
+  color: #fff;
+  font-weight: 600;
+}
+.perfil-rel-status {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+.perfil-rel-val {
+  flex-shrink: 0;
+  font-weight: 700;
+}
+.perfil-rel-val.pos {
+  color: #4ade80;
+}
+.perfil-rel-val.neg {
+  color: #f87171;
 }
 
 .perfil-vip-section {

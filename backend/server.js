@@ -1452,6 +1452,69 @@ app.get('/api/afiliado/pid', authMiddleware, async (req, res) => {
   }
 })
 
+// Relatórios do próprio usuário: depósitos, saques e transações de jogos (GameTxnLog)
+app.get('/api/user/relatorios', authMiddleware, async (req, res) => {
+  try {
+    const uid = req.userId
+    const take = Math.min(parseInt(String(req.query.limit || ''), 10) || 200, 400)
+    const [depositos, saques, jogos, aggJogos] = await Promise.all([
+      prisma.deposit.findMany({
+        where: { userId: uid },
+        orderBy: { createdAt: 'desc' },
+        take,
+        select: { id: true, valor: true, status: true, createdAt: true }
+      }),
+      prisma.withdrawal.findMany({
+        where: { userId: uid },
+        orderBy: { createdAt: 'desc' },
+        take,
+        select: { id: true, valor: true, status: true, metodo: true, createdAt: true }
+      }),
+      prisma.gameTxnLog.findMany({
+        where: { userId: uid },
+        orderBy: { createdAt: 'desc' },
+        take,
+        select: {
+          id: true,
+          txnId: true,
+          gameType: true,
+          provider: true,
+          gameCode: true,
+          txnType: true,
+          betReais: true,
+          winReais: true,
+          delta: true,
+          createdAt: true
+        }
+      }),
+      prisma.gameTxnLog.aggregate({
+        where: { userId: uid },
+        _sum: { betReais: true, winReais: true, delta: true }
+      })
+    ])
+    const iso = (d) => (d?.toISOString?.() ? d.toISOString() : null)
+    return res.json({
+      result: {
+        data: {
+          json: {
+            depositos: depositos.map((x) => ({ ...x, createdAt: iso(x.createdAt) })),
+            saques: saques.map((x) => ({ ...x, createdAt: iso(x.createdAt) })),
+            jogos: jogos.map((x) => ({ ...x, createdAt: iso(x.createdAt) })),
+            totaisJogos: {
+              totalApostado: aggJogos._sum.betReais ?? 0,
+              totalGanho: aggJogos._sum.winReais ?? 0,
+              saldoDelta: aggJogos._sum.delta ?? 0
+            }
+          }
+        }
+      }
+    })
+  } catch (e) {
+    console.error('user relatorios:', e)
+    return res.status(500).json({ error: { message: e.message } })
+  }
+})
+
 // Helper: carrega config iGameWin do banco (usado por proxy e gold_api)
 async function getIgamewinConfig() {
   try {

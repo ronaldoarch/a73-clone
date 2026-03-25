@@ -25,6 +25,8 @@ onMounted(() => {
   if (localStorage.getItem('token')) {
     useAfiliado().refresh()
   }
+  // Evita o banner nativo do Chrome para usar o CTA em Inicio.vue (installApp → prompt()).
+  // O DevTools pode avisar até o usuário tocar em instalar — comportamento esperado.
   window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault()
     window.__deferredPrompt = e

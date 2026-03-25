@@ -80,6 +80,12 @@ export const afiliadoApi = {
     return r?.pid
   },
 
+  /** Depósitos, saques e log de jogos do usuário logado */
+  async getRelatorios(limit) {
+    const q = limit ? `?limit=${encodeURIComponent(String(limit))}` : ''
+    return trpcGet('/api/user/relatorios' + q)
+  },
+
   async saque(data) {
     return trpcPost('/api/saque', data)
   },

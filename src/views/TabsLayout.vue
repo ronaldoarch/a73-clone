@@ -16,6 +16,7 @@
       <ion-tab-button tab="misterioso" href="/main/misterioso/" class="tab-hidden"><ion-icon name="ribbon" /><ion-label>Misterioso</ion-label></ion-tab-button>
       <ion-tab-button tab="vip" href="/main/vip/" class="tab-hidden"><ion-icon name="ribbon" /><ion-label>VIP</ion-label></ion-tab-button>
       <ion-tab-button tab="jogos" href="/main/jogos/" class="tab-hidden"><ion-icon name="ribbon" /><ion-label>Jogos</ion-label></ion-tab-button>
+      <ion-tab-button tab="roleta" href="/main/roleta/" class="tab-hidden"><ion-icon name="ribbon" /><ion-label>Roleta</ion-label></ion-tab-button>
       <!-- Tabs visíveis -->
       <ion-tab-button tab="inicio" href="/main/inicio/">
         <ion-icon name="ribbon" />
@@ -25,7 +26,7 @@
         <ion-icon name="wallet" />
         <ion-label>Depósito</ion-label>
       </ion-tab-button>
-      <ion-tab-button tab="roleta" href="/main/eventos/" class="tab-roleta-btn">
+      <ion-tab-button tab="eventos" href="/main/eventos/" class="tab-roleta-btn">
         <div class="tab-roleta">
           <div class="tab-roleta-inner">
             <ion-icon name="flame" class="tab-roleta-icon" />

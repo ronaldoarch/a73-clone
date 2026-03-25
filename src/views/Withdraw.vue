@@ -76,7 +76,9 @@
               class="withdraw-input"
               placeholder="CPF (11 dígitos), e-mail, telefone ou chave aleatória"
             />
-            <p class="withdraw-hint">Informe a chave PIX onde deseja receber o valor</p>
+            <p class="withdraw-hint">
+              CPF, CNPJ, e-mail, telefone (com DDD) ou chave aleatória. Celular com 11 dígitos é detectado automaticamente (não confunde com CPF inválido).
+            </p>
           </div>
 
           <!-- Painel de rollover -->
@@ -171,26 +173,17 @@ async function retirarAgora() {
     toast.error('Informe a chave PIX')
     return
   }
-  const chaveLimpa = chave.replace(/\D/g, '')
-  if (chaveLimpa.length === 11 || chaveLimpa.length === 14) {
-    // CPF (11) ou CNPJ (14) - OK
-  } else if (chave.includes('@')) {
-    if (chave.length < 5 || !chave.includes('.')) {
-      toast.error('Informe um e-mail válido')
-      return
-    }
-  } else if (chave.length < 10) {
-    toast.error('Chave PIX inválida (mín. 10 caracteres para telefone ou chave aleatória)')
+  if (chave.length > 130) {
+    toast.error('Chave PIX muito longa')
     return
   }
-  const cpfIdEnviar = (chaveLimpa.length === 11 || chaveLimpa.length === 14) ? chaveLimpa : chave
   loading.value = true
   try {
     const r = await afiliadoApi.saque({
       valor: v,
       metodo: 'pix',
       nome: nome.value.trim(),
-      cpfId: cpfIdEnviar
+      cpfId: chave
     })
     if (r?.ok) {
       toast.success(`PIX de R$ ${formatVal(v)} enviado com sucesso!`)

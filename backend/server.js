@@ -16,6 +16,7 @@ import {
   cyberWithdraw, cyberBalance,
   invalidateCyberConfigCache, verifyWebhookSignature
 } from './cyber.js'
+import { parsePixKeyForWithdrawal } from './pixKey.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const prisma = new PrismaClient()
@@ -2288,8 +2289,15 @@ app.post('/api/saque', authMiddleware, async (req, res) => {
     if (!Number.isFinite(v) || v <= 0) return res.json({ error: { message: 'Valor inválido' } })
     if (v < cfg.saqueMin) return res.json({ error: { message: `Valor mínimo R$ ${cfg.saqueMin.toFixed(2)}` } })
     if (v > cfg.saqueMax) return res.json({ error: { message: `Valor máximo R$ ${cfg.saqueMax.toFixed(2).replace('.', ',')}` } })
-    const chavePix = String(cpfId || '').trim()
-    if (!chavePix || chavePix.length > 77) return res.json({ error: { message: 'Chave PIX inválida' } })
+    let parsedPix
+    try {
+      parsedPix = parsePixKeyForWithdrawal(String(cpfId || '').trim())
+    } catch (e) {
+      const msg = e.code === 'EMPTY' ? 'Chave PIX obrigatória' : (e.message || 'Chave PIX inválida')
+      return res.json({ error: { message: msg } })
+    }
+    const chaveArmazenar = parsedPix.normalizedKey
+    const pixTipo = parsedPix.pixKeyType
     const nomeRecebedor = String(nome || '').trim()
     if (!nomeRecebedor || nomeRecebedor.length > 120) return res.json({ error: { message: 'Nome do recebedor é obrigatório' } })
     const user = await prisma.user.findUnique({ where: { id: req.userId } })
@@ -2318,16 +2326,13 @@ app.post('/api/saque', authMiddleware, async (req, res) => {
           valor: v,
           metodo: metodo || 'pix',
           nome: nomeRecebedor || null,
-          cpfId: chavePix,
+          cpfId: chaveArmazenar,
           status: 'pendente'
         }
       })
     ])
 
-    let key = chavePix
-    if (/^\d+$/.test(key) && (key.length === 11 || key.length === 14)) {
-      key = key.replace(/\D/g, '')
-    }
+    const key = chaveArmazenar
     const name = nomeRecebedor || user?.account || 'Cliente'
 
     const refundAndFail = async (errorMsg) => {
@@ -2345,11 +2350,10 @@ app.post('/api/saque', authMiddleware, async (req, res) => {
     const useCyber = getActivePixProvider(cfg) === 'cyber'
     try {
       if (useCyber) {
-        const keyType = key.includes('@') ? 'EMAIL' : (/^\d{11}$/.test(key) ? 'CPF' : /^\d{14}$/.test(key) ? 'CNPJ' : 'RANDOM')
         withdrawResult = await cyberWithdraw({
           amount: v,
           pixKey: key,
-          pixKeyType: keyType,
+          pixKeyType: pixTipo,
           description: `Saque - ${user?.account || req.userId}`
         })
       } else {
@@ -2358,7 +2362,7 @@ app.post('/api/saque', authMiddleware, async (req, res) => {
           key,
           name,
           amount: v,
-          documentNumber: /^\d{11}$|^\d{14}$/.test(key) ? key : undefined,
+          documentNumber: pixTipo === 'CPF' || pixTipo === 'CNPJ' ? key : undefined,
           description: `Saque - ${user?.account || req.userId}`
         })
       }
@@ -2544,11 +2548,14 @@ app.patch('/api/admin/saques/:id', adminAuthMiddleware, async (req, res) => {
       ])
       return res.json({ ok: true, status })
     }
-    let key = String(w.cpfId || '').trim()
-    if (!key) return res.status(400).json({ ok: false, error: 'Chave PIX não informada no saque' })
-    if (/^\d+$/.test(key) && (key.length === 11 || key.length === 14)) {
-      key = key.replace(/\D/g, '')
+    let parsedPix
+    try {
+      parsedPix = parsePixKeyForWithdrawal(String(w.cpfId || '').trim())
+    } catch (e) {
+      return res.status(400).json({ ok: false, error: e.message || 'Chave PIX inválida neste saque' })
     }
+    const key = parsedPix.normalizedKey
+    const pixTipo = parsedPix.pixKeyType
     const name = String(w.nome || w.user?.account || 'Cliente').trim()
     const cfg = await getAppConfig()
     if (getActivePixProvider(cfg) === 'none') {
@@ -2559,7 +2566,7 @@ app.patch('/api/admin/saques/:id', adminAuthMiddleware, async (req, res) => {
       ? await cyberWithdraw({
           amount: w.valor,
           pixKey: key,
-          pixKeyType: key.includes('@') ? 'EMAIL' : (/^\d{11}$/.test(key) ? 'CPF' : /^\d{14}$/.test(key) ? 'CNPJ' : 'RANDOM'),
+          pixKeyType: pixTipo,
           description: `Saque - ${w.user?.account || w.userId}`
         })
       : await gateboxWithdraw({
@@ -2567,7 +2574,7 @@ app.patch('/api/admin/saques/:id', adminAuthMiddleware, async (req, res) => {
           key,
           name,
           amount: w.valor,
-          documentNumber: /^\d{11}$|^\d{14}$/.test(key) ? key : undefined,
+          documentNumber: pixTipo === 'CPF' || pixTipo === 'CNPJ' ? key : undefined,
           description: `Saque - ${w.user?.account || w.userId}`
         })
     if (!withdrawResult.ok) {

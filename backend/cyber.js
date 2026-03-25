@@ -38,6 +38,21 @@ export function invalidateCyberConfigCache() {
   _cfgCacheAt = 0
 }
 
+/** Converte expirationDate da API (segundos, ms ou ISO) em ISO string ou null */
+function parseCyberPixExpiration(raw) {
+  if (raw == null || raw === '') return null
+  if (typeof raw === 'string') {
+    const d = new Date(raw.trim())
+    return Number.isFinite(d.getTime()) ? d.toISOString() : null
+  }
+  const n = Number(raw)
+  if (!Number.isFinite(n) || n <= 0) return null
+  // Timestamps em ms atuais são ~1.7e12; em segundos ~1.7e9
+  const ms = n >= 1e12 ? n : n * 1000
+  const d = new Date(ms)
+  return Number.isFinite(d.getTime()) ? d.toISOString() : null
+}
+
 /**
  * Valida assinatura HMAC-SHA256 do webhook
  * O header X-Webhook-Signature contém HMAC-SHA256(rawBody, secret) em hex
@@ -107,7 +122,7 @@ export async function cyberCreatePix({ amount, document, name, email, phone, des
         copyPaste,
         qrcode,
         status: d.status,
-        expireAt: pix.expirationDate ? new Date(pix.expirationDate * 1000).toISOString() : null
+        expireAt: parseCyberPixExpiration(pix.expirationDate ?? pix.expiration_date)
       }
     }
   } catch (e) {

@@ -11,6 +11,10 @@ O backend executa **`prisma migrate deploy`** automaticamente ao iniciar, via `e
 
 **Importante:** No Coolify, **não defina** um "Custom Start Command" ou "Entrypoint" para o backend — deixe o padrão do Dockerfile para que as migrações rodem.
 
+## Build do frontend lento ou falha (exit 255) no `npm run build`
+
+O contexto Docker não deve incluir `site_baixado/` (~900MB+) nem `backend/` — só o Vite precisa de `src/`, `public/`, configs. O `.dockerignore` na raiz já exclui essas pastas. Se ainda transferir gigabytes, confira no Coolify se o **Dockerfile** e o **contexto** são a raiz do repositório.
+
 ## Deploy apenas do Frontend (padrão)
 
 Se você faz deploy só do repositório como **Application**, o frontend sobe sozinho (sem backend).

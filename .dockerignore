@@ -1,5 +1,12 @@
+# Build do Dockerfile na raiz = só frontend (Vite + nginx).
+# Excluir pastas grandes que não entram no bundle:
+
+backend
+site_baixado
+
 node_modules
 dist
+dist-ssr
 .git
 .gitignore
 *.md
@@ -7,3 +14,7 @@ dist
 .vscode
 .idea
 *.log
+coverage
+.cache
+.parcel-cache
+.turbo

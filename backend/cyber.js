@@ -185,36 +185,58 @@ export async function cyberWithdraw({ amount, pixKey, pixKeyType, description })
   }
   const keyType = typeMap[String(pixKeyType || '').toLowerCase()] || 'CPF'
 
+  /** Cyber às vezes aceita só um dos formatos: E.164 (+55…), 55+dígitos ou só DDD+número */
+  function phonePixKeyVariants(raw) {
+    const pk = String(raw || '').trim()
+    const d = pk.replace(/\D/g, '')
+    const out = []
+    const push = (v) => {
+      if (v && !out.includes(v)) out.push(v)
+    }
+    push(pk)
+    if (pk.startsWith('+')) push(d)
+    if (d.startsWith('55') && d.length >= 12) push(d.slice(2))
+    return out.length ? out : [pk]
+  }
+
   try {
-    const body = {
+    const baseBody = {
       amount: parseFloat(amount),
-      pixKey: String(pixKey).trim(),
       pixKeyType: keyType,
       description: String(description || 'Saque').slice(0, 200)
     }
-    const r = await fetch(`${cfg.apiUrl}/payments/withdrawals`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-API-Key': cfg.apiKey },
-      body: JSON.stringify(body)
-    })
-    const data = await r.json()
-    if (data?.error === true && data?.message) {
-      return { ok: false, error: data.message }
-    }
-    if (!data?.success || !data?.data) {
-      return { ok: false, error: data?.message || (typeof data?.error === 'string' ? data.error : null) || `Erro ao criar saque [${r.status}]` }
-    }
-    const d = data.data
-    return {
-      ok: true,
-      data: {
-        withdrawalId: d.id || d.withdrawal_id,
-        transactionId: d.transactionId || d.transaction_id,
-        status: d.status,
-        amount: d.amount,
-        netAmount: d.netAmount || d.net_amount
+    const keyVariants =
+      keyType === 'PHONE' ? phonePixKeyVariants(pixKey) : [String(pixKey).trim()]
+
+    let lastErr = 'Erro ao criar saque'
+    for (const pixKeyVal of keyVariants) {
+      const body = { ...baseBody, pixKey: pixKeyVal }
+      const r = await fetch(`${cfg.apiUrl}/payments/withdrawals`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-API-Key': cfg.apiKey },
+        body: JSON.stringify(body)
+      })
+      const data = await r.json()
+      if (data?.success && data?.data) {
+        const d = data.data
+        return {
+          ok: true,
+          data: {
+            withdrawalId: d.id || d.withdrawal_id,
+            transactionId: d.transactionId || d.transaction_id,
+            status: d.status,
+            amount: d.amount,
+            netAmount: d.netAmount || d.net_amount
+          }
+        }
       }
+      lastErr =
+        data?.message ||
+        (typeof data?.error === 'string' ? data.error : null) ||
+        `Erro ao criar saque [${r.status}]`
+      if (data?.error === true && data?.message) lastErr = data.message
     }
+    return { ok: false, error: lastErr }
   } catch (e) {
     console.error('Cyber withdraw:', e)
     return { ok: false, error: e.message }

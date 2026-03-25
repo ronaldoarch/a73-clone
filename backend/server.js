@@ -16,7 +16,7 @@ import {
   cyberWithdraw, cyberBalance,
   invalidateCyberConfigCache, verifyWebhookSignature
 } from './cyber.js'
-import { parsePixKeyForWithdrawal } from './pixKey.js'
+import { parsePixKeyForWithdrawal, pixKeyForGatebox } from './pixKey.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const prisma = new PrismaClient()
@@ -2359,10 +2359,10 @@ app.post('/api/saque', authMiddleware, async (req, res) => {
       } else {
         withdrawResult = await gateboxWithdraw({
           externalId: withdrawal.id,
-          key,
+          key: pixKeyForGatebox(key, pixTipo),
           name,
           amount: v,
-          documentNumber: pixTipo === 'CPF' || pixTipo === 'CNPJ' ? key : undefined,
+          documentNumber: pixTipo === 'CPF' || pixTipo === 'CNPJ' ? key.replace(/^\+/, '') : undefined,
           description: `Saque - ${user?.account || req.userId}`
         })
       }
@@ -2571,10 +2571,10 @@ app.patch('/api/admin/saques/:id', adminAuthMiddleware, async (req, res) => {
         })
       : await gateboxWithdraw({
           externalId: id,
-          key,
+          key: pixKeyForGatebox(key, pixTipo),
           name,
           amount: w.valor,
-          documentNumber: pixTipo === 'CPF' || pixTipo === 'CNPJ' ? key : undefined,
+          documentNumber: pixTipo === 'CPF' || pixTipo === 'CNPJ' ? key.replace(/^\+/, '') : undefined,
           description: `Saque - ${w.user?.account || w.userId}`
         })
     if (!withdrawResult.ok) {

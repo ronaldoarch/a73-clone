@@ -25,7 +25,8 @@ export default defineConfig({
         skipWaiting: true,
         clientsClaim: true,
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
-        globIgnores: [],
+        // Ícone do manifest e o glob incluíam o mesmo SVG duas vezes (com/sem ?__WB_REVISION__) → erro do Workbox
+        globIgnores: ['**/assets/logo-35m.svg'],
         maximumFileSizeToCacheInBytes: 20 * 1024 * 1024,
         // Nunca cachear /api e /uploads (evita Cache.put em 404 e dados desatualizados)
         navigateFallbackDenylist: [/^\/api/, /^\/uploads/],

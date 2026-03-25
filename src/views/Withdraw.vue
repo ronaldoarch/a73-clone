@@ -90,7 +90,13 @@
             </div>
           </div>
 
-          <ion-button class="withdraw-submit-btn" expand="block" @click="retirarAgora" :disabled="loading || rolloverPendente > 0">
+          <ion-button
+            class="withdraw-submit-btn"
+            color="success"
+            expand="block"
+            @click="retirarAgora"
+            :disabled="Boolean(loading || (rolloverPendente ?? 0) > 0)"
+          >
             {{ loading ? 'Processando...' : rolloverPendente > 0 ? 'Bloqueado (rollover pendente)' : 'Retirar Agora' }}
           </ion-button>
         </template>

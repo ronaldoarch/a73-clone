@@ -1,6 +1,7 @@
 /**
  * Normalização e tipo de chave PIX para saques (Cyber / Gatebox).
  * CPF e celular podem ter 11 dígitos — o tipo deve ser inferido com validação de CPF.
+ * Telefone: aceita DDD+número e formata em E.164 BR (+55…) para a Cyber.
  */
 
 function isValidCpfDigits(d) {
@@ -20,11 +21,26 @@ function isValidCpfDigits(d) {
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
-/** Telefone PIX no padrão internacional BR sem "+" (ex.: 5511987654321), como na OpenAPI Cyber */
-function phoneDigitsBr(national10or11) {
+/**
+ * DDD + número (10 ou 11 dígitos) → E.164 Brasil com +55
+ * @param {string} national10or11
+ * @returns {string}
+ */
+export function phoneE164Br(national10or11) {
   const d = String(national10or11 || '').replace(/\D/g, '')
   if (d.length !== 10 && d.length !== 11) return d
-  return `55${d}`
+  return `+55${d}`
+}
+
+/**
+ * Gatebox costuma esperar telefone só com dígitos (55…) sem "+"
+ * @param {string} normalizedKey
+ * @param {'CPF'|'CNPJ'|'EMAIL'|'PHONE'|'RANDOM'} pixKeyType
+ */
+export function pixKeyForGatebox(normalizedKey, pixKeyType) {
+  if (pixKeyType !== 'PHONE') return normalizedKey
+  const k = String(normalizedKey || '').trim()
+  return k.startsWith('+') ? k.slice(1) : k
 }
 
 /**
@@ -63,36 +79,43 @@ export function parsePixKeyForWithdrawal(raw) {
     return { normalizedKey: trimmed.toLowerCase(), pixKeyType: 'RANDOM' }
   }
 
-  const digits = trimmed.replace(/\D/g, '')
+  let digits = trimmed.replace(/\D/g, '')
 
-  // Só dígitos: CPF, CNPJ, telefone
+  // "0" + DDD + número (discagem antiga, ex.: 011 98765-4321)
+  if (digits.length === 12 && digits.startsWith('0') && digits[1] !== '0') {
+    digits = digits.slice(1)
+  }
+
+  // Só dígitos: CNPJ
   if (digits.length === 14) {
     return { normalizedKey: digits, pixKeyType: 'CNPJ' }
   }
 
+  // Já com código país 55 + celular (13) ou 55 + fixo (12)
   if (digits.length === 13 && digits.startsWith('55')) {
     const national = digits.slice(2)
     if (national.length === 11) {
-      return { normalizedKey: phoneDigitsBr(national), pixKeyType: 'PHONE' }
+      return { normalizedKey: phoneE164Br(national), pixKeyType: 'PHONE' }
     }
   }
 
   if (digits.length === 12 && digits.startsWith('55')) {
     const national = digits.slice(2)
     if (national.length === 10) {
-      return { normalizedKey: phoneDigitsBr(national), pixKeyType: 'PHONE' }
+      return { normalizedKey: phoneE164Br(national), pixKeyType: 'PHONE' }
     }
   }
 
+  // DDD + número: 11 dígitos (celular) ou 10 (fixo)
   if (digits.length === 11) {
     if (isValidCpfDigits(digits)) {
       return { normalizedKey: digits, pixKeyType: 'CPF' }
     }
-    return { normalizedKey: phoneDigitsBr(digits), pixKeyType: 'PHONE' }
+    return { normalizedKey: phoneE164Br(digits), pixKeyType: 'PHONE' }
   }
 
   if (digits.length === 10) {
-    return { normalizedKey: phoneDigitsBr(digits), pixKeyType: 'PHONE' }
+    return { normalizedKey: phoneE164Br(digits), pixKeyType: 'PHONE' }
   }
 
   // Texto alfanumérico (EVP legada ou outro formato)

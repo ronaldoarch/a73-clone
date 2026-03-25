@@ -129,6 +129,27 @@ O 502 significa que o nginx do frontend não consegue alcançar o backend. Verif
 - Ao fechar o jogo: configure Return URL no painel iGameWin para `https://api.35m.site/api/igamewin/game-return?user_code={user_code}` (o `{user_code}` será substituído pelo iGameWin)
 - O endpoint `game-return` chama `user_withdraw_reset` e credita o saldo de volta no sistema
 
+### Deploy falha: `tee .../backend/.env` (exit 255) ou sem mensagem de erro
+
+O Coolify grava as variáveis de ambiente em `backend/.env` dentro da pasta do clone (`/artifacts/...`). Se essa pasta **não existir mais** após o build (árvore do repositório removida) ou o caminho estiver errado, o comando falha com **exit code 255** e às vezes *"Command failed with no error output"*.
+
+**O que fazer (nesta ordem):**
+
+1. **Preserve Repository During Deployment**  
+   No recurso da aplicação (Docker Compose) no Coolify: **Settings → Advanced → Preserve Repository During Deployment** (ou equivalente na sua versão). Isso mantém o clone com a pasta `backend/` no disco para o passo que cria o `.env`.
+
+2. **Atualizar o Coolify**  
+   Versões recentes corrigem bugs em que o `.env` de runtime não era escrito no `--project-directory` dos artifacts (ex.: issue [#8953](https://github.com/coollabsio/coolify/issues/8953)). Prefira **v4.0.0-beta.469** ou mais novo.
+
+3. **Base Directory do Git**  
+   Deve ser a **raiz do repositório** (onde estão `docker-compose.yml` e a pasta `backend/`). Se a base for só `backend/`, o Coolify pode tentar gravar `backend/.env` como se fosse `backend/backend/.env` em relação ao clone e falhar.
+
+4. **Permissões (Coolify como usuário não-root)**  
+   Se o servidor não permitir escrita em `/artifacts` ou em pastas da aplicação, veja [coolify#5199](https://github.com/coollabsio/coolify/issues/5199) (permissões / `tee: Permission denied`).
+
+5. **Deploy só do backend (Dockerfile)**  
+   Use **Dockerfile** = `backend/Dockerfile` e **Base Directory** vazio (raiz do repo), *não* `backend`, para o caminho `backend/.env` bater com a árvore do Git.
+
 ### Login Error / botões não funcionam no jogo
 - **Seamless:** API Type = "Seamless Mode", Site EndPoint = URL do backend
 - **Transfer:** API Type = "Transfer Mode", agent com saldo

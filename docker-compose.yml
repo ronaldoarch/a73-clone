@@ -1,4 +1,9 @@
 # Deploy no Coolify: use este compose ou configure os serviços separadamente
+#
+# Se o deploy falhar com: tee .../backend/.env (exit 255) ou .env não encontrado:
+# 1) No recurso (Docker Compose), ative "Preserve Repository During Deployment".
+# 2) Atualize o Coolify (ex.: v4 beta ≥ 469 corrige .env em --project-directory).
+# 3) Base Directory do Git deve ser a RAIZ do repo (onde está esta pasta backend/).
 services:
   frontend:
     build: .

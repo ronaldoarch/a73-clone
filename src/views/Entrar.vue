@@ -18,33 +18,45 @@
           </div>
           <div class="pix-modal-body">
             <p class="pix-modal-valor">R$ {{ pixValorDisplay }}</p>
-            <div v-if="pixStatus === 'concluido'" class="pix-success-msg">
-              <ion-icon name="checkmark-circle" />
-              Pagamento confirmado! Seu saldo foi creditado.
+
+            <div v-if="pixGenerating" class="pix-generating">
+              <ion-spinner name="crescent" />
+              <p class="pix-generating-text">Gerando PIX com o provedor… Aguarde.</p>
             </div>
+
             <template v-else>
-              <div v-if="!pixQrcode && !pixCopyPaste" class="pix-error-msg">
-                <ion-icon name="warning" />
-                Não foi possível gerar o PIX. Verifique os dados e tente novamente.
-                <ion-button size="small" fill="outline" @click="closePixModal">Fechar</ion-button>
+              <div v-if="pixStatus === 'concluido'" class="pix-success-msg">
+                <ion-icon name="checkmark-circle" />
+                Pagamento confirmado! Seu saldo foi creditado.
               </div>
               <template v-else>
-                <p class="pix-modal-hint">Escaneie o QR Code ou copie o código abaixo</p>
-                <div v-if="pixQrcode" class="pix-qr-wrap">
-                  <img :src="pixQrcode" alt="QR Code PIX" class="pix-qr-img" />
+                <div v-if="!pixQrcode && !pixCopyPaste" class="pix-error-msg">
+                  <ion-icon name="warning" />
+                  Não foi possível gerar o PIX. Verifique os dados e tente novamente.
+                  <ion-button size="small" fill="outline" @click="closePixModal">Fechar</ion-button>
                 </div>
-                <div v-if="pixCopyPaste" class="pix-copy-wrap">
-                  <p class="pix-copy-label">Código PIX (copia e cola):</p>
-                  <textarea ref="pixCopyRef" readonly class="pix-copy-text" :value="pixCopyPaste" rows="4"></textarea>
-                  <ion-button size="small" @click="copyPixCode">Copiar código</ion-button>
-                </div>
-                <div class="pix-pending-msg">
-                  <ion-spinner name="crescent" />
-                  Aguardando pagamento...
-                  <ion-button size="small" fill="outline" class="pix-verify-btn" :disabled="pixVerifying" @click="verificarPagamento">
-                    {{ pixVerifying ? 'Verificando...' : 'Já paguei' }}
-                  </ion-button>
-                </div>
+                <template v-else>
+                  <p class="pix-modal-hint">Escaneie o QR Code ou copie o código abaixo</p>
+                  <div v-if="pixQrClientLoading" class="pix-qr-loading">
+                    <ion-spinner name="crescent" />
+                    <span>Gerando QR…</span>
+                  </div>
+                  <div v-else-if="pixQrcode" class="pix-qr-wrap">
+                    <img :src="pixQrcode" alt="QR Code PIX" class="pix-qr-img" />
+                  </div>
+                  <div v-if="pixCopyPaste" class="pix-copy-wrap">
+                    <p class="pix-copy-label">Código PIX (copia e cola):</p>
+                    <textarea ref="pixCopyRef" readonly class="pix-copy-text" :value="pixCopyPaste" rows="4"></textarea>
+                    <ion-button size="small" @click="copyPixCode">Copiar código</ion-button>
+                  </div>
+                  <div class="pix-pending-msg">
+                    <ion-spinner name="crescent" />
+                    Aguardando pagamento...
+                    <ion-button size="small" fill="outline" class="pix-verify-btn" :disabled="pixVerifying" @click="verificarPagamento">
+                      {{ pixVerifying ? 'Verificando...' : 'Já paguei' }}
+                    </ion-button>
+                  </div>
+                </template>
               </template>
             </template>
           </div>
@@ -144,8 +156,8 @@
           </div>
 
           <!-- Botão depositar -->
-          <ion-button class="deposit-now-btn" expand="block" @click="doDeposit">
-            Depositar Agora
+          <ion-button class="deposit-now-btn" expand="block" :disabled="pixGenerating" @click="doDeposit">
+            {{ pixGenerating ? 'Gerando PIX…' : 'Depositar Agora' }}
           </ion-button>
         </template>
         <div v-else class="deposit-pix-unavailable">
@@ -222,6 +234,8 @@ const pixValorDisplay = ref('')
 const pixStatus = ref('pendente')
 const pixCopyRef = ref(null)
 const pixVerifying = ref(false)
+const pixGenerating = ref(false)
+const pixQrClientLoading = ref(false)
 let pixPollInterval = null
 
 function formatAmount(val) {
@@ -243,6 +257,8 @@ function selectOnlineDeposit() {
 
 function closePixModal() {
   pixModalOpen.value = false
+  pixGenerating.value = false
+  pixQrClientLoading.value = false
   if (pixPollInterval) {
     clearInterval(pixPollInterval)
     pixPollInterval = null
@@ -291,10 +307,21 @@ async function doDeposit() {
     toast.error('Informe seu nome completo')
     return
   }
+
+  pixValorDisplay.value = valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })
+  pixStatus.value = 'pendente'
+  pixQrcode.value = ''
+  pixCopyPaste.value = ''
+  pixExternalId.value = ''
+  pixQrClientLoading.value = false
+  pixGenerating.value = true
+  pixModalOpen.value = true
+
   try {
     const data = await afiliadoApi.depositoPix({ valor, cpf, nome: depositNome.value.trim() })
     if (!data?.ok) {
       toast.error(data?.error?.message || 'Erro ao gerar PIX')
+      closePixModal()
       return
     }
     pixExternalId.value = data.externalId
@@ -302,18 +329,36 @@ async function doDeposit() {
     pixStatus.value = 'pendente'
     const qr = data.qrcode
     pixCopyPaste.value = data.copyPaste || ''
-    pixQrcode.value = (qr && (qr.startsWith('data:') || qr.startsWith('http'))) ? qr : (qr ? `data:image/png;base64,${qr}` : '')
-    if (!pixQrcode.value && pixCopyPaste.value) {
-      try {
-        pixQrcode.value = await QRCode.toDataURL(pixCopyPaste.value, { width: 256, margin: 2 })
-      } catch (_) {}
+    const serverQr = (qr && (qr.startsWith('data:') || qr.startsWith('http'))) ? qr : (qr ? `data:image/png;base64,${qr}` : '')
+    pixQrcode.value = serverQr
+
+    const copyForQr = pixCopyPaste.value
+    if (!serverQr && copyForQr) {
+      pixQrClientLoading.value = true
+      queueMicrotask(() => {
+        QRCode.toDataURL(copyForQr, {
+          width: 220,
+          margin: 1,
+          errorCorrectionLevel: 'L'
+        })
+          .then((url) => {
+            pixQrcode.value = url
+          })
+          .catch(() => {})
+          .finally(() => {
+            pixQrClientLoading.value = false
+          })
+      })
     }
-    pixModalOpen.value = true
+
     if (pixPollInterval) clearInterval(pixPollInterval)
-    pixPollInterval = setInterval(pollPixStatus, 1000)
+    pixPollInterval = setInterval(pollPixStatus, 2000)
     pollPixStatus()
   } catch (e) {
     toast.error(e?.message || 'Erro ao gerar PIX. Verifique se o Gatebox está configurado.')
+    closePixModal()
+  } finally {
+    pixGenerating.value = false
   }
 }
 
@@ -609,6 +654,35 @@ function openSupport() {
 }
 .pix-modal-body {
   padding: 20px;
+}
+.pix-generating {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 24px 8px 32px;
+  color: rgba(255, 255, 255, 0.65);
+}
+.pix-generating ion-spinner {
+  width: 48px;
+  height: 48px;
+  color: #a855f7;
+}
+.pix-generating-text {
+  margin: 0;
+  text-align: center;
+  font-size: 0.95rem;
+  line-height: 1.4;
+  max-width: 260px;
+}
+.pix-qr-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 140px;
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 0.9rem;
 }
 .pix-modal-valor {
   font-size: 1.5rem;

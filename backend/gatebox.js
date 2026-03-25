@@ -6,6 +6,8 @@ const GATEBOX_API = 'https://api.gatebox.com.br'
 
 let cachedToken = null
 let tokenExpiry = 0
+/** Config usada na última autenticação — evita 2× getGateboxConfig por request */
+let cachedCfg = null
 
 let _prisma = null
 function setPrisma(p) { _prisma = p }
@@ -29,9 +31,19 @@ async function getGateboxConfig() {
 export { setPrisma }
 
 async function getToken() {
-  if (cachedToken && Date.now() < tokenExpiry) return cachedToken
+  const tokenOk = cachedToken && Date.now() < tokenExpiry && cachedCfg
+  if (tokenOk) return cachedToken
+
   const cfg = await getGateboxConfig()
-  if (!cfg) return null
+  if (!cfg) {
+    cachedToken = null
+    cachedCfg = null
+    return null
+  }
+  cachedCfg = cfg
+
+  if (cachedToken && Date.now() < tokenExpiry) return cachedToken
+
   try {
     const r = await fetch(`${cfg.apiUrl}/v1/customers/auth/sign-in`, {
       method: 'POST',
@@ -47,13 +59,15 @@ async function getToken() {
   } catch (e) {
     console.error('Gatebox auth:', e)
   }
+  cachedToken = null
   return null
 }
 
 export async function gateboxCreatePix({ externalId, amount, document, name, email, phone, identification, description, expire = 3600 }) {
   const token = await getToken()
   if (!token) return { ok: false, error: 'Gatebox não configurado' }
-  const cfg = await getGateboxConfig()
+  const cfg = cachedCfg || (await getGateboxConfig())
+  if (!cfg) return { ok: false, error: 'Gatebox não configurado' }
   try {
     const body = {
       externalId: String(externalId),
@@ -88,7 +102,8 @@ export async function gateboxCreatePix({ externalId, amount, document, name, ema
 export async function gateboxPixStatus({ transactionId, externalId, endToEnd }) {
   const token = await getToken()
   if (!token) return { ok: false, error: 'Gatebox não configurado' }
-  const cfg = await getGateboxConfig()
+  const cfg = cachedCfg || (await getGateboxConfig())
+  if (!cfg) return { ok: false, error: 'Gatebox não configurado' }
   const params = new URLSearchParams()
   if (transactionId) params.set('transactionId', transactionId)
   if (externalId) params.set('externalId', externalId)
@@ -110,7 +125,8 @@ export async function gateboxPixStatus({ transactionId, externalId, endToEnd }) 
 export async function gateboxWithdraw({ externalId, key, name, amount, documentNumber, description }) {
   const token = await getToken()
   if (!token) return { ok: false, error: 'Gatebox não configurado' }
-  const cfg = await getGateboxConfig()
+  const cfg = cachedCfg || (await getGateboxConfig())
+  if (!cfg) return { ok: false, error: 'Gatebox não configurado' }
   try {
     const body = {
       externalId: String(externalId),
@@ -137,7 +153,8 @@ export async function gateboxWithdraw({ externalId, key, name, amount, documentN
 export async function gateboxBalance() {
   const token = await getToken()
   if (!token) return { ok: false, error: 'Gatebox não configurado' }
-  const cfg = await getGateboxConfig()
+  const cfg = cachedCfg || (await getGateboxConfig())
+  if (!cfg) return { ok: false, error: 'Gatebox não configurado' }
   try {
     const r = await fetch(`${cfg.apiUrl}/v1/customers/account/balance`, {
       method: 'POST',

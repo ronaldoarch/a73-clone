@@ -1,3 +1,26 @@
-# Ficheiros macOS (metadados Apple Double)
+# Ficheiros macOS
 ._*
 .DS_Store
+
+# Assets binários grandes — armazenados na GitHub Release (v1.0-site-baixado)
+# O Dockerfile faz download automático em build time.
+# Para desenvolvimento local estes ficheiros existem em disco mas não são enviados ao git.
+assets/*.js
+assets/*.js.map
+assets/*.css
+assets/*.css.map
+assets/*.png
+assets/*.jpg
+assets/*.jpeg
+assets/*.gif
+assets/*.webp
+assets/*.svg
+assets/*.ico
+assets/*.woff
+assets/*.woff2
+assets/*.ttf
+assets/*.eot
+favicon.svg
+favicon.ico
+svg/
+

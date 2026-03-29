@@ -3094,7 +3094,7 @@ app.get('/api/health', (req, res) => {
 
 // Site estático (../site_baixado): mesma origem que a API — acesse http://localhost:PORT/
 // Desative com SERVE_SITE_BAIXADO=0 (só API).
-const siteBaixadoDir = path.join(__dirname, '..', 'site_baixado')
+const siteBaixadoDir = process.env.SITE_BAIXADO_DIR || path.join(__dirname, '..', 'site_baixado')
 const serveSiteBaixado = process.env.SERVE_SITE_BAIXADO !== '0' && fs.existsSync(siteBaixadoDir)
 if (serveSiteBaixado) {
   app.use(express.static(siteBaixadoDir, { extensions: ['html'], index: ['index.html'] }))

@@ -23,9 +23,14 @@ RUN npx prisma generate
 COPY backend/ ./
 
 # ── 4. Frontend estático (site_baixado) ──────────────────────
-# Se já existir na imagem base (build local), usa directo.
-# Em produção (Coolify), descarrega da GitHub Release — sem blobs grandes no git.
+# Repositório privado: GitHub devolve 404 sem autenticação. Em Coolify defina
+# GITHUB_TOKEN (PAT com scope repo / leitura de releases) como Build Argument.
+# Repositório público: deixe GITHUB_TOKEN vazio — usa URL directa.
 ARG SITE_BAIXADO_URL=https://github.com/ronaldoarch/a73-clone/releases/download/v1.0-site-baixado/site_baixado.tar.gz
+# ID do asset "site_baixado.tar.gz" na release v1.0-site-baixado (API: .../releases/assets/<id>)
+ARG SITE_BAIXADO_ASSET_ID=384144780
+ARG GITHUB_REPO=ronaldoarch/a73-clone
+ARG GITHUB_TOKEN=
 ARG SKIP_SITE_DOWNLOAD=0
 
 RUN set -e; \
@@ -36,7 +41,16 @@ RUN set -e; \
         mkdir -p /app/site_baixado; \
     else \
         echo "Downloading site_baixado from GitHub Release..."; \
-        curl -fL "${SITE_BAIXADO_URL}" -o /tmp/site_baixado.tar.gz && \
+        if [ -n "${GITHUB_TOKEN}" ]; then \
+            curl -fSL \
+                -H "Accept: application/octet-stream" \
+                -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+                -H "X-GitHub-Api-Version: 2022-11-28" \
+                -o /tmp/site_baixado.tar.gz \
+                "https://api.github.com/repos/${GITHUB_REPO}/releases/assets/${SITE_BAIXADO_ASSET_ID}"; \
+        else \
+            curl -fSL -A "A73-Dockerfile/1.0" "${SITE_BAIXADO_URL}" -o /tmp/site_baixado.tar.gz; \
+        fi && \
         tar -xzf /tmp/site_baixado.tar.gz -C /app && \
         rm /tmp/site_baixado.tar.gz && \
         echo "Download concluído."; \

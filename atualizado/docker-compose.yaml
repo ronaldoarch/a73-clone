@@ -1,10 +1,10 @@
+# Alias de docker-compose.yml — Coolify por defeito procura .yaml
 services:
   app:
     build:
       context: .
       dockerfile: Dockerfile
       args:
-        # Repositório privado no GitHub: defina GITHUB_TOKEN no Coolify (PAT com leitura ao repo)
         GITHUB_TOKEN: ${GITHUB_TOKEN:-}
     ports:
       - "${PORT:-3000}:3000"

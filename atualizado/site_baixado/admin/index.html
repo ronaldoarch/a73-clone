@@ -1,0 +1,1333 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>A73 Admin - Painel iGaming</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/favicon.ico" sizes="any">
+  <style>
+    :root {
+      --bg-dark: #0a0e1a;
+      --bg-card: #121827;
+      --bg-sidebar: #0d1117;
+      --accent: #00d4aa;
+      --accent-hover: #00f5c4;
+      --danger: #ef4444;
+      --warning: #f59e0b;
+      --success: #10b981;
+      --text: #e2e8f0;
+      --text-muted: #94a3b8;
+      --border: #1e293b;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg-dark);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+    }
+    .sidebar {
+      width: 260px;
+      background: var(--bg-sidebar);
+      border-right: 1px solid var(--border);
+      padding: 1rem 0;
+      position: fixed;
+      height: 100vh;
+    }
+    .logo {
+      padding: 0 1.5rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 1rem;
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--accent);
+    }
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.75rem 1.5rem;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.2s;
+      border-left: 3px solid transparent;
+    }
+    .nav-item:hover { background: rgba(0,212,170,0.08); color: var(--text); }
+    .nav-item.active { background: rgba(0,212,170,0.12); color: var(--accent); border-left-color: var(--accent); }
+    .nav-item svg { width: 20px; height: 20px; opacity: 0.8; }
+    .main {
+      flex: 1;
+      margin-left: 260px;
+      padding: 1.5rem;
+      min-height: 100vh;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.5rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .header h1 { font-size: 1.5rem; font-weight: 600; }
+    .header-actions { display: flex; gap: 0.5rem; align-items: center; }
+    .btn {
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      font-size: 0.9rem;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+    .btn-primary { background: var(--accent); color: var(--bg-dark); }
+    .btn-primary:hover { background: var(--accent-hover); }
+    .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text); }
+    .btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    .kpi-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.25rem;
+      transition: transform 0.2s;
+    }
+    .kpi-card:hover { transform: translateY(-2px); }
+    .kpi-label { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.25rem; }
+    .kpi-value { font-size: 1.75rem; font-weight: 700; }
+    .kpi-value.green { color: var(--success); }
+    .kpi-value.red { color: var(--danger); }
+    .kpi-value.accent { color: var(--accent); }
+    .kpi-value.warning { color: var(--warning); }
+    .kpi-trend { font-size: 0.8rem; margin-top: 0.25rem; }
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+    .modal { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; max-width: 500px; width: 90%; max-height: 90vh; overflow-y: auto; }
+    .modal-header { padding: 1rem 1.25rem; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+    .modal-body { padding: 1.25rem; }
+    .modal-footer { padding: 1rem 1.25rem; border-top: 1px solid var(--border); display: flex; gap: 0.5rem; justify-content: flex-end; }
+    .tabs { display: flex; gap: 0.25rem; margin-bottom: 1rem; border-bottom: 1px solid var(--border); }
+    .tab { padding: 0.5rem 1rem; cursor: pointer; color: var(--text-muted); border-bottom: 2px solid transparent; margin-bottom: -1px; }
+    .tab:hover { color: var(--text); }
+    .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .risk-low { color: var(--success); }
+    .risk-medium { color: var(--warning); }
+    .risk-high { color: var(--danger); }
+    .kpi-trend.up { color: var(--success); }
+    .kpi-trend.down { color: var(--danger); }
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      margin-bottom: 1.5rem;
+    }
+    .card-header {
+      padding: 1rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .card-title { font-size: 1rem; font-weight: 600; }
+    .table-wrap { overflow-x: auto; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    th, td {
+      padding: 0.75rem 1.25rem;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+    th {
+      background: rgba(0,0,0,0.2);
+      font-weight: 600;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    tr:hover { background: rgba(0,212,170,0.04); }
+    .badge {
+      display: inline-block;
+      padding: 0.2rem 0.6rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 500;
+    }
+    .badge-success { background: rgba(16,185,129,0.2); color: var(--success); }
+    .badge-warning { background: rgba(245,158,11,0.2); color: var(--warning); }
+    .badge-danger { background: rgba(239,68,68,0.2); color: var(--danger); }
+    .badge-info { background: rgba(0,212,170,0.2); color: var(--accent); }
+    .section { display: none; }
+    .section.active { display: block; }
+    .chart-placeholder {
+      height: 200px;
+      background: linear-gradient(180deg, rgba(0,212,170,0.1) 0%, transparent 100%);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-muted);
+      margin: 1rem;
+    }
+    .search-box {
+      padding: 0.5rem 1rem;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--bg-dark);
+      color: var(--text);
+      width: 100%;
+      max-width: 300px;
+    }
+    .search-box:focus { outline: none; border-color: var(--accent); }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+    .toast-container { position: fixed; bottom: 1.5rem; right: 1.5rem; z-index: 2000; display: flex; flex-direction: column; gap: 0.5rem; }
+    .toast { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 0.75rem 1.25rem; box-shadow: 0 4px 12px rgba(0,0,0,0.3); animation: toastIn 0.3s ease; }
+    .toast.success { border-left: 4px solid var(--success); }
+    .toast.error { border-left: 4px solid var(--danger); }
+    .toast.info { border-left: 4px solid var(--accent); }
+    @keyframes toastIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+    .row-hidden { display: none !important; }
+    #themeOverride { display: block; }
+    @media (max-width: 768px) {
+      .sidebar { width: 70px; padding: 0.5rem; }
+      .logo span, .nav-item span { display: none; }
+      .main { margin-left: 70px; }
+      .grid-2 { grid-template-columns: 1fr; }
+    }
+  </style>
+  <style id="themeOverride"></style>
+</head>
+<body>
+  <div id="toastContainer" class="toast-container"></div>
+  <aside class="sidebar">
+    <div class="logo">🎰 <span>A73 Admin</span></div>
+    <nav class="nav-item active" data-section="dashboard">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
+      <span>Dashboard</span>
+    </nav>
+    <nav class="nav-item" data-section="players">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      <span>Jogadores</span>
+    </nav>
+    <nav class="nav-item" data-section="games">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+      <span>Jogos</span>
+    </nav>
+    <nav class="nav-item" data-section="financial">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+      <span>Financeiro</span>
+    </nav>
+    <nav class="nav-item" data-section="kyc">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      <span>KYC / AML</span>
+    </nav>
+    <nav class="nav-item" data-section="withdrawals">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+      <span>Saques</span>
+    </nav>
+    <nav class="nav-item" data-section="adjustments">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      <span>Ajustes</span>
+    </nav>
+    <nav class="nav-item" data-section="affiliates">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/><path d="M12 8v4"/><path d="M10 10h4"/></svg>
+      <span>Afiliados</span>
+    </nav>
+    <nav class="nav-item" data-section="reports">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>
+      <span>Relatórios</span>
+    </nav>
+    <nav class="nav-item" data-section="themes">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2"/><path d="M12 21v2"/><path d="M4.22 4.22l1.42 1.42"/><path d="M18.36 18.36l1.42 1.42"/><path d="M1 12h2"/><path d="M21 12h2"/><path d="M4.22 19.78l1.42-1.42"/><path d="M18.36 5.64l1.42-1.42"/></svg>
+      <span>Temas</span>
+    </nav>
+    <nav class="nav-item" data-section="config">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      <span>Configurações</span>
+    </nav>
+  </aside>
+
+  <main class="main">
+    <!-- Dashboard -->
+    <section id="dashboard" class="section active">
+      <div class="header">
+        <h1>Dashboard</h1>
+        <div class="header-actions">
+          <select class="btn btn-outline" style="cursor:pointer">
+            <option>Hoje</option>
+            <option>Últimos 7 dias</option>
+            <option>Últimos 30 dias</option>
+          </select>
+          <button class="btn btn-primary btn-export" data-context="dashboard">Exportar</button>
+        </div>
+      </div>
+      <div class="kpi-grid">
+        <div class="kpi-card">
+          <div class="kpi-label">Receita Bruta (GGR)</div>
+          <div class="kpi-value accent">R$ 127.450</div>
+          <div class="kpi-trend up">↑ 12,5% vs período anterior</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Jogadores Ativos</div>
+          <div class="kpi-value">2.847</div>
+          <div class="kpi-trend up">↑ 8,2%</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Depósitos</div>
+          <div class="kpi-value green">R$ 89.320</div>
+          <div class="kpi-trend up">↑ 15,3%</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Saques</div>
+          <div class="kpi-value">R$ 45.180</div>
+          <div class="kpi-trend down">↓ 3,1%</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Novos Cadastros</div>
+          <div class="kpi-value">156</div>
+          <div class="kpi-trend up">↑ 22%</div>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-header"><span class="card-title">Receita por Dia</span></div>
+          <div class="chart-placeholder">Gráfico de linha – Receita (R$)</div>
+        </div>
+        <div class="card">
+          <div class="card-header"><span class="card-title">Top 5 Jogos</span></div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Jogo</th><th>GGR</th><th>Rodadas</th></tr></thead>
+              <tbody>
+                <tr><td>Fortune Mouse</td><td>R$ 18.240</td><td>12.450</td></tr>
+                <tr><td>Dragon Tiger</td><td>R$ 15.890</td><td>9.820</td></tr>
+                <tr><td>Cash Mania</td><td>R$ 12.100</td><td>8.340</td></tr>
+                <tr><td>Alpaca Pays</td><td>R$ 10.560</td><td>7.120</td></tr>
+                <tr><td>Rabbit</td><td>R$ 9.870</td><td>6.890</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">Atividade Recente</span><button class="btn btn-outline btn-sm btn-ver-tudo">Ver tudo</button></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Horário</th><th>Tipo</th><th>Jogador</th><th>Valor</th><th>Status</th></tr></thead>
+            <tbody>
+              <tr><td>14:32</td><td>Depósito</td><td>user***@email.com</td><td>R$ 500</td><td><span class="badge badge-success">Concluído</span></td></tr>
+              <tr><td>14:28</td><td>Saque</td><td>player***</td><td>R$ 1.200</td><td><span class="badge badge-warning">Pendente</span></td></tr>
+              <tr><td>14:15</td><td>Jogo</td><td>user***</td><td>Fortune Mouse</td><td><span class="badge badge-info">R$ 45 ganho</span></td></tr>
+              <tr><td>14:02</td><td>Cadastro</td><td>novo***@mail.com</td><td>—</td><td><span class="badge badge-success">Ativo</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Jogadores -->
+    <section id="players" class="section">
+      <div class="header">
+        <h1>Jogadores</h1>
+        <div class="header-actions">
+          <input type="search" id="searchPlayers" class="search-box" placeholder="Buscar por email ou ID...">
+          <button class="btn btn-primary" id="btnNovoJogador">+ Novo</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Lista de Jogadores</span>
+          <div><select id="filterPlayers" class="btn btn-outline" style="cursor:pointer;margin-right:0.5rem"><option value="">Todos</option><option value="Ativo">Ativos</option><option value="Bloqueado">Bloqueados</option><option value="KYC Pendente">KYC Pendente</option></select></div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>ID</th><th>Email</th><th>Saldo</th><th>Cadastro</th><th>Status</th><th>Ações</th></tr></thead>
+            <tbody id="playersTableBody">
+              <tr><td>#1001</td><td>user***@email.com</td><td>R$ 1.250</td><td>26/02/2025</td><td><span class="badge badge-success">Ativo</span></td><td><button class="btn btn-outline btn-editar-jogador" style="padding:0.25rem 0.5rem;font-size:0.8rem" data-id="1001" data-email="user***@email.com">Editar</button></td></tr>
+              <tr><td>#1002</td><td>player***@mail.com</td><td>R$ 0</td><td>25/02/2025</td><td><span class="badge badge-success">Ativo</span></td><td><button class="btn btn-outline btn-editar-jogador" style="padding:0.25rem 0.5rem;font-size:0.8rem" data-id="1002" data-email="player***@mail.com">Editar</button></td></tr>
+              <tr><td>#1003</td><td>jogador***@gmail.com</td><td>R$ 3.400</td><td>24/02/2025</td><td><span class="badge badge-warning">KYC Pendente</span></td><td><button class="btn btn-outline btn-editar-jogador" style="padding:0.25rem 0.5rem;font-size:0.8rem" data-id="1003" data-email="jogador***@gmail.com">Editar</button></td></tr>
+              <tr><td>#1004</td><td>test***@test.com</td><td>R$ 0</td><td>23/02/2025</td><td><span class="badge badge-danger">Bloqueado</span></td><td><button class="btn btn-outline btn-editar-jogador" style="padding:0.25rem 0.5rem;font-size:0.8rem" data-id="1004" data-email="test***@test.com">Editar</button></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Jogos -->
+    <section id="games" class="section">
+      <div class="header">
+        <h1>Catálogo de Jogos</h1>
+        <div class="header-actions">
+          <input type="search" id="searchGames" class="search-box" placeholder="Buscar jogo...">
+          <button class="btn btn-primary" id="btnAdicionarJogo">+ Adicionar Jogo</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">Jogos por Categoria</span></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Jogo</th><th>Categoria</th><th>Provedor</th><th>RTP</th><th>Status</th><th>Ações</th></tr></thead>
+            <tbody id="gamesTableBody">
+              <tr><td>Fortune Mouse</td><td>Slots</td><td>PG Soft</td><td>96.8%</td><td><span class="badge badge-success">Ativo</span></td><td><button class="btn btn-outline btn-config-jogo" style="padding:0.25rem 0.5rem;font-size:0.8rem" data-jogo="Fortune Mouse">Config</button></td></tr>
+              <tr><td>Dragon Tiger</td><td>Mesa</td><td>Evolution</td><td>96.3%</td><td><span class="badge badge-success">Ativo</span></td><td><button class="btn btn-outline btn-config-jogo" style="padding:0.25rem 0.5rem;font-size:0.8rem" data-jogo="Dragon Tiger">Config</button></td></tr>
+              <tr><td>Cash Mania</td><td>Slots</td><td>Pragmatic</td><td>96.5%</td><td><span class="badge badge-success">Ativo</span></td><td><button class="btn btn-outline btn-config-jogo" style="padding:0.25rem 0.5rem;font-size:0.8rem" data-jogo="Cash Mania">Config</button></td></tr>
+              <tr><td>Alpaca Pays</td><td>Slots</td><td>PG Soft</td><td>96.7%</td><td><span class="badge badge-success">Ativo</span></td><td><button class="btn btn-outline btn-config-jogo" style="padding:0.25rem 0.5rem;font-size:0.8rem" data-jogo="Alpaca Pays">Config</button></td></tr>
+              <tr><td>Rabbit</td><td>Slots</td><td>PG Soft</td><td>96.4%</td><td><span class="badge badge-warning">Manutenção</span></td><td><button class="btn btn-outline btn-config-jogo" style="padding:0.25rem 0.5rem;font-size:0.8rem" data-jogo="Rabbit">Config</button></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Financeiro -->
+    <section id="financial" class="section">
+      <div class="header">
+        <h1>Financeiro</h1>
+        <div class="header-actions">
+          <select class="btn btn-outline" style="cursor:pointer"><option>Depósitos</option><option>Saques</option><option>Transações</option></select>
+          <button class="btn btn-primary btn-export" data-context="financeiro">Exportar</button>
+        </div>
+      </div>
+      <div class="kpi-grid">
+        <div class="kpi-card"><div class="kpi-label">Total Depósitos</div><div class="kpi-value green">R$ 89.320</div></div>
+        <div class="kpi-card"><div class="kpi-label">Total Saques</div><div class="kpi-value">R$ 45.180</div></div>
+        <div class="kpi-card"><div class="kpi-label">Pendentes</div><div class="kpi-value warning">R$ 12.500</div></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">Transações Recentes</span></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>ID</th><th>Jogador</th><th>Tipo</th><th>Valor</th><th>Método</th><th>Data</th><th>Status</th></tr></thead>
+            <tbody>
+              <tr><td>#TXN-4521</td><td>user***</td><td>Depósito</td><td>R$ 500</td><td>PIX</td><td>26/02 14:32</td><td><span class="badge badge-success">Aprovado</span></td></tr>
+              <tr><td>#TXN-4520</td><td>player***</td><td>Saque</td><td>R$ 1.200</td><td>PIX</td><td>26/02 14:28</td><td><span class="badge badge-warning">Processando</span></td></tr>
+              <tr><td>#TXN-4519</td><td>jogador***</td><td>Depósito</td><td>R$ 200</td><td>Cartão</td><td>26/02 13:15</td><td><span class="badge badge-success">Aprovado</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Afiliados -->
+    <section id="affiliates" class="section">
+      <div class="header">
+        <h1>Afiliados</h1>
+        <div class="header-actions">
+          <input type="search" id="searchAffiliates" class="search-box" placeholder="Buscar afiliado...">
+          <button class="btn btn-primary" id="btnNovoAfiliado">+ Novo Afiliado</button>
+        </div>
+      </div>
+      <div class="kpi-grid">
+        <div class="kpi-card"><div class="kpi-label">Afiliados Ativos</div><div class="kpi-value accent">47</div></div>
+        <div class="kpi-card"><div class="kpi-label">Jogadores Indicados</div><div class="kpi-value">1.284</div></div>
+        <div class="kpi-card"><div class="kpi-label">Comissão Total (mês)</div><div class="kpi-value green">R$ 8.420</div></div>
+        <div class="kpi-card"><div class="kpi-label">GGR dos Afiliados</div><div class="kpi-value">R$ 42.100</div></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">Lista de Afiliados</span><select id="filterAffiliates" class="btn btn-outline" style="cursor:pointer"><option value="">Todos</option><option value="Ativo">Ativos</option><option value="Inativo">Inativos</option></select></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>ID</th><th>Nome / Email</th><th>Link</th><th>Jogadores</th><th>GGR</th><th>Comissão</th><th>%</th><th>Comissão em</th><th>Status</th><th>Ações</th></tr></thead>
+            <tbody id="affiliatesTableBody">
+              <tr data-aff-id="A001"><td>#A001</td><td>afiliado***@mail.com</td><td><code style="font-size:0.75rem;color:var(--accent)">?ref=A001</code></td><td>89</td><td>R$ 12.400</td><td>R$ 2.480</td><td class="aff-pct">20%</td><td class="aff-type">Todos depósitos</td><td><span class="badge badge-success">Ativo</span></td><td><button class="btn btn-outline btn-ver-affiliate" style="padding:0.25rem 0.5rem;font-size:0.8rem" data-id="A001" data-email="afiliado***@mail.com" data-players="89" data-ggr="12400" data-commission="2480" data-pct="20" data-commission-type="todos" data-status="Ativo">Ver</button></td></tr>
+              <tr data-aff-id="A002"><td>#A002</td><td>parceiro***@gmail.com</td><td><code style="font-size:0.75rem;color:var(--accent)">?ref=A002</code></td><td>156</td><td>R$ 18.900</td><td>R$ 2.835</td><td class="aff-pct">15%</td><td class="aff-type">Primeiro depósito</td><td><span class="badge badge-success">Ativo</span></td><td><button class="btn btn-outline btn-ver-affiliate" style="padding:0.25rem 0.5rem;font-size:0.8rem" data-id="A002" data-email="parceiro***@gmail.com" data-players="156" data-ggr="18900" data-commission="2835" data-pct="15" data-commission-type="primeiro" data-status="Ativo">Ver</button></td></tr>
+              <tr data-aff-id="A003"><td>#A003</td><td>influencer***@outlook.com</td><td><code style="font-size:0.75rem;color:var(--accent)">?ref=A003</code></td><td>42</td><td>R$ 5.200</td><td>R$ 520</td><td class="aff-pct">10%</td><td class="aff-type">Todos depósitos</td><td><span class="badge badge-success">Ativo</span></td><td><button class="btn btn-outline btn-ver-affiliate" style="padding:0.25rem 0.5rem;font-size:0.8rem" data-id="A003" data-email="influencer***@outlook.com" data-players="42" data-ggr="5200" data-commission="520" data-pct="10" data-commission-type="todos" data-status="Ativo">Ver</button></td></tr>
+              <tr data-aff-id="A004"><td>#A004</td><td>antigo***@mail.com</td><td><code style="font-size:0.75rem;color:var(--accent)">?ref=A004</code></td><td>8</td><td>R$ 0</td><td>R$ 0</td><td class="aff-pct">15%</td><td class="aff-type">Primeiro depósito</td><td><span class="badge badge-warning">Inativo</span></td><td><button class="btn btn-outline btn-ver-affiliate" style="padding:0.25rem 0.5rem;font-size:0.8rem" data-id="A004" data-email="antigo***@mail.com" data-players="8" data-ggr="0" data-commission="0" data-pct="15" data-commission-type="primeiro" data-status="Inativo">Ver</button></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-header"><span class="card-title">Comissões Pendentes de Pagamento</span></div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Afiliado</th><th>Valor</th><th>Período</th><th>Status</th></tr></thead>
+              <tbody>
+                <tr><td>#A001</td><td>R$ 2.480</td><td>Fev/2025</td><td><span class="badge badge-warning">Pendente</span></td></tr>
+                <tr><td>#A002</td><td>R$ 2.835</td><td>Fev/2025</td><td><span class="badge badge-warning">Pendente</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><span class="card-title">Níveis de Comissão</span></div>
+          <div style="padding:1.25rem">
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Jogadores</th><th>% Comissão</th></tr></thead>
+                <tbody>
+                  <tr><td>0 – 50</td><td>10%</td></tr>
+                  <tr><td>51 – 100</td><td>15%</td></tr>
+                  <tr><td>101 – 500</td><td>20%</td></tr>
+                  <tr><td>500+</td><td>25%</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <p style="color:var(--text-muted);font-size:0.85rem;margin-top:0.75rem">Comissão calculada sobre % do GGR (revenue share) dos jogadores indicados.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Relatórios -->
+    <section id="reports" class="section">
+      <div class="header">
+        <h1>Relatórios</h1>
+        <div class="header-actions">
+          <select class="btn btn-outline" style="cursor:pointer"><option>GGR</option><option>NGR</option><option>RTP</option><option>Jogadores</option></select>
+          <button class="btn btn-primary" id="btnGerarRelatorio">Gerar Relatório</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">Relatório GGR (Últimos 30 dias)</span></div>
+        <div class="chart-placeholder">Gráfico de barras – GGR por dia</div>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">Resumo por Provedor</span></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Provedor</th><th>GGR</th><th>% do Total</th><th>Rodadas</th></tr></thead>
+            <tbody>
+              <tr><td>PG Soft</td><td>R$ 45.200</td><td>35,5%</td><td>28.450</td></tr>
+              <tr><td>Pragmatic</td><td>R$ 32.100</td><td>25,2%</td><td>22.100</td></tr>
+              <tr><td>Evolution</td><td>R$ 28.900</td><td>22,7%</td><td>15.320</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Temas -->
+    <section id="themes" class="section">
+      <div class="header"><h1>Temas e Cores</h1><button class="btn btn-outline" id="btnResetTheme">Restaurar padrão</button></div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">Temas pré-definidos</span></div>
+        <div style="padding:1.25rem;display:flex;flex-wrap:wrap;gap:0.75rem">
+          <button class="btn btn-outline theme-preset" data-theme="default" style="border-left:4px solid #00d4aa">Padrão (Verde)</button>
+          <button class="btn btn-outline theme-preset" data-theme="purple" style="border-left:4px solid #a855f7">Roxo</button>
+          <button class="btn btn-outline theme-preset" data-theme="blue" style="border-left:4px solid #3b82f6">Azul</button>
+          <button class="btn btn-outline theme-preset" data-theme="orange" style="border-left:4px solid #f97316">Laranja</button>
+          <button class="btn btn-outline theme-preset" data-theme="red" style="border-left:4px solid #ef4444">Vermelho</button>
+          <button class="btn btn-outline theme-preset" data-theme="cyan" style="border-left:4px solid #06b6d4">Ciano</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">Personalizar cores (em tempo real)</span></div>
+        <div style="padding:1.25rem;display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:1.25rem">
+          <div><label style="display:block;margin-bottom:0.5rem;color:var(--text-muted);font-size:0.85rem">Cor de destaque</label><div style="display:flex;gap:0.5rem;align-items:center"><input type="color" id="themeAccent" value="#00d4aa" style="width:48px;height:36px;border:none;border-radius:8px;cursor:pointer;background:transparent"><input type="text" id="themeAccentHex" class="search-box" value="#00d4aa" style="max-width:100px;font-family:monospace"></div></div>
+          <div><label style="display:block;margin-bottom:0.5rem;color:var(--text-muted);font-size:0.85rem">Destaque hover</label><div style="display:flex;gap:0.5rem;align-items:center"><input type="color" id="themeAccentHover" value="#00f5c4" style="width:48px;height:36px;border:none;border-radius:8px;cursor:pointer;background:transparent"><input type="text" id="themeAccentHoverHex" class="search-box" value="#00f5c4" style="max-width:100px;font-family:monospace"></div></div>
+          <div><label style="display:block;margin-bottom:0.5rem;color:var(--text-muted);font-size:0.85rem">Fundo principal</label><div style="display:flex;gap:0.5rem;align-items:center"><input type="color" id="themeBgDark" value="#0a0e1a" style="width:48px;height:36px;border:none;border-radius:8px;cursor:pointer;background:transparent"><input type="text" id="themeBgDarkHex" class="search-box" value="#0a0e1a" style="max-width:100px;font-family:monospace"></div></div>
+          <div><label style="display:block;margin-bottom:0.5rem;color:var(--text-muted);font-size:0.85rem">Fundo cards</label><div style="display:flex;gap:0.5rem;align-items:center"><input type="color" id="themeBgCard" value="#121827" style="width:48px;height:36px;border:none;border-radius:8px;cursor:pointer;background:transparent"><input type="text" id="themeBgCardHex" class="search-box" value="#121827" style="max-width:100px;font-family:monospace"></div></div>
+          <div><label style="display:block;margin-bottom:0.5rem;color:var(--text-muted);font-size:0.85rem">Fundo sidebar</label><div style="display:flex;gap:0.5rem;align-items:center"><input type="color" id="themeBgSidebar" value="#0d1117" style="width:48px;height:36px;border:none;border-radius:8px;cursor:pointer;background:transparent"><input type="text" id="themeBgSidebarHex" class="search-box" value="#0d1117" style="max-width:100px;font-family:monospace"></div></div>
+          <div><label style="display:block;margin-bottom:0.5rem;color:var(--text-muted);font-size:0.85rem">Texto</label><div style="display:flex;gap:0.5rem;align-items:center"><input type="color" id="themeText" value="#e2e8f0" style="width:48px;height:36px;border:none;border-radius:8px;cursor:pointer;background:transparent"><input type="text" id="themeTextHex" class="search-box" value="#e2e8f0" style="max-width:100px;font-family:monospace"></div></div>
+          <div><label style="display:block;margin-bottom:0.5rem;color:var(--text-muted);font-size:0.85rem">Texto secundário</label><div style="display:flex;gap:0.5rem;align-items:center"><input type="color" id="themeTextMuted" value="#94a3b8" style="width:48px;height:36px;border:none;border-radius:8px;cursor:pointer;background:transparent"><input type="text" id="themeTextMutedHex" class="search-box" value="#94a3b8" style="max-width:100px;font-family:monospace"></div></div>
+          <div><label style="display:block;margin-bottom:0.5rem;color:var(--text-muted);font-size:0.85rem">Bordas</label><div style="display:flex;gap:0.5rem;align-items:center"><input type="color" id="themeBorder" value="#1e293b" style="width:48px;height:36px;border:none;border-radius:8px;cursor:pointer;background:transparent"><input type="text" id="themeBorderHex" class="search-box" value="#1e293b" style="max-width:100px;font-family:monospace"></div></div>
+          <div><label style="display:block;margin-bottom:0.5rem;color:var(--text-muted);font-size:0.85rem">Sucesso</label><div style="display:flex;gap:0.5rem;align-items:center"><input type="color" id="themeSuccess" value="#10b981" style="width:48px;height:36px;border:none;border-radius:8px;cursor:pointer;background:transparent"><input type="text" id="themeSuccessHex" class="search-box" value="#10b981" style="max-width:100px;font-family:monospace"></div></div>
+          <div><label style="display:block;margin-bottom:0.5rem;color:var(--text-muted);font-size:0.85rem">Danger</label><div style="display:flex;gap:0.5rem;align-items:center"><input type="color" id="themeDanger" value="#ef4444" style="width:48px;height:36px;border:none;border-radius:8px;cursor:pointer;background:transparent"><input type="text" id="themeDangerHex" class="search-box" value="#ef4444" style="max-width:100px;font-family:monospace"></div></div>
+          <div><label style="display:block;margin-bottom:0.5rem;color:var(--text-muted);font-size:0.85rem">Warning</label><div style="display:flex;gap:0.5rem;align-items:center"><input type="color" id="themeWarning" value="#f59e0b" style="width:48px;height:36px;border:none;border-radius:8px;cursor:pointer;background:transparent"><input type="text" id="themeWarningHex" class="search-box" value="#f59e0b" style="max-width:100px;font-family:monospace"></div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Configurações -->
+    <section id="config" class="section">
+      <div class="header"><h1>Configurações</h1></div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">Tenant / Site</span></div>
+        <div style="padding:1.25rem">
+          <div style="margin-bottom:1rem">
+            <label style="display:block;margin-bottom:0.5rem;color:var(--text-muted)">Nome do Site</label>
+            <input type="text" class="search-box" id="cfgNomeSite" value="A73.COM" style="max-width:100%">
+          </div>
+          <div style="margin-bottom:1rem">
+            <label style="display:block;margin-bottom:0.5rem;color:var(--text-muted)">Moeda</label>
+            <input type="text" class="search-box" id="cfgMoeda" value="BRL (R$)" style="max-width:100%">
+          </div>
+          <div style="margin-bottom:1rem">
+            <label style="display:block;margin-bottom:0.5rem;color:var(--text-muted)">Limite de Saque Diário</label>
+            <input type="text" class="search-box" id="cfgLimiteSaque" value="R$ 10.000" style="max-width:100%">
+          </div>
+          <button class="btn btn-primary" id="btnSaveTenant">Salvar</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">Bônus e Promoções</span><button class="btn btn-primary" id="btnNovoBonus">+ Novo Bônus</button></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Código</th><th>Nome</th><th>Tipo</th><th>Valor</th><th>Válido até</th><th>Status</th><th>Ações</th></tr></thead>
+            <tbody id="bonusTableBody">
+              <tr><td>BEMVINDO</td><td>Bônus de Boas-vindas</td><td>Depósito</td><td>100% até R$ 100</td><td>31/03/2025</td><td><span class="badge badge-success">Ativo</span></td><td><button class="btn btn-outline btn-editar-bonus" style="padding:0.25rem 0.5rem;font-size:0.8rem">Editar</button></td></tr>
+              <tr><td>FRIDAY</td><td>Frete Grátis Sexta</td><td>Freebet</td><td>R$ 20</td><td>28/02/2025</td><td><span class="badge badge-success">Ativo</span></td><td><button class="btn btn-outline btn-editar-bonus" style="padding:0.25rem 0.5rem;font-size:0.8rem">Editar</button></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">Programa de Afiliados</span></div>
+        <div style="padding:1.25rem">
+          <div style="margin-bottom:1rem;display:flex;align-items:center;gap:0.5rem">
+            <input type="checkbox" id="cfgAutoAffiliate" checked>
+            <label for="cfgAutoAffiliate" style="color:var(--text)">Todos os usuários viram afiliados ao cadastrar</label>
+          </div>
+          <div style="margin-bottom:1rem">
+            <label style="display:block;margin-bottom:0.5rem;color:var(--text-muted)">Comissão padrão (%)</label>
+            <input type="number" id="cfgAffiliatePct" class="search-box" value="20" min="0" max="100" step="0.5" style="max-width:120px">
+          </div>
+          <div style="margin-bottom:1rem">
+            <label style="display:block;margin-bottom:0.5rem;color:var(--text-muted)">Afiliado ganha comissão em</label>
+            <select id="cfgCommissionType" class="search-box" style="max-width:100%;cursor:pointer">
+              <option value="primeiro">Apenas no primeiro depósito do indicado</option>
+              <option value="todos">Em todos os depósitos do indicado</option>
+            </select>
+          </div>
+          <button class="btn btn-primary" id="btnSaveAffiliateConfig">Salvar</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- KYC / AML -->
+    <section id="kyc" class="section">
+      <div class="header">
+        <h1>KYC / AML</h1>
+        <div class="header-actions">
+          <select class="btn btn-outline" style="cursor:pointer"><option>Todos</option><option>Pendentes</option><option>Aprovados</option><option>Rejeitados</option></select>
+          <button class="btn btn-primary btn-export" data-context="kyc">Exportar</button>
+        </div>
+      </div>
+      <div class="kpi-grid">
+        <div class="kpi-card"><div class="kpi-label">Documentos Pendentes</div><div class="kpi-value warning">23</div></div>
+        <div class="kpi-card"><div class="kpi-label">Alto Risco</div><div class="kpi-value red">5</div></div>
+        <div class="kpi-card"><div class="kpi-label">Self-Exclusion Ativos</div><div class="kpi-value">12</div></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">Fila de Verificação de Documentos</span></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Jogador</th><th>Documento</th><th>Score Risco</th><th>Enviado em</th><th>Status</th><th>Ações</th></tr></thead>
+            <tbody id="kycDocsBody">
+              <tr><td>jogador***@gmail.com</td><td>RG + Selfie</td><td><span class="risk-medium">Médio (65)</span></td><td>26/02 10:15</td><td><span class="badge badge-warning">Pendente</span></td><td><button class="btn btn-primary btn-kyc-aprovar" style="padding:0.25rem 0.5rem;font-size:0.8rem;margin-right:0.25rem">Aprovar</button><button class="btn btn-outline btn-kyc-rejeitar" style="padding:0.25rem 0.5rem;font-size:0.8rem">Rejeitar</button></td></tr>
+              <tr><td>user***@email.com</td><td>RG</td><td><span class="risk-low">Baixo (22)</span></td><td>25/02 16:42</td><td><span class="badge badge-success">Aprovado</span></td><td>—</td></tr>
+              <tr><td>risco***@mail.com</td><td>RG + Comprovante</td><td><span class="risk-high">Alto (88)</span></td><td>24/02 09:30</td><td><span class="badge badge-warning">Pendente</span></td><td><button class="btn btn-primary btn-kyc-aprovar" style="padding:0.25rem 0.5rem;font-size:0.8rem;margin-right:0.25rem">Aprovar</button><button class="btn btn-outline btn-kyc-rejeitar" style="padding:0.25rem 0.5rem;font-size:0.8rem">Rejeitar</button></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-header"><span class="card-title">Transações Suspeitas</span></div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Jogador</th><th>Motivo</th><th>Valor</th><th>Data</th></tr></thead>
+              <tbody>
+                <tr><td>risco***</td><td>Múltiplos depósitos em sequência</td><td>R$ 8.500</td><td>25/02</td></tr>
+                <tr><td>user***</td><td>IP de país diferente do cadastro</td><td>R$ 2.100</td><td>24/02</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><span class="card-title">Self-Exclusion</span><button class="btn btn-outline" style="padding:0.25rem 0.5rem;font-size:0.8rem" id="btnAddSelfExclusion">+ Adicionar</button></div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Jogador</th><th>Período</th><th>Início</th><th>Status</th></tr></thead>
+              <tbody id="selfExclusionBody">
+                <tr><td>excl***@mail.com</td><td>6 meses</td><td>15/01/2025</td><td><span class="badge badge-info">Ativo</span></td></tr>
+                <tr><td>user***@test.com</td><td>Permanente</td><td>01/02/2025</td><td><span class="badge badge-info">Ativo</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Saques (Fluxo de Aprovação) -->
+    <section id="withdrawals" class="section">
+      <div class="header">
+        <h1>Fluxo de Saques</h1>
+        <div class="header-actions">
+          <select class="btn btn-outline" style="cursor:pointer" id="withdrawalFilter"><option>Pendentes</option><option>Aprovados</option><option>Rejeitados</option><option>Todos</option></select>
+          <button class="btn btn-primary btn-export" data-context="saques">Exportar</button>
+        </div>
+      </div>
+      <div class="kpi-grid">
+        <div class="kpi-card"><div class="kpi-label">Pendentes de Aprovação</div><div class="kpi-value warning">8</div></div>
+        <div class="kpi-card"><div class="kpi-label">Aprovados Hoje</div><div class="kpi-value green">R$ 18.200</div></div>
+        <div class="kpi-card"><div class="kpi-label">Limite Auto (sem revisão)</div><div class="kpi-value accent">R$ 500</div></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">Regras de Aprovação</span></div>
+        <div style="padding:1.25rem">
+          <p style="color:var(--text-muted);margin-bottom:1rem;font-size:0.9rem">Saques até R$ 500 são aprovados automaticamente. Acima disso, exigem aprovação manual em 1º nível. Acima de R$ 5.000, exigem 2º nível.</p>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Faixa</th><th>Nível</th><th>Requer</th></tr></thead>
+              <tbody>
+                <tr><td>Até R$ 500</td><td>—</td><td>Aprovação automática</td></tr>
+                <tr><td>R$ 500 – R$ 5.000</td><td>1º</td><td>Operador</td></tr>
+                <tr><td>Acima de R$ 5.000</td><td>2º</td><td>Supervisor</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">Saques Pendentes</span></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>ID</th><th>Jogador</th><th>Valor</th><th>Método</th><th>Data</th><th>Nível</th><th>Ações</th></tr></thead>
+            <tbody>
+              <tr><td>#WD-4520</td><td>player***</td><td>R$ 1.200</td><td>PIX</td><td>26/02 14:28</td><td><span class="badge badge-info">1º</span></td><td><button class="btn btn-primary btn-approve-wd" data-id="4520" data-val="1200" style="padding:0.25rem 0.5rem;font-size:0.8rem;margin-right:0.25rem">Aprovar</button><button class="btn btn-outline btn-reject-wd" data-id="4520" style="padding:0.25rem 0.5rem;font-size:0.8rem">Rejeitar</button></td></tr>
+              <tr><td>#WD-4518</td><td>jogador***</td><td>R$ 6.500</td><td>PIX</td><td>26/02 12:10</td><td><span class="badge badge-warning">2º</span></td><td><button class="btn btn-primary btn-approve-wd" data-id="4518" data-val="6500" style="padding:0.25rem 0.5rem;font-size:0.8rem;margin-right:0.25rem">Aprovar</button><button class="btn btn-outline btn-reject-wd" data-id="4518" style="padding:0.25rem 0.5rem;font-size:0.8rem">Rejeitar</button></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">Histórico de Decisões</span></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>ID</th><th>Valor</th><th>Decisão</th><th>Responsável</th><th>Motivo</th><th>Data</th></tr></thead>
+            <tbody>
+              <tr><td>#WD-4517</td><td>R$ 800</td><td><span class="badge badge-success">Aprovado</span></td><td>admin@a73.com</td><td>Documentação OK</td><td>26/02 11:45</td></tr>
+              <tr><td>#WD-4516</td><td>R$ 3.200</td><td><span class="badge badge-danger">Rejeitado</span></td><td>admin@a73.com</td><td>KYC incompleto</td><td>26/02 10:20</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Ajustes Manuais com Auditoria -->
+    <section id="adjustments" class="section">
+      <div class="header">
+        <h1>Ajustes Manuais</h1>
+        <div class="header-actions">
+          <button class="btn btn-primary" id="btnNewAdjustment">+ Novo Ajuste</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">Registro de Auditoria</span></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Data</th><th>Tipo</th><th>Jogador</th><th>Valor</th><th>Motivo</th><th>Responsável</th></tr></thead>
+            <tbody id="auditLogBody">
+              <tr><td>26/02 14:10</td><td><span class="badge badge-success">Crédito</span></td><td>user***@email.com</td><td>+ R$ 50</td><td>Bônus de boas-vindas atrasado</td><td>admin@a73.com</td></tr>
+              <tr><td>25/02 16:30</td><td><span class="badge badge-danger">Débito</span></td><td>player***</td><td>- R$ 120</td><td>Estorno de aposta duplicada</td><td>admin@a73.com</td></tr>
+              <tr><td>24/02 09:15</td><td><span class="badge badge-info">Estorno</span></td><td>jogador***</td><td>+ R$ 200</td><td>Estorno de aposta – jogo travou</td><td>supervisor@a73.com</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Modal Ajuste -->
+  <div id="modalAdjustment" class="modal-overlay" style="display:none">
+    <div class="modal">
+      <div class="modal-header"><span style="font-weight:600">Novo Ajuste de Saldo</span><button class="btn btn-outline" id="closeModalAdjustment" style="padding:0.25rem 0.5rem">✕</button></div>
+      <div class="modal-body">
+        <div style="margin-bottom:1rem">
+          <label style="display:block;margin-bottom:0.5rem;color:var(--text-muted)">Jogador (ID ou email)</label>
+          <input type="text" id="adjPlayer" class="search-box" placeholder="Ex: #1001 ou user@email.com" style="max-width:100%">
+        </div>
+        <div style="margin-bottom:1rem">
+          <label style="display:block;margin-bottom:0.5rem;color:var(--text-muted)">Tipo</label>
+          <select id="adjType" class="search-box" style="max-width:100%;cursor:pointer">
+            <option value="credito">Crédito</option>
+            <option value="debito">Débito</option>
+            <option value="estorno">Estorno de aposta</option>
+          </select>
+        </div>
+        <div style="margin-bottom:1rem">
+          <label style="display:block;margin-bottom:0.5rem;color:var(--text-muted)">Valor (R$)</label>
+          <input type="number" id="adjValue" class="search-box" placeholder="0,00" min="0" step="0.01" style="max-width:100%">
+        </div>
+        <div style="margin-bottom:1rem">
+          <label style="display:block;margin-bottom:0.5rem;color:var(--text-muted)">Motivo <span style="color:var(--danger)">*</span></label>
+          <textarea id="adjReason" class="search-box" rows="3" placeholder="Obrigatório para auditoria" style="max-width:100%;resize:vertical"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" id="cancelModalAdjustment">Cancelar</button>
+        <button class="btn btn-primary" id="submitAdjustment">Confirmar Ajuste</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Detalhes Afiliado -->
+  <div id="modalAffiliate" class="modal-overlay" style="display:none">
+    <div class="modal" style="max-width:520px">
+      <div class="modal-header"><span style="font-weight:600">Detalhes do Afiliado</span><button class="btn btn-outline" id="closeModalAffiliate" style="padding:0.25rem 0.5rem">✕</button></div>
+      <div class="modal-body" id="modalAffiliateBody">
+        <div style="margin-bottom:1rem"><strong>ID:</strong> <span id="affId"></span></div>
+        <div style="margin-bottom:1rem"><strong>Email:</strong> <span id="affEmail"></span></div>
+        <div style="margin-bottom:1rem"><strong>Link de referência:</strong> <code id="affLink" style="color:var(--accent);font-size:0.9rem"></code></div>
+        <div style="margin-bottom:1rem"><strong>Jogadores indicados:</strong> <span id="affPlayers"></span></div>
+        <div style="margin-bottom:1rem"><strong>GGR total:</strong> <span id="affGgr"></span></div>
+        <div id="affEditSection" style="margin-bottom:1rem;padding:1rem;background:rgba(0,0,0,0.2);border-radius:8px;border:1px solid var(--border)">
+          <div style="margin-bottom:0.75rem"><strong>Editar comissão</strong></div>
+          <div style="margin-bottom:0.75rem"><label style="display:block;margin-bottom:0.25rem;color:var(--text-muted)">% Comissão</label><input type="number" id="affEditPct" class="search-box" min="0" max="100" step="0.5" style="max-width:100px"></div>
+          <div style="margin-bottom:0.75rem"><label style="display:block;margin-bottom:0.25rem;color:var(--text-muted)">Comissão em</label><select id="affEditType" class="search-box" style="max-width:100%;cursor:pointer"><option value="primeiro">Apenas primeiro depósito</option><option value="todos">Todos os depósitos</option></select></div>
+          <button class="btn btn-primary" id="btnSaveAffiliateEdit">Salvar alterações</button>
+        </div>
+        <div style="margin-bottom:1rem"><strong>Comissão acumulada:</strong> <span id="affCommission"></span></div>
+        <div><strong>Status:</strong> <span id="affStatus"></span></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-primary" id="closeModalAffiliateBtn">Fechar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Novo Afiliado -->
+  <div id="modalNovoAfiliado" class="modal-overlay" style="display:none">
+    <div class="modal" style="max-width:480px">
+      <div class="modal-header"><span style="font-weight:600">Novo Afiliado</span><button class="btn btn-outline" id="closeModalNovoAfiliado" style="padding:0.25rem 0.5rem">✕</button></div>
+      <div class="modal-body">
+        <div style="margin-bottom:1rem">
+          <label style="display:block;margin-bottom:0.5rem;color:var(--text-muted)">Email <span style="color:var(--danger)">*</span></label>
+          <input type="email" id="novoAffEmail" class="search-box" placeholder="email@exemplo.com" style="max-width:100%">
+        </div>
+        <div style="margin-bottom:1rem">
+          <label style="display:block;margin-bottom:0.5rem;color:var(--text-muted)">Nome</label>
+          <input type="text" id="novoAffNome" class="search-box" placeholder="Nome do afiliado" style="max-width:100%">
+        </div>
+        <div style="margin-bottom:1rem">
+          <label style="display:block;margin-bottom:0.5rem;color:var(--text-muted)">% Comissão</label>
+          <input type="number" id="novoAffPct" class="search-box" value="20" min="0" max="100" step="0.5" style="max-width:120px">
+          <span style="color:var(--text-muted);font-size:0.85rem;margin-left:0.5rem">(padrão: 20%)</span>
+        </div>
+        <div style="margin-bottom:1rem">
+          <label style="display:block;margin-bottom:0.5rem;color:var(--text-muted)">Comissão em</label>
+          <select id="novoAffType" class="search-box" style="max-width:100%;cursor:pointer">
+            <option value="primeiro">Apenas no primeiro depósito do indicado</option>
+            <option value="todos">Em todos os depósitos do indicado</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" id="cancelModalNovoAfiliado">Cancelar</button>
+        <button class="btn btn-primary" id="submitNovoAfiliado">Criar Afiliado</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Novo Jogador -->
+  <div id="modalNovoJogador" class="modal-overlay" style="display:none">
+    <div class="modal"><div class="modal-header"><span style="font-weight:600">Novo Jogador</span><button class="btn btn-outline close-modal" data-modal="modalNovoJogador" style="padding:0.25rem 0.5rem">✕</button></div>
+    <div class="modal-body"><div style="margin-bottom:1rem"><label style="display:block;margin-bottom:0.5rem;color:var(--text-muted)">Email</label><input type="email" id="novoJogadorEmail" class="search-box" style="max-width:100%"></div><div style="margin-bottom:1rem"><label style="display:block;margin-bottom:0.5rem;color:var(--text-muted)">Nome</label><input type="text" id="novoJogadorNome" class="search-box" style="max-width:100%"></div></div>
+    <div class="modal-footer"><button class="btn btn-outline close-modal" data-modal="modalNovoJogador">Cancelar</button><button class="btn btn-primary" id="submitNovoJogador">Criar</button></div></div>
+  </div>
+
+  <!-- Modal Editar Jogador -->
+  <div id="modalEditarJogador" class="modal-overlay" style="display:none">
+    <div class="modal"><div class="modal-header"><span style="font-weight:600">Editar Jogador</span><button class="btn btn-outline close-modal" data-modal="modalEditarJogador" style="padding:0.25rem 0.5rem">✕</button></div>
+    <div class="modal-body"><div style="margin-bottom:1rem"><label style="display:block;margin-bottom:0.5rem;color:var(--text-muted)">ID</label><span id="editJogadorId"></span></div><div style="margin-bottom:1rem"><label style="display:block;margin-bottom:0.5rem;color:var(--text-muted)">Email</label><input type="email" id="editJogadorEmail" class="search-box" style="max-width:100%"></div><div style="margin-bottom:1rem"><label style="display:block;margin-bottom:0.5rem;color:var(--text-muted)">Status</label><select id="editJogadorStatus" class="search-box" style="max-width:100%;cursor:pointer"><option>Ativo</option><option>Bloqueado</option><option>KYC Pendente</option></select></div></div>
+    <div class="modal-footer"><button class="btn btn-outline close-modal" data-modal="modalEditarJogador">Cancelar</button><button class="btn btn-primary" id="submitEditarJogador">Salvar</button></div></div>
+  </div>
+
+  <!-- Modal Adicionar Jogo -->
+  <div id="modalAdicionarJogo" class="modal-overlay" style="display:none">
+    <div class="modal"><div class="modal-header"><span style="font-weight:600">Adicionar Jogo</span><button class="btn btn-outline close-modal" data-modal="modalAdicionarJogo" style="padding:0.25rem 0.5rem">✕</button></div>
+    <div class="modal-body"><div style="margin-bottom:1rem"><label style="display:block;margin-bottom:0.5rem;color:var(--text-muted)">Nome do Jogo</label><input type="text" id="novoJogoNome" class="search-box" style="max-width:100%"></div><div style="margin-bottom:1rem"><label style="display:block;margin-bottom:0.5rem;color:var(--text-muted)">Categoria</label><select id="novoJogoCategoria" class="search-box" style="max-width:100%;cursor:pointer"><option>Slots</option><option>Mesa</option><option>Ao Vivo</option></select></div><div style="margin-bottom:1rem"><label style="display:block;margin-bottom:0.5rem;color:var(--text-muted)">Provedor</label><input type="text" id="novoJogoProvedor" class="search-box" placeholder="PG Soft, Pragmatic..." style="max-width:100%"></div></div>
+    <div class="modal-footer"><button class="btn btn-outline close-modal" data-modal="modalAdicionarJogo">Cancelar</button><button class="btn btn-primary" id="submitAdicionarJogo">Adicionar</button></div></div>
+  </div>
+
+  <!-- Modal Config Jogo -->
+  <div id="modalConfigJogo" class="modal-overlay" style="display:none">
+    <div class="modal"><div class="modal-header"><span style="font-weight:600">Configurar Jogo</span><button class="btn btn-outline close-modal" data-modal="modalConfigJogo" style="padding:0.25rem 0.5rem">✕</button></div>
+    <div class="modal-body"><div style="margin-bottom:1rem"><strong id="configJogoNome"></strong></div><div style="margin-bottom:1rem"><label style="display:block;margin-bottom:0.5rem;color:var(--text-muted)">Status</label><select id="configJogoStatus" class="search-box" style="max-width:100%;cursor:pointer"><option value="Ativo">Ativo</option><option value="Manutenção">Manutenção</option><option value="Desativado">Desativado</option></select></div></div>
+    <div class="modal-footer"><button class="btn btn-outline close-modal" data-modal="modalConfigJogo">Cancelar</button><button class="btn btn-primary" id="submitConfigJogo">Salvar</button></div></div>
+  </div>
+
+  <!-- Modal Novo Bônus -->
+  <div id="modalNovoBonus" class="modal-overlay" style="display:none">
+    <div class="modal"><div class="modal-header"><span style="font-weight:600">Novo Bônus / Promoção</span><button class="btn btn-outline close-modal" data-modal="modalNovoBonus" style="padding:0.25rem 0.5rem">✕</button></div>
+    <div class="modal-body">
+      <div style="margin-bottom:1rem"><label style="display:block;margin-bottom:0.5rem;color:var(--text-muted)">Código</label><input type="text" id="novoBonusCodigo" class="search-box" placeholder="Ex: BEMVINDO" style="max-width:100%"></div>
+      <div style="margin-bottom:1rem"><label style="display:block;margin-bottom:0.5rem;color:var(--text-muted)">Nome</label><input type="text" id="novoBonusNome" class="search-box" placeholder="Nome da promoção" style="max-width:100%"></div>
+      <div style="margin-bottom:1rem"><label style="display:block;margin-bottom:0.5rem;color:var(--text-muted)">Tipo</label><select id="novoBonusTipo" class="search-box" style="max-width:100%;cursor:pointer"><option>Depósito</option><option>Freebet</option><option>Cashback</option><option>Rodadas grátis</option></select></div>
+      <div style="margin-bottom:1rem"><label style="display:block;margin-bottom:0.5rem;color:var(--text-muted)">Valor / Descrição</label><input type="text" id="novoBonusValor" class="search-box" placeholder="Ex: 100% até R$ 100" style="max-width:100%"></div>
+      <div style="margin-bottom:1rem"><label style="display:block;margin-bottom:0.5rem;color:var(--text-muted)">Válido até</label><input type="text" id="novoBonusValidade" class="search-box" placeholder="DD/MM/AAAA" style="max-width:100%"></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-outline close-modal" data-modal="modalNovoBonus">Cancelar</button><button class="btn btn-primary" id="submitNovoBonus">Criar</button></div></div>
+  </div>
+
+  <script>
+    // Toast
+    const showToast = (msg, type = 'info') => {
+      const el = document.createElement('div');
+      el.className = 'toast ' + type;
+      el.textContent = msg;
+      document.getElementById('toastContainer').appendChild(el);
+      setTimeout(() => el.remove(), 3000);
+    };
+
+    // Busca e filtros
+    const filterTable = (tbodyId, searchId, filterId, searchCols, statusCol) => {
+      const tbody = document.getElementById(tbodyId);
+      if (!tbody) return;
+      const search = (document.getElementById(searchId)?.value || '').toLowerCase();
+      const filter = document.getElementById(filterId)?.value || '';
+      [...tbody.rows].forEach(row => {
+        const text = searchCols.map(c => row.cells[c]?.textContent || '').join(' ').toLowerCase();
+        const status = (row.querySelector(statusCol || '.badge')?.textContent || '').trim();
+        const matchSearch = !search || text.includes(search);
+        const matchFilter = !filter || status.includes(filter);
+        row.classList.toggle('row-hidden', !(matchSearch && matchFilter));
+      });
+    };
+    document.getElementById('searchPlayers')?.addEventListener('input', () => filterTable('playersTableBody', 'searchPlayers', 'filterPlayers', [0,1], '.badge'));
+    document.getElementById('filterPlayers')?.addEventListener('change', () => filterTable('playersTableBody', 'searchPlayers', 'filterPlayers', [0,1], '.badge'));
+    document.getElementById('searchGames')?.addEventListener('input', () => filterTable('gamesTableBody', 'searchGames', null, [0,1,2]));
+    document.getElementById('searchAffiliates')?.addEventListener('input', () => filterTable('affiliatesTableBody', 'searchAffiliates', 'filterAffiliates', [0,1], '.badge'));
+    document.getElementById('filterAffiliates')?.addEventListener('change', () => filterTable('affiliatesTableBody', 'searchAffiliates', 'filterAffiliates', [0,1], '.badge'));
+
+    // Persistência
+    const saveData = () => {
+      try {
+        const data = {
+          players: document.getElementById('playersTableBody')?.innerHTML || '',
+          games: document.getElementById('gamesTableBody')?.innerHTML || '',
+          affiliates: document.getElementById('affiliatesTableBody')?.innerHTML || '',
+          auditLog: document.getElementById('auditLogBody')?.innerHTML || '',
+          bonus: document.getElementById('bonusTableBody')?.innerHTML || '',
+          selfExclusion: document.getElementById('selfExclusionBody')?.innerHTML || '',
+          kycDocs: document.getElementById('kycDocsBody')?.innerHTML || '',
+          nextAffId: window.nextAffId || 5
+        };
+        localStorage.setItem('adminData', JSON.stringify(data));
+      } catch (e) { console.warn('saveData', e); }
+    };
+    const loadData = () => {
+      try {
+        const raw = localStorage.getItem('adminData');
+        if (!raw) return;
+        const data = JSON.parse(raw);
+        if (data.players) document.getElementById('playersTableBody').innerHTML = data.players;
+        if (data.games) document.getElementById('gamesTableBody').innerHTML = data.games;
+        if (data.affiliates) document.getElementById('affiliatesTableBody').innerHTML = data.affiliates;
+        if (data.auditLog) document.getElementById('auditLogBody').innerHTML = data.auditLog;
+        if (data.bonus) document.getElementById('bonusTableBody').innerHTML = data.bonus;
+        if (data.selfExclusion) document.getElementById('selfExclusionBody').innerHTML = data.selfExclusion;
+        if (data.kycDocs) document.getElementById('kycDocsBody').innerHTML = data.kycDocs;
+        if (data.nextAffId) window.nextAffId = data.nextAffId;
+      } catch (e) { console.warn('loadData', e); }
+    };
+
+    // Temas - cores em tempo real
+    const THEME_DEFAULT = { accent:'#00d4aa', accentHover:'#00f5c4', bgDark:'#0a0e1a', bgCard:'#121827', bgSidebar:'#0d1117', text:'#e2e8f0', textMuted:'#94a3b8', border:'#1e293b', success:'#10b981', danger:'#ef4444', warning:'#f59e0b' };
+    const THEME_PRESETS = {
+      default: THEME_DEFAULT,
+      purple: { ...THEME_DEFAULT, accent:'#a855f7', accentHover:'#c084fc' },
+      blue: { ...THEME_DEFAULT, accent:'#3b82f6', accentHover:'#60a5fa' },
+      orange: { ...THEME_DEFAULT, accent:'#f97316', accentHover:'#fb923c' },
+      red: { ...THEME_DEFAULT, accent:'#ef4444', accentHover:'#f87171' },
+      cyan: { ...THEME_DEFAULT, accent:'#06b6d4', accentHover:'#22d3ee' }
+    };
+    const hexToRgba = (hex, a) => {
+      const m = hex.slice(1).match(/.{2}/g);
+      if (!m) return `rgba(0,212,170,${a})`;
+      return `rgba(${m.map(x=>parseInt(x,16)).join(',')},${a})`;
+    };
+    const applyTheme = (t) => {
+      const r = document.documentElement;
+      r.style.setProperty('--accent', t.accent);
+      r.style.setProperty('--accent-hover', t.accentHover);
+      r.style.setProperty('--bg-dark', t.bgDark);
+      r.style.setProperty('--bg-card', t.bgCard);
+      r.style.setProperty('--bg-sidebar', t.bgSidebar);
+      r.style.setProperty('--text', t.text);
+      r.style.setProperty('--text-muted', t.textMuted);
+      r.style.setProperty('--border', t.border);
+      r.style.setProperty('--success', t.success);
+      r.style.setProperty('--danger', t.danger);
+      r.style.setProperty('--warning', t.warning);
+      const override = document.getElementById('themeOverride');
+      if (override) override.textContent = `.nav-item:hover{background:${hexToRgba(t.accent,0.08)};color:var(--text)}.nav-item.active{background:${hexToRgba(t.accent,0.12)};color:var(--accent);border-left-color:var(--accent)}tr:hover{background:${hexToRgba(t.accent,0.04)}}.chart-placeholder{background:linear-gradient(180deg,${hexToRgba(t.accent,0.1)} 0%,transparent 100%)}.badge-info{background:${hexToRgba(t.accent,0.2)};color:var(--accent)}`;
+    };
+    const setThemeInputs = (t) => {
+      const ids = ['themeAccent','themeAccentHover','themeBgDark','themeBgCard','themeBgSidebar','themeText','themeTextMuted','themeBorder','themeSuccess','themeDanger','themeWarning'];
+      const keys = ['accent','accentHover','bgDark','bgCard','bgSidebar','text','textMuted','border','success','danger','warning'];
+      keys.forEach((k, i) => {
+        const el = document.getElementById(ids[i]);
+        const hexEl = document.getElementById(ids[i] + 'Hex');
+        if (el && hexEl) { el.value = t[k]; hexEl.value = t[k]; }
+      });
+    };
+    const getThemeFromInputs = () => ({
+      accent: document.getElementById('themeAccent')?.value || THEME_DEFAULT.accent,
+      accentHover: document.getElementById('themeAccentHover')?.value || THEME_DEFAULT.accentHover,
+      bgDark: document.getElementById('themeBgDark')?.value || THEME_DEFAULT.bgDark,
+      bgCard: document.getElementById('themeBgCard')?.value || THEME_DEFAULT.bgCard,
+      bgSidebar: document.getElementById('themeBgSidebar')?.value || THEME_DEFAULT.bgSidebar,
+      text: document.getElementById('themeText')?.value || THEME_DEFAULT.text,
+      textMuted: document.getElementById('themeTextMuted')?.value || THEME_DEFAULT.textMuted,
+      border: document.getElementById('themeBorder')?.value || THEME_DEFAULT.border,
+      success: document.getElementById('themeSuccess')?.value || THEME_DEFAULT.success,
+      danger: document.getElementById('themeDanger')?.value || THEME_DEFAULT.danger,
+      warning: document.getElementById('themeWarning')?.value || THEME_DEFAULT.warning
+    });
+    const saveTheme = () => {
+      localStorage.setItem('adminTheme', JSON.stringify(getThemeFromInputs()));
+      try { (new BroadcastChannel('a73-theme')).postMessage({ type: 'theme', data: getThemeFromInputs() }); } catch (e) {}
+    };
+    const loadTheme = () => {
+      try {
+        const t = JSON.parse(localStorage.getItem('adminTheme') || 'null');
+        const theme = t || THEME_DEFAULT;
+        applyTheme(theme);
+        if (t) setThemeInputs(t);
+      } catch (e) { applyTheme(THEME_DEFAULT); }
+    };
+    loadTheme();
+    ['themeAccent','themeAccentHover','themeBgDark','themeBgCard','themeBgSidebar','themeText','themeTextMuted','themeBorder','themeSuccess','themeDanger','themeWarning'].forEach(id => {
+      const el = document.getElementById(id);
+      const hexId = id + 'Hex';
+      const hexEl = document.getElementById(hexId);
+      if (!el || !hexEl) return;
+      el.addEventListener('input', () => { hexEl.value = el.value; applyTheme(getThemeFromInputs()); saveTheme(); });
+      hexEl.addEventListener('input', () => { if (/^#[0-9A-Fa-f]{6}$/.test(hexEl.value)) { el.value = hexEl.value; applyTheme(getThemeFromInputs()); saveTheme(); } });
+    });
+    document.querySelectorAll('.theme-preset').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const t = THEME_PRESETS[btn.dataset.theme] || THEME_DEFAULT;
+        setThemeInputs(t);
+        applyTheme(t);
+        saveTheme();
+        showToast('Tema aplicado.', 'success');
+      });
+    });
+    document.getElementById('btnResetTheme')?.addEventListener('click', () => {
+      setThemeInputs(THEME_DEFAULT);
+      applyTheme(THEME_DEFAULT);
+      saveTheme();
+      showToast('Tema restaurado ao padrão.', 'success');
+    });
+
+    document.querySelectorAll('.nav-item').forEach(el => {
+      el.addEventListener('click', () => {
+        document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+        document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+        el.classList.add('active');
+        document.getElementById(el.dataset.section).classList.add('active');
+      });
+    });
+
+    // Modal de Ajuste
+    const modalAdj = document.getElementById('modalAdjustment');
+    const openAdj = () => { modalAdj.style.display = 'flex'; };
+    const closeAdj = () => { modalAdj.style.display = 'none'; };
+    document.getElementById('btnNewAdjustment').addEventListener('click', openAdj);
+    document.getElementById('closeModalAdjustment').addEventListener('click', closeAdj);
+    document.getElementById('cancelModalAdjustment').addEventListener('click', closeAdj);
+    modalAdj.addEventListener('click', e => { if (e.target === modalAdj) closeAdj(); });
+
+    document.getElementById('submitAdjustment').addEventListener('click', () => {
+      const player = document.getElementById('adjPlayer').value.trim();
+      const type = document.getElementById('adjType').value;
+      const value = parseFloat(document.getElementById('adjValue').value) || 0;
+      const reason = document.getElementById('adjReason').value.trim();
+      if (!reason) { showToast('Motivo é obrigatório para auditoria.', 'error'); return; }
+      if (!player || value <= 0) { showToast('Preencha jogador e valor.', 'error'); return; }
+      const typeLabel = { credito: 'Crédito', debito: 'Débito', estorno: 'Estorno' }[type];
+      const sign = type === 'debito' ? '-' : '+';
+      const now = new Date();
+      const dateStr = now.toLocaleDateString('pt-BR') + ' ' + now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      const row = `<tr><td>${dateStr}</td><td><span class="badge ${type === 'debito' ? 'badge-danger' : type === 'credito' ? 'badge-success' : 'badge-info'}">${typeLabel}</span></td><td>${player}</td><td>${sign} R$ ${value.toFixed(2)}</td><td>${reason}</td><td>admin@a73.com</td></tr>`;
+      document.getElementById('auditLogBody').insertAdjacentHTML('afterbegin', row);
+      document.getElementById('adjPlayer').value = '';
+      document.getElementById('adjValue').value = '';
+      document.getElementById('adjReason').value = '';
+      saveData();
+      closeAdj();
+    });
+
+    // Config Afiliados (localStorage)
+    const getAffConfig = () => {
+      try {
+        const c = JSON.parse(localStorage.getItem('affiliateConfig') || '{}');
+        return { autoAffiliate: c.autoAffiliate !== false, defaultPct: c.defaultPct ?? 20, commissionType: c.commissionType || 'todos' };
+      } catch { return { autoAffiliate: true, defaultPct: 20, commissionType: 'todos' }; }
+    };
+    const saveAffConfig = () => {
+      const cfg = { autoAffiliate: document.getElementById('cfgAutoAffiliate').checked, defaultPct: parseFloat(document.getElementById('cfgAffiliatePct').value) || 20, commissionType: document.getElementById('cfgCommissionType').value };
+      localStorage.setItem('affiliateConfig', JSON.stringify(cfg));
+      showToast('Configuração salva.', 'success');
+    };
+    const loadAffConfig = () => {
+      const c = getAffConfig();
+      document.getElementById('cfgAutoAffiliate').checked = c.autoAffiliate;
+      document.getElementById('cfgAffiliatePct').value = c.defaultPct;
+      document.getElementById('cfgCommissionType').value = c.commissionType;
+    };
+    loadAffConfig();
+    document.getElementById('btnSaveAffiliateConfig').addEventListener('click', saveAffConfig);
+
+    // Modal Novo Afiliado
+    const modalNovo = document.getElementById('modalNovoAfiliado');
+    const openNovoAff = () => {
+      const c = getAffConfig();
+      document.getElementById('novoAffPct').value = c.defaultPct;
+      document.getElementById('novoAffType').value = c.commissionType;
+      document.getElementById('novoAffEmail').value = '';
+      document.getElementById('novoAffNome').value = '';
+      modalNovo.style.display = 'flex';
+    };
+    const closeNovoAff = () => { modalNovo.style.display = 'none'; };
+    document.getElementById('btnNovoAfiliado').addEventListener('click', openNovoAff);
+    document.getElementById('closeModalNovoAfiliado').addEventListener('click', closeNovoAff);
+    document.getElementById('cancelModalNovoAfiliado').addEventListener('click', closeNovoAff);
+    modalNovo.addEventListener('click', e => { if (e.target === modalNovo) closeNovoAff(); });
+    window.nextAffId = window.nextAffId || 5;
+    document.getElementById('submitNovoAfiliado').addEventListener('click', () => {
+      const email = document.getElementById('novoAffEmail').value.trim();
+      const nome = document.getElementById('novoAffNome').value.trim();
+      const pct = parseFloat(document.getElementById('novoAffPct').value) || 20;
+      const type = document.getElementById('novoAffType').value;
+      if (!email) { showToast('Email é obrigatório.', 'error'); return; }
+      const id = 'A' + String(window.nextAffId++).padStart(3, '0');
+      const typeLabel = type === 'primeiro' ? 'Primeiro depósito' : 'Todos depósitos';
+      const row = `<tr data-aff-id="${id}"><td>#${id}</td><td>${nome || email}</td><td><code style="font-size:0.75rem;color:var(--accent)">?ref=${id}</code></td><td>0</td><td>R$ 0</td><td>R$ 0</td><td class="aff-pct">${pct}%</td><td class="aff-type">${typeLabel}</td><td><span class="badge badge-success">Ativo</span></td><td><button class="btn btn-outline btn-ver-affiliate" style="padding:0.25rem 0.5rem;font-size:0.8rem" data-id="${id}" data-email="${email}" data-players="0" data-ggr="0" data-commission="0" data-pct="${pct}" data-commission-type="${type}" data-status="Ativo">Ver</button></td></tr>`;
+      document.getElementById('affiliatesTableBody').insertAdjacentHTML('beforeend', row);
+      saveData();
+      closeNovoAff();
+    });
+
+    // Modal Detalhes Afiliado + Editar
+    const modalAff = document.getElementById('modalAffiliate');
+    const closeAff = () => { modalAff.style.display = 'none'; };
+    document.getElementById('closeModalAffiliate').addEventListener('click', closeAff);
+    document.getElementById('closeModalAffiliateBtn').addEventListener('click', closeAff);
+    modalAff.addEventListener('click', e => { if (e.target === modalAff) closeAff(); });
+    let currentAffBtn = null;
+    const affVerClick = function() {
+      const btn = this;
+      currentAffBtn = btn;
+      document.getElementById('affId').textContent = '#' + btn.dataset.id;
+      document.getElementById('affEmail').textContent = btn.dataset.email;
+      document.getElementById('affLink').textContent = window.location.origin + '/?ref=' + btn.dataset.id;
+      document.getElementById('affPlayers').textContent = btn.dataset.players;
+      document.getElementById('affGgr').textContent = 'R$ ' + Number(btn.dataset.ggr).toLocaleString('pt-BR');
+      document.getElementById('affEditPct').value = btn.dataset.pct;
+      document.getElementById('affEditType').value = btn.dataset.commissionType || 'todos';
+      document.getElementById('affCommission').textContent = 'R$ ' + Number(btn.dataset.commission).toLocaleString('pt-BR');
+      document.getElementById('affStatus').innerHTML = '<span class="badge ' + (btn.dataset.status === 'Ativo' ? 'badge-success' : 'badge-warning') + '">' + btn.dataset.status + '</span>';
+      modalAff.style.display = 'flex';
+    };
+    // btn-ver-affiliate usa delegação no body
+    document.getElementById('btnSaveAffiliateEdit').addEventListener('click', () => {
+      if (!currentAffBtn) return;
+      const pct = parseFloat(document.getElementById('affEditPct').value) || 0;
+      const type = document.getElementById('affEditType').value;
+      const typeLabel = type === 'primeiro' ? 'Primeiro depósito' : 'Todos depósitos';
+      currentAffBtn.dataset.pct = pct;
+      currentAffBtn.dataset.commissionType = type;
+      const row = currentAffBtn.closest('tr');
+      row.querySelector('.aff-pct').textContent = pct + '%';
+      row.querySelector('.aff-type').textContent = typeLabel;
+      saveData();
+      closeAff();
+    });
+
+    // Aprovar/Rejeitar Saque (mock)
+    document.querySelectorAll('.btn-approve-wd').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.dataset.id;
+        const val = btn.dataset.val;
+        if (confirm(`Aprovar saque #WD-${id} de R$ ${val}?`)) {
+          btn.closest('tr').remove();
+          saveData();
+        }
+      });
+    });
+    document.querySelectorAll('.btn-reject-wd').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.dataset.id;
+        const reason = prompt('Motivo da rejeição (obrigatório):');
+        if (reason && reason.trim()) {
+          btn.closest('tr').remove();
+          saveData();
+        }
+      });
+    });
+
+    // Delegação de eventos para botões sem handler
+    document.body.addEventListener('click', (e) => {
+      const btn = e.target.closest('button');
+      if (!btn) return;
+      if (btn.classList.contains('btn-export')) {
+        const ctx = btn.dataset.context || 'dados';
+        showToast('Exportação de ' + ctx + ' iniciada. (Demo: sem backend real)', 'info');
+        return;
+      }
+      if (btn.classList.contains('btn-ver-tudo')) {
+        showToast('Exibindo toda a atividade recente.', 'info');
+        return;
+      }
+      if (btn.classList.contains('btn-ver-affiliate')) {
+        affVerClick.call(btn);
+        return;
+      }
+      if (btn.classList.contains('close-modal')) {
+        document.getElementById(btn.dataset.modal).style.display = 'none';
+        return;
+      }
+      if (btn.classList.contains('btn-editar-jogador')) {
+        const id = btn.dataset.id, email = btn.dataset.email;
+        const row = btn.closest('tr');
+        document.getElementById('editJogadorId').textContent = '#' + id;
+        document.getElementById('editJogadorEmail').value = email;
+        document.getElementById('editJogadorStatus').value = row.querySelector('.badge')?.textContent?.trim() || 'Ativo';
+        document.getElementById('modalEditarJogador').dataset.editId = id;
+        document.getElementById('modalEditarJogador').style.display = 'flex';
+        return;
+      }
+      if (btn.classList.contains('btn-config-jogo')) {
+        const jogo = btn.dataset.jogo;
+        const row = btn.closest('tr');
+        const statusCell = row.querySelector('td:nth-child(5)');
+        const status = statusCell?.querySelector('.badge')?.textContent?.trim() || 'Ativo';
+        document.getElementById('configJogoNome').textContent = jogo;
+        document.getElementById('configJogoStatus').value = status;
+        document.getElementById('modalConfigJogo').dataset.configJogo = jogo;
+        document.getElementById('modalConfigJogo').style.display = 'flex';
+        return;
+      }
+      if (btn.classList.contains('btn-kyc-aprovar')) {
+        const row = btn.closest('tr');
+        row.querySelector('td:nth-child(5)').innerHTML = '<span class="badge badge-success">Aprovado</span>';
+        row.querySelector('td:last-child').innerHTML = '—';
+        saveData();
+        return;
+      }
+      if (btn.classList.contains('btn-kyc-rejeitar')) {
+        const reason = prompt('Motivo da rejeição:');
+        if (reason !== null) {
+          const row = btn.closest('tr');
+          row.querySelector('td:nth-child(5)').innerHTML = '<span class="badge badge-danger">Rejeitado</span>';
+          row.querySelector('td:last-child').innerHTML = '—';
+          saveData();
+        }
+        return;
+      }
+    });
+
+    // Modais - fechar ao clicar fora
+    document.querySelectorAll('.modal-overlay').forEach(m => m.addEventListener('click', e => { if (e.target === m) m.style.display = 'none'; }));
+
+    // Novo Jogador
+    document.getElementById('btnNovoJogador').addEventListener('click', () => { document.getElementById('novoJogadorEmail').value = ''; document.getElementById('novoJogadorNome').value = ''; document.getElementById('modalNovoJogador').style.display = 'flex'; });
+    document.getElementById('submitNovoJogador').addEventListener('click', () => {
+      const email = document.getElementById('novoJogadorEmail').value.trim();
+      if (!email) { alert('Email obrigatório.'); return; }
+      const nome = document.getElementById('novoJogadorNome').value.trim();
+      const tbody = document.querySelector('#players table tbody');
+      const id = 1000 + tbody.rows.length + 1;
+      tbody.insertAdjacentHTML('beforeend', `<tr><td>#${id}</td><td>${email}</td><td>R$ 0</td><td>${new Date().toLocaleDateString('pt-BR')}</td><td><span class="badge badge-success">Ativo</span></td><td><button class="btn btn-outline btn-editar-jogador" style="padding:0.25rem 0.5rem;font-size:0.8rem" data-id="${id}" data-email="${email}">Editar</button></td></tr>`);
+      saveData();
+      document.getElementById('modalNovoJogador').style.display = 'none';
+    });
+
+    // Editar Jogador
+    document.getElementById('submitEditarJogador').addEventListener('click', () => {
+      const editId = document.getElementById('modalEditarJogador').dataset.editId;
+      const rows = document.querySelectorAll('#players table tbody tr');
+      for (const row of rows) {
+        if (row.cells[0]?.textContent === '#' + editId) {
+          row.cells[1].textContent = document.getElementById('editJogadorEmail').value;
+          const status = document.getElementById('editJogadorStatus').value;
+          row.cells[4].innerHTML = '<span class="badge ' + (status === 'Bloqueado' ? 'badge-danger' : status === 'KYC Pendente' ? 'badge-warning' : 'badge-success') + '">' + status + '</span>';
+          row.querySelector('.btn-editar-jogador').dataset.email = document.getElementById('editJogadorEmail').value;
+          saveData();
+          break;
+        }
+      }
+      document.getElementById('modalEditarJogador').style.display = 'none';
+    });
+
+    // Adicionar Jogo
+    document.getElementById('btnAdicionarJogo').addEventListener('click', () => { document.getElementById('modalAdicionarJogo').style.display = 'flex'; });
+    document.getElementById('submitAdicionarJogo').addEventListener('click', () => {
+      const nome = document.getElementById('novoJogoNome').value.trim();
+      if (!nome) { showToast('Nome do jogo obrigatório.', 'error'); return; }
+      const cat = document.getElementById('novoJogoCategoria').value;
+      const prov = document.getElementById('novoJogoProvedor').value.trim() || '—';
+      const tbody = document.querySelector('#games table tbody');
+      tbody.insertAdjacentHTML('beforeend', `<tr><td>${nome}</td><td>${cat}</td><td>${prov}</td><td>96.5%</td><td><span class="badge badge-success">Ativo</span></td><td><button class="btn btn-outline btn-config-jogo" style="padding:0.25rem 0.5rem;font-size:0.8rem" data-jogo="${nome}">Config</button></td></tr>`);
+      saveData();
+      document.getElementById('modalAdicionarJogo').style.display = 'none';
+    });
+
+    // Config Jogo
+    document.getElementById('submitConfigJogo').addEventListener('click', () => {
+      const jogo = document.getElementById('modalConfigJogo').dataset.configJogo;
+      const status = document.getElementById('configJogoStatus').value;
+      const rows = document.querySelectorAll('#games table tbody tr');
+      for (const r of rows) {
+        if (r.cells[0]?.textContent === jogo) {
+          r.cells[4].innerHTML = '<span class="badge ' + (status === 'Manutenção' ? 'badge-warning' : status === 'Desativado' ? 'badge-danger' : 'badge-success') + '">' + status + '</span>';
+          break;
+        }
+      }
+      saveData();
+      document.getElementById('modalConfigJogo').style.display = 'none';
+    });
+
+    // Gerar Relatório
+    document.getElementById('btnGerarRelatorio').addEventListener('click', () => showToast('Relatório gerado. (Demo: sem backend real)', 'info'));
+
+    // Salvar Tenant
+    document.getElementById('btnSaveTenant').addEventListener('click', () => {
+      localStorage.setItem('tenantConfig', JSON.stringify({ nome: document.getElementById('cfgNomeSite').value, moeda: document.getElementById('cfgMoeda').value, limite: document.getElementById('cfgLimiteSaque').value }));
+      showToast('Configurações do tenant salvas.', 'success');
+    });
+    try { const tc = JSON.parse(localStorage.getItem('tenantConfig') || '{}'); if (tc.nome) document.getElementById('cfgNomeSite').value = tc.nome; if (tc.moeda) document.getElementById('cfgMoeda').value = tc.moeda; if (tc.limite) document.getElementById('cfgLimiteSaque').value = tc.limite; } catch(e) {}
+
+    // Gerenciar Banners
+    document.getElementById('btnGerenciarBanners') && document.getElementById('btnGerenciarBanners').addEventListener('click', () => showToast('Tela de gerenciamento de banners. (Em desenvolvimento)', 'info'));
+
+    // Self-Exclusion + Adicionar
+    document.getElementById('btnAddSelfExclusion').addEventListener('click', () => {
+      const email = prompt('Email do jogador:') || '';
+      if (!email) return;
+      const periodo = prompt('Período (ex: 6 meses, Permanente):') || '6 meses';
+      const hoje = new Date().toLocaleDateString('pt-BR');
+      document.getElementById('selfExclusionBody').insertAdjacentHTML('beforeend', `<tr><td>${email}</td><td>${periodo}</td><td>${hoje}</td><td><span class="badge badge-info">Ativo</span></td></tr>`);
+      saveData();
+    });
+
+    // Novo Bônus
+    document.getElementById('btnNovoBonus')?.addEventListener('click', () => {
+      document.getElementById('novoBonusCodigo').value = '';
+      document.getElementById('novoBonusNome').value = '';
+      document.getElementById('novoBonusValor').value = '';
+      document.getElementById('novoBonusValidade').value = '';
+      document.getElementById('modalNovoBonus').style.display = 'flex';
+    });
+    document.getElementById('submitNovoBonus')?.addEventListener('click', () => {
+      const codigo = document.getElementById('novoBonusCodigo').value.trim().toUpperCase() || 'PROMO';
+      const nome = document.getElementById('novoBonusNome').value.trim() || 'Promoção';
+      const tipo = document.getElementById('novoBonusTipo').value;
+      const valor = document.getElementById('novoBonusValor').value.trim() || '—';
+      const validade = document.getElementById('novoBonusValidade').value.trim() || '—';
+      document.getElementById('bonusTableBody').insertAdjacentHTML('beforeend', `<tr><td>${codigo}</td><td>${nome}</td><td>${tipo}</td><td>${valor}</td><td>${validade}</td><td><span class="badge badge-success">Ativo</span></td><td><button class="btn btn-outline btn-editar-bonus" style="padding:0.25rem 0.5rem;font-size:0.8rem">Editar</button></td></tr>`);
+      saveData();
+      showToast('Bônus criado.', 'success');
+      document.getElementById('modalNovoBonus').style.display = 'none';
+    });
+
+    // Carregar dados salvos ao iniciar
+    loadData();
+  </script>
+</body>
+</html>

@@ -1,0 +1,139 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x", "windows"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                 String    @id @default(cuid())
+  account            String    @unique
+  phone              String
+  password           String
+  indicatorId        String?   // quem indicou (userId do afiliado)
+  roletaNovosUsedAt  DateTime? // data em que usou a roleta exclusiva para novos usuários
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  afiliado           AfiliadoData?
+  depositos          Deposit[]
+  withdrawals        Withdrawal[]
+
+  @@index([indicatorId])
+  @@index([createdAt])
+}
+
+model AfiliadoData {
+  id                   String   @id @default(cuid())
+  userId               String   @unique
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pid                  String   @unique  // código do afiliado (link de convite)
+  subDiretos           Int      @default(0)
+  subValidos           Int      @default(0)
+  subOutros            Int      @default(0)
+  novosSubordinados    Int      @default(0)
+  valorDeposito        Float    @default(0)
+  numDepositos         Int      @default(0)
+  valorPrimeiroDep     Float    @default(0)
+  usuariosPrimeiroDep  Int      @default(0)
+  valorSaque           Float    @default(0)
+  numSaques            Int      @default(0)
+  comissaoRecebida     Float    @default(0)
+  comissaoPendente     Float    @default(0)
+  comissaoHoje         Float    @default(0)
+  coletavelRebate      Float    @default(0)
+  apostaAcumulada      Float    @default(0)
+  nivelVip             Int      @default(0)
+  bonusVipReclamar     Float    @default(0)
+  horaRegisto          DateTime?
+  depositoMisterioso   Float    @default(0)
+  misteriosoReclamado  Boolean  @default(false)
+  misteriosoDiasAtivos Int      @default(0)
+  misteriosoCicloAtual Int      @default(0)  // ciclo de 32 dias para reset
+  bonusPromoReclamados Json     @default("[]")  // [{ pessoas, valor }]
+  bonusVipColetados    Json     @default("[]")  // [{ nivel, valor }]
+  balance             Float    @default(0)     // Saldo para jogos (Seamless iGameWin)
+  vipDiarioColetadoEm  DateTime?               // última coleta do bônus diário VIP
+  vipSemanalColetadoEm DateTime?               // última coleta do bônus semanal VIP
+  vipMensalColetadoEm  DateTime?               // última coleta do bônus mensal VIP
+  rolloverPendente     Float    @default(0)    // rollover restante antes de permitir saque de bônus VIP
+  updatedAt            DateTime @updatedAt
+}
+
+model Deposit {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  valor      Float
+  status     String   @default("concluido")  // concluido, pendente, processando, expirado, erro, estornado, reembolsando (transiente, estorno PIX)
+  externalId String?  // id conciliação Gatebox / txn_ Cyber
+  creditJson Json?    // snapshot do crédito em confirmarDepositoPix (estorno pix.in.reversal.confirmation)
+  createdAt  DateTime @default(now())
+
+  @@index([userId, status, createdAt])
+  @@index([status, createdAt])
+}
+
+model Setting {
+  id     String  @id @default("main")
+  logo   String?
+  banner String?
+  value  Json?   // Config extra (ex: igamewin { agent_code, agent_token, agent_secret })
+}
+
+model RoletaBonus {
+  id              String    @id @default(cuid())
+  userId          String    @unique
+  bonusBalance    Float     @default(0)
+  spinsRemaining  Int       @default(1)
+  lastSpinDate    DateTime?
+  bonusExpiresAt  DateTime? // prêmio inválido após 3 dias
+  updatedAt       DateTime  @updatedAt
+}
+
+model RoletaBonusLog {
+  id        String   @id @default(cuid())
+  userId    String
+  valor     Float
+  descricao String
+  createdAt DateTime @default(now())
+}
+
+model GameTxnLog {
+  id         String   @id @default(cuid())
+  txnId      String   @unique  // txn_id da iGameWin - idempotência
+  userId     String
+  userCode   String   // account
+  gameType   String?  // slot, live, sport
+  provider   String?
+  gameCode   String?
+  txnType    String?  // debit, credit, debit_credit
+  betReais   Float    @default(0)
+  winReais   Float    @default(0)
+  delta      Float    @default(0)
+  balanceBefore Float @default(0)
+  balanceAfter  Float @default(0)
+  createdAt  DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
+
+model Withdrawal {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  valor      Float
+  metodo     String   // cpf, pix, etc
+  nome       String?
+  cpfId      String?
+  externalId String?  // ID do saque no gateway (ex: wd_xxx da Cyber)
+  status     String   @default("pendente")  // pendente, processando, concluido, recusado
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([userId, status])
+  @@index([status, createdAt])
+  @@index([externalId])
+}

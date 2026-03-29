@@ -1,0 +1,13 @@
+{
+  "name": "a73-atualizado",
+  "private": true,
+  "description": "Backend Express + site_baixado — npm run dev serve API e interface na mesma porta (PORT).",
+  "scripts": {
+    "postgres:up": "docker compose -f ../docker-compose.dev.yml up -d",
+    "postgres:down": "docker compose -f ../docker-compose.dev.yml down",
+    "db:push": "cd backend && npx prisma db push",
+    "dev": "cd backend && npm run dev",
+    "start": "cd backend && npm start",
+    "site-only": "cd .. && npx --yes sirv-cli atualizado/site_baixado --single --host 0.0.0.0 --port 3010"
+  }
+}

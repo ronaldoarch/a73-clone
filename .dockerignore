@@ -1,20 +1,54 @@
-# Build do Dockerfile na raiz = só frontend (Vite + nginx).
-# Excluir pastas grandes que não entram no bundle:
+# ── Diretórios de sites pré-construídos (não necessários para o build Vue SPA) ─
+site_baixado/
+frontend-clone/
+jt0c6h_baixado/
+atualizado/site_baixado/
 
-backend
-site_baixado
+# Backend raiz (usando atualizado/backend/)
+backend/
 
-node_modules
-dist
-dist-ssr
-.git
+# Node modules e build output
+**/node_modules/
+dist/
+dist-ssr/
+
+# Git e IDE
+.git/
 .gitignore
+.vscode/
+.idea/
+
+# ── public/assets: manter imagens de jogos, excluir JS/CSS pré-compilados ─
+# O Vite gera novos bundles; os .js/.css aqui são artefatos antigos
+public/assets/*.js
+public/assets/*.css
+public/assets/e/
+public/assets/x/
+
+# Diretórios de rotas estáticas pré-geradas (não usados pelo Vue SPA)
+public/main/
+public/launch/
+public/original/
+public/versionControl/
+public/dw/
+public/s5/
+
+# Arquivos legados não necessários para o build
+public/index.html
+public/patch-register.js
+public/patch-fetch.js
+public/sw.produce.min.2.1.6.js
+public/url_map.json
+public/app-config.js
+
+# Misc
 *.md
-.env*
-.vscode
-.idea
+*.tar.gz
+*.gz
+*.postman_collection.json
 *.log
-coverage
-.cache
-.parcel-cache
-.turbo
+.env*
+.DS_Store
+.cache/
+.parcel-cache/
+coverage/

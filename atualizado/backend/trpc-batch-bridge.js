@@ -237,10 +237,11 @@ async function resolveOne(procPath, input, ctx) {
         }))
         const allGames = Object.entries(catalog.gamesByProvider).flatMap(([code, games]) =>
           games.map((g) => ({
-            id: g.code || g.id,
-            code: g.code || g.id,
-            name: g.name || g.title || '',
-            imageUrl: g.cover || g.picture || g.icon || g.img || '',
+            // iGameWin API fields: game_code, game_name, banner
+            id: g.game_code || g.code || g.id,
+            code: g.game_code || g.code || g.id,
+            name: g.game_name || g.name || g.title || '',
+            imageUrl: g.banner || g.cover || g.picture || g.icon || g.img || '',
             providerCode: code,
             providerName: catalog.providers.find((p) => p.code === code)?.name || code,
             isHot: g.isHot || g.hot || false,

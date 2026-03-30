@@ -282,7 +282,7 @@
     <!-- JOGOS -->
     <div class="section" id="s-jogos">
       <div class="page-header"><h1>API de Jogos (iGameWin)</h1></div>
-      <div id=" igw-msg"></div>
+      <div id="igw-msg"></div>
       <div class="card"><div class="card-header"><span class="card-title">Credenciais</span></div><div class="modal-body">
         <div class="form-row">
           <div class="form-group"><label>Agent Code</label><input id="igw-code" type="text" /></div>
@@ -677,6 +677,8 @@ function testCyber() {
 function loadJogos() {
   api('/api/settings/igamewin').then(d => {
     document.getElementById('igw-code').value = d.agent_code || '';
+    document.getElementById('igw-token').value = d.agent_token || '';
+    document.getElementById('igw-secret').value = d.agent_secret || '';
     document.getElementById('igw-endpoint').value = d.site_endpoint || '';
     document.getElementById('igw-sandbox').checked = !!d.sandbox;
     document.getElementById('igw-demo').checked = !!d.is_demo;
@@ -694,7 +696,7 @@ function saveJogos() {
     api_mode: document.getElementById('igw-mode').value,
   };
   api('/api/settings/igamewin', { method:'POST', body: JSON.stringify(body) })
-    .then(d => setMsg(' igw-msg', d.ok, d.ok ? 'Configuração salva!' : (d.error||'Erro')));
+    .then(d => setMsg('igw-msg', d.ok, d.ok ? 'Configuração salva!' : (d.error||'Erro')));
 }
 
 // ── PROVEDORES HOME ───────────────────────────────────────────

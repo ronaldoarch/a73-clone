@@ -1727,9 +1727,15 @@ const CATALOG_TTL = 10 * 60 * 1000 // 10 min
 async function fetchIgamewin(body) {
   const stored = await getIgamewinConfig()
   const b = { ...body }
-  if (stored?.agent_code && stored?.agent_token) {
-    b.agent_code = stored.agent_code
-    b.agent_token = stored.agent_token
+  // Prioridade: banco de dados > variáveis de ambiente
+  const agentCode = stored?.agent_code || process.env.IGAMEWIN_AGENT_CODE || ''
+  const agentToken = stored?.agent_token || process.env.IGAMEWIN_AGENT_TOKEN || ''
+  if (agentCode && agentToken) {
+    b.agent_code = agentCode
+    b.agent_token = agentToken
+  }
+  if (!b.agent_code || !b.agent_token) {
+    throw new Error('iGameWin não configurado: falta agent_code ou agent_token')
   }
   const r = await fetch(IGAMEWIN_URL, {
     method: 'POST',

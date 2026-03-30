@@ -3118,6 +3118,29 @@ async function main() {
   } catch (e) {
     console.warn('DB connect:', e.message)
   }
+  // Expõe catálogo e fetchIgamewin para o trpc-batch-bridge
+  app.locals.getIgamewinCatalog = async (forceRefresh = false) => {
+    if (!forceRefresh && catalogCache && Date.now() - catalogCacheTime < CATALOG_TTL) {
+      return catalogCache
+    }
+    try {
+      const provRes = await fetchIgamewin({ method: 'provider_list' })
+      if (provRes.status !== 1 || !provRes.providers?.length) return null
+      const providers = provRes.providers.filter(p => p.status === 1).slice(0, 20)
+      const gamesByProvider = {}
+      for (const p of providers) {
+        const gamesRes = await fetchIgamewin({ method: 'game_list', provider_code: p.code })
+        if (gamesRes.status === 1 && gamesRes.games?.length) {
+          gamesByProvider[p.code] = gamesRes.games.filter(g => g.status === 1).slice(0, 200)
+        }
+      }
+      catalogCache = { providers, gamesByProvider }
+      catalogCacheTime = Date.now()
+      return catalogCache
+    } catch (e) {
+      return null
+    }
+  }
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`A73 Backend running on port ${PORT}`)
     if (serveSiteBaixado) {

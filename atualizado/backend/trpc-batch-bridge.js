@@ -215,6 +215,63 @@ async function resolveOne(procPath, input, ctx) {
 
   if (key === 'authLogout' || key === 'authlogout') return okJson({ ok: true })
 
+  // ── iGameWin catalog procedures ───────────────────────────────
+  const u = key.toLowerCase()
+  const isGameProc =
+    u === 'homelist' ||
+    u === 'homehot' ||
+    u === 'homepopulargames' ||
+    u.includes('gamelist') ||
+    u.includes('gametype')
+
+  if (isGameProc) {
+    try {
+      const catalog = await ctx.req?.app?.locals?.getIgamewinCatalog?.()
+      if (catalog?.providers?.length) {
+        const gameTypeList = catalog.providers.map((p, i) => ({
+          id: i + 1,
+          code: p.code,
+          name: p.name || p.code,
+          icon: p.icon || p.logo || '',
+          sort: i + 1
+        }))
+        const allGames = Object.entries(catalog.gamesByProvider).flatMap(([code, games]) =>
+          games.map((g) => ({
+            id: g.code || g.id,
+            code: g.code || g.id,
+            name: g.name || g.title || '',
+            imageUrl: g.cover || g.picture || g.icon || g.img || '',
+            providerCode: code,
+            providerName: catalog.providers.find((p) => p.code === code)?.name || code,
+            isHot: g.isHot || g.hot || false,
+            isNew: g.isNew || g.new_game || false,
+            sort: g.sort || 0,
+            status: 1
+          }))
+        )
+        if (u === 'homelist' || u === 'gamelist' || u === 'gametype') {
+          return okJson({ list: [{ games: allGames, items: allGames }], total: allGames.length, gameTypeList })
+        }
+        if (u === 'homehot') {
+          const hotGames = allGames.filter((g) => g.isHot).length > 0
+            ? allGames.filter((g) => g.isHot)
+            : allGames.slice(0, 20)
+          return okJson({ list: [{ games: hotGames, items: hotGames }], total: hotGames.length, hotList: hotGames })
+        }
+        if (u === 'homepopulargames') {
+          const popular = allGames.slice(0, 40)
+          return okJson({ list: [{ games: popular, items: popular }], games: popular, total: popular.length })
+        }
+        return okJson({ list: [{ games: allGames, items: allGames }], total: allGames.length, gameTypeList })
+      }
+    } catch (e) {
+      console.error('[trpc-bridge] catalog error', e.message)
+    }
+    // fallback if catalog unavailable
+    const fb2 = fallbackForProc(key)
+    return okJson(fb2)
+  }
+
   const fb = fallbackForProc(key)
   return okJson(fb)
 }

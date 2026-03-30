@@ -43,7 +43,7 @@ Thumbs.db
 # Backend uploads
 backend/uploads/
 
-# Diretórios de clone/download que não fazem parte do deploy
-site_baixado/
-frontend-clone/
-jt0c6h_baixado/
+# Diretórios de clone/download na raiz que não fazem parte do deploy
+/site_baixado/
+/frontend-clone/
+/jt0c6h_baixado/

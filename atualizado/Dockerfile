@@ -64,7 +64,10 @@ RUN if [ -d /app/site_baixado ] && [ "$(ls -A /app/site_baixado 2>/dev/null | wc
         fi; \
     fi
 
-# ── 5. Finalização ────────────────────────────────────────────
+# ── 5. Admin customizado (sobrescreve o do site_baixado baixado) ─
+COPY site_baixado/admin/ /app/site_baixado/admin/
+
+# ── 6. Finalização ────────────────────────────────────────────
 RUN mkdir -p /app/uploads && chmod +x /app/entrypoint.sh
 
 EXPOSE 3000

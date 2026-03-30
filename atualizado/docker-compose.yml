@@ -1,8 +1,11 @@
 services:
   app:
     build:
-      context: ..
-      dockerfile: atualizado/Dockerfile
+      context: .
+      dockerfile: Dockerfile
+      args:
+        # Repositório privado no GitHub: defina GITHUB_TOKEN no Coolify (PAT com leitura ao repo)
+        GITHUB_TOKEN: ${GITHUB_TOKEN:-}
     expose:
       - "3000"
     environment:
@@ -10,7 +13,7 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       PORT: "3000"
       SERVE_SITE_BAIXADO: "1"
-      SITE_BAIXADO_DIR: /app/frontend
+      SITE_BAIXADO_DIR: /app/site_baixado
       FRONTEND_URL: ${FRONTEND_URL:-}
       IGAMEWIN_AGENT_CODE: ${IGAMEWIN_AGENT_CODE:-}
       IGAMEWIN_AGENT_SECRET: ${IGAMEWIN_AGENT_SECRET:-}

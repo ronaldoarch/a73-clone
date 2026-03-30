@@ -30,5 +30,13 @@ services:
       timeout: 10s
       retries: 3
 
+    networks:
+      - default
+      - coolify
+
 volumes:
   uploads_data:
+
+networks:
+  coolify:
+    external: true

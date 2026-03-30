@@ -33,27 +33,35 @@ ARG GITHUB_REPO=ronaldoarch/a73-clone
 ARG GITHUB_TOKEN=
 ARG SKIP_SITE_DOWNLOAD=0
 
-RUN set -e; \
-    if [ -d /app/site_baixado ] && [ "$(ls -A /app/site_baixado 2>/dev/null | wc -l)" -gt 5 ]; then \
+RUN if [ -d /app/site_baixado ] && [ "$(ls -A /app/site_baixado 2>/dev/null | wc -l)" -gt 5 ]; then \
         echo "site_baixado already present, skipping download"; \
     elif [ "${SKIP_SITE_DOWNLOAD}" = "1" ]; then \
         echo "SKIP_SITE_DOWNLOAD=1, skipping"; \
         mkdir -p /app/site_baixado; \
     else \
         echo "Downloading site_baixado from GitHub Release..."; \
+        DOWNLOAD_OK=0; \
         if [ -n "${GITHUB_TOKEN}" ]; then \
-            curl -fSL \
+            curl -fSL --stderr - \
                 -H "Accept: application/octet-stream" \
                 -H "Authorization: Bearer ${GITHUB_TOKEN}" \
                 -H "X-GitHub-Api-Version: 2022-11-28" \
                 -o /tmp/site_baixado.tar.gz \
-                "https://api.github.com/repos/${GITHUB_REPO}/releases/assets/${SITE_BAIXADO_ASSET_ID}"; \
+                "https://api.github.com/repos/${GITHUB_REPO}/releases/assets/${SITE_BAIXADO_ASSET_ID}" \
+            && DOWNLOAD_OK=1; \
         else \
-            curl -fSL -A "A73-Dockerfile/1.0" "${SITE_BAIXADO_URL}" -o /tmp/site_baixado.tar.gz; \
-        fi && \
-        tar -xzf /tmp/site_baixado.tar.gz -C /app && \
-        rm /tmp/site_baixado.tar.gz && \
-        echo "Download concluído."; \
+            curl -fSL --stderr - -A "A73-Dockerfile/1.0" "${SITE_BAIXADO_URL}" \
+                -o /tmp/site_baixado.tar.gz \
+            && DOWNLOAD_OK=1; \
+        fi; \
+        if [ "$DOWNLOAD_OK" = "1" ]; then \
+            tar -xzf /tmp/site_baixado.tar.gz -C /app && \
+            rm /tmp/site_baixado.tar.gz && \
+            echo "Download concluído."; \
+        else \
+            echo "AVISO: Download do site_baixado falhou. Criando diretório vazio."; \
+            mkdir -p /app/site_baixado; \
+        fi; \
     fi
 
 # ── 5. Finalização ────────────────────────────────────────────

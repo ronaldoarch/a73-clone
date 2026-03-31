@@ -3141,9 +3141,14 @@ function patchGamesScript() {
   function getCatalog(){
     if(_cat&&Date.now()-_catTime<_CAT_TTL)return Promise.resolve(_cat);
     return _rf('/api/igamewin/catalog').then(function(r){return r.json();}).then(function(d){
-      if(d&&d.providers&&d.providers.length){_cat=d;_catTime=Date.now();}
+      if(d&&d.providers&&d.providers.length){
+        _cat=d;_catTime=Date.now();
+        console.log('[PG] catalog ok: providers='+d.providers.length+' totalGames='+Object.keys(d.gamesByProvider||{}).reduce(function(a,k){return a+(d.gamesByProvider[k]||[]).length;},0));
+      } else {
+        console.warn('[PG] catalog vazio ou sem providers', d);
+      }
       return _cat;
-    }).catch(function(){return _cat;});
+    }).catch(function(e){console.error('[PG] catalog erro',e);return _cat;});
   }
 
   function mapGame(code,provIdx,g,gi){
@@ -3200,8 +3205,10 @@ function patchGamesScript() {
       if(key==='homelist'||key==='homeplatformlist'){
         var gtl=providers.map(function(p,pi){
           var pl=(gByP[p.code]||[]).slice(0,20).map(function(g,gi){return mapGame(p.code,pi,g,gi);});
-          return{id:pi+1,platformId:pi+1,code:p.code,name:p.name||p.code,sort:pi+1,platformList:pl};
+          // inclui games/items além de platformList — Vue pode ler de qualquer um
+          return{id:pi+1,platformId:pi+1,code:p.code,name:p.name||p.code,sort:pi+1,platformList:pl,games:pl,items:pl};
         });
+        console.log('[PG] home.list: providers='+gtl.length+' games[0]='+((gtl[0]&&gtl[0].platformList&&gtl[0].platformList.length)||0));
         return trpcWrap({list:gtl,gameTypeList:gtl,total:gtl.length});
       }
 
@@ -3224,6 +3231,7 @@ function patchGamesScript() {
         var hot=providers.reduce(function(a,p,pi){
           return a.concat((gByP[p.code]||[]).slice(0,5).map(function(g,gi){return mapGame(p.code,pi,g,gi);}));
         },[]).slice(0,20);
+        console.log('[PG] home.hot: hot='+hot.length);
         return trpcWrap({list:[{platformList:hot,games:hot,items:hot}],total:hot.length,hotList:hot,gameList:hot});
       }
 
@@ -3238,13 +3246,14 @@ function patchGamesScript() {
   function _gw(u,opts){
     var s=typeof u==='string'?u:((u&&u.url)||'');
     if(isGameUrl(s)){
+      console.log('[PG] intercept: '+s.split('?')[0]);
       var _u=u,_o=opts;
       return getCatalog().then(function(catalog){
-        if(!catalog)return _orig(_u,_o);
+        if(!catalog){console.warn('[PG] sem catalog, passando adiante');return _orig(_u,_o);}
         var data=handleBatch(s,catalog);
-        if(!data)return _orig(_u,_o);
+        if(!data){console.warn('[PG] handleBatch null para: '+s.split('?')[0]);return _orig(_u,_o);}
         return new Response(JSON.stringify(data),{status:200,headers:{'Content-Type':'application/json'}});
-      }).catch(function(){return _orig(_u,_o);});
+      }).catch(function(e){console.error('[PG] erro',e);return _orig(_u,_o);});
     }
     return _orig.apply(this,arguments);
   }

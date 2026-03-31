@@ -230,77 +230,87 @@ async function resolveOne(procPath, input, ctx) {
     try {
       const catalog = await ctx.req?.app?.locals?.getIgamewinCatalog?.()
       if (catalog?.providers?.length) {
-        // Mapeia jogos de cada provedor com todos os campos que o site espera
-        const mapGames = (code, games, providerIndex) => games.map((g, gi) => {
+        // Mapeia jogos de cada provedor — campos mínimos para renderizar
+        const mapGame = (code, provIdx, g, gi) => {
           const gameCode = g.game_code || g.code || g.id || ''
           const gameName = g.game_name || g.name || g.title || ''
           const img = g.banner || g.cover || g.picture || g.icon || ''
           return {
-            // Campos que o site_baixado usa para renderizar e lançar jogos
             id: gameCode,
             gameId: gameCode,
             code: gameCode,
-            game_code: gameCode,
             gameName,
-            game_name: gameName,
             name: gameName,
-            imageUrl: img,
             banner: img,
-            logo: img,
-            platformId: providerIndex + 1,  // id numérico do provedor
+            imageUrl: img,
+            platformId: provIdx + 1,
             providerCode: code,
             isHot: !!(g.isHot || g.hot),
             isNew: !!(g.isNew || g.new_game),
             sort: g.sort || gi,
             status: 1
           }
-        })
-
-        // O site lê: homeList.gameTypeList[n].platformList para exibir os jogos
-        const gameTypeList = catalog.providers.map((p, i) => {
-          const games = mapGames(p.code, catalog.gamesByProvider[p.code] || [], i)
-          return {
-            id: i + 1,
-            platformId: i + 1,
-            code: p.code,
-            name: p.name || p.code,
-            icon: p.icon || p.logo || '',
-            sort: i + 1,
-            platformList: games,
-            games,
-            items: games
-          }
-        })
-
-        const allGames = gameTypeList.flatMap(p => p.games)
-
-        if (u === 'homelist' || u === 'gametype') {
-          return okJson({ list: gameTypeList, total: allGames.length, gameTypeList })
         }
-        // game.list — retorna gameList (campo esperado pelo site)
+
+        // home.list / home.platformList: providers + apenas 20 jogos cada (leve para a home)
+        if (u === 'homelist' || u === 'homeplatformlist' || u === 'gametype') {
+          const gameTypeList = catalog.providers.map((p, i) => {
+            const raw = (catalog.gamesByProvider[p.code] || []).slice(0, 20)
+            const platformList = raw.map((g, gi) => mapGame(p.code, i, g, gi))
+            return {
+              id: i + 1,
+              platformId: i + 1,
+              code: p.code,
+              name: p.name || p.code,
+              sort: i + 1,
+              platformList
+            }
+          })
+          return okJson({ list: gameTypeList, total: gameTypeList.length, gameTypeList })
+        }
+
+        // game.list — chamado com input { gameType, platformId, page, pageSize }
         if (u.includes('gamelist')) {
           const inp = input || {}
           const gameType = inp.gameType || inp.platformCode || inp.providerCode || null
           const platId = inp.platformId ? Number(inp.platformId) : null
-          let filtered = allGames
-          if (gameType) {
-            filtered = allGames.filter(g => g.providerCode === gameType || g.code === gameType)
-          } else if (platId) {
-            filtered = allGames.filter(g => g.platformId === platId)
+          const page = Math.max(1, Number(inp.page) || 1)
+          const pageSize = Math.min(50, Math.max(10, Number(inp.pageSize) || inp.all ? 100 : 20))
+
+          let providerCode = gameType
+          if (!providerCode && platId) {
+            const prov = catalog.providers[platId - 1]
+            providerCode = prov?.code || null
           }
-          return okJson({ gameList: filtered, list: filtered, total: filtered.length })
+
+          let rawGames = providerCode
+            ? (catalog.gamesByProvider[providerCode] || [])
+            : catalog.providers.flatMap(p => catalog.gamesByProvider[p.code] || [])
+
+          const provIdx = providerCode ? catalog.providers.findIndex(p => p.code === providerCode) : 0
+          const start = (page - 1) * pageSize
+          const sliced = rawGames.slice(start, start + pageSize)
+          const gameList = sliced.map((g, gi) => mapGame(providerCode || '', provIdx, g, start + gi))
+          return okJson({ gameList, list: gameList, total: rawGames.length })
         }
-        if (u === 'homehot') {
-          const hotGames = allGames.filter((g) => g.isHot).length > 0
-            ? allGames.filter((g) => g.isHot)
-            : allGames.slice(0, 20)
-          return okJson({ list: [{ games: hotGames, items: hotGames, platformList: hotGames }], total: hotGames.length, hotList: hotGames, gameList: hotGames })
+
+        // home.hot / popular: 20 jogos do primeiro provedor
+        if (u === 'homehot' || u === 'homepopulargames') {
+          const firstProv = catalog.providers[0]
+          const raw = (catalog.gamesByProvider[firstProv?.code] || []).slice(0, 20)
+          const games = raw.map((g, gi) => mapGame(firstProv?.code || '', 0, g, gi))
+          if (u === 'homehot') {
+            return okJson({ list: [{ platformList: games, games, items: games }], total: games.length, hotList: games, gameList: games })
+          }
+          return okJson({ list: [{ platformList: games, games, items: games }], games, total: games.length, gameList: games })
         }
-        if (u === 'homepopulargames') {
-          const popular = allGames.slice(0, 40)
-          return okJson({ list: [{ games: popular, items: popular, platformList: popular }], games: popular, total: popular.length, gameList: popular })
-        }
-        return okJson({ list: gameTypeList, total: allGames.length, gameTypeList })
+
+        // fallback genérico
+        const gameTypeList = catalog.providers.map((p, i) => ({
+          id: i + 1, platformId: i + 1, code: p.code, name: p.name || p.code, sort: i + 1,
+          platformList: (catalog.gamesByProvider[p.code] || []).slice(0, 20).map((g, gi) => mapGame(p.code, i, g, gi))
+        }))
+        return okJson({ list: gameTypeList, total: gameTypeList.length, gameTypeList })
       }
     } catch (e) {
       console.error('[trpc-bridge] catalog error', e.message)

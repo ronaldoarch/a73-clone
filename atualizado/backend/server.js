@@ -3135,9 +3135,12 @@ function patchGamesScript() {
   var _orig=window.fetch;
   var _cat=null,_catTime=0,_CAT_TTL=5*60*1000;
 
+  // Usa window.__rf (fetch original salvo antes do patch-fetch.js) para evitar que
+  // patch-fetch.js intercepte /api/igamewin/catalog e devolva mock tRPC vazio
+  var _rf=window.__rf||window.fetch;
   function getCatalog(){
     if(_cat&&Date.now()-_catTime<_CAT_TTL)return Promise.resolve(_cat);
-    return _orig('/api/igamewin/catalog').then(function(r){return r.json();}).then(function(d){
+    return _rf('/api/igamewin/catalog').then(function(r){return r.json();}).then(function(d){
       if(d&&d.providers&&d.providers.length){_cat=d;_catTime=Date.now();}
       return _cat;
     }).catch(function(){return _cat;});
@@ -3300,7 +3303,11 @@ if (serveSiteBaixado) {
     const indexPath = path.join(siteBaixadoDir, 'index.html')
     fs.readFile(indexPath, 'utf8', (err, html) => {
       if (err) return res.sendFile(indexPath, e => { if (e) next(e) })
-      const injected = html.replace('</head>', '<script src="/patch-games.js?v=3"></script></head>')
+      // Salva o fetch original ANTES do patch-fetch.js carregá-lo (no início do <head>)
+      // para que getCatalog() possa buscar /api/igamewin/catalog sem interferência
+      const injected = html
+        .replace('<head>', '<head><script>window.__rf=window.fetch;</script>')
+        .replace('</head>', '<script src="/patch-games.js?v=4"></script></head>')
       res.setHeader('Content-Type', 'text/html; charset=utf-8')
       res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate')
       res.setHeader('Pragma', 'no-cache')

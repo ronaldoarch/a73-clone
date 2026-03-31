@@ -3129,11 +3129,140 @@ app.get('/api/health', (req, res) => {
   res.json({ ok: true, db: 'postgres' })
 })
 
+// ── patch-games.js: script injetado no index.html para intercepção de jogos ──
+function patchGamesScript() {
+  return `(function(){
+  var _orig=window.fetch;
+  var _cat=null,_catTime=0,_CAT_TTL=5*60*1000;
+
+  function getCatalog(){
+    if(_cat&&Date.now()-_catTime<_CAT_TTL)return Promise.resolve(_cat);
+    return _orig('/api/igamewin/catalog').then(function(r){return r.json();}).then(function(d){
+      if(d&&d.providers&&d.providers.length){_cat=d;_catTime=Date.now();}
+      return _cat;
+    }).catch(function(){return _cat;});
+  }
+
+  function mapGame(code,provIdx,g,gi){
+    var c=g.game_code||g.code||g.id||'',n=g.game_name||g.name||g.title||'',img=g.banner||g.cover||g.picture||g.icon||'';
+    return{id:c,gameId:c,code:c,gameName:n,name:n,banner:img,imageUrl:img,logo:img,
+      platformId:provIdx+1,providerCode:code,isHot:!!(g.isHot||g.hot),isNew:!!(g.isNew||g.new_game),sort:g.sort||gi,status:1};
+  }
+
+  function trpcWrap(json){return{result:{data:{json:json,meta:{}}}};}
+
+  function getInput(s){
+    try{
+      var qs=(s.split('?')[1]||'');
+      var inp=new URLSearchParams(qs).get('input');
+      if(!inp)return null;
+      var p=JSON.parse(inp);
+      if(typeof p==='object'&&p!==null){
+        var r0=p['0']||p[0];
+        if(r0!==undefined)return r0&&r0.json!==undefined?r0.json:r0;
+      }
+      return p&&p.json!==undefined?p.json:p;
+    }catch(e){return null;}
+  }
+
+  function isGameUrl(s){
+    if(!s)return false;
+    return(s.indexOf('home.list')>=0||s.indexOf('home.hot')>=0||s.indexOf('game.list')>=0||
+           s.indexOf('home.platformList')>=0||s.indexOf('home.popularGames')>=0);
+  }
+
+  function handleBatch(s,catalog){
+    // extrai todos os procs da URL (ex: game.list,game.list,game.list)
+    var m=(s||'').match(/\\/api\\/frontend\\/trpc\\/([^?&#]+)/);
+    if(!m)return null;
+    var procs=m[1].split(',');
+    var providers=catalog.providers||[];
+    var gByP=catalog.gamesByProvider||{};
+
+    // parse batch inputs
+    var batchInputs={};
+    try{
+      var qs=(s.split('?')[1]||'');
+      var inp=new URLSearchParams(qs).get('input');
+      if(inp)batchInputs=JSON.parse(inp);
+    }catch(e){}
+
+    var results=procs.map(function(proc,i){
+      var parts=proc.trim().split('.');
+      var key=(parts[0]+(parts[1]?parts[1].charAt(0).toUpperCase()+parts[1].slice(1):'')).toLowerCase();
+      var row=batchInputs[String(i)]||batchInputs[i]||null;
+      var inp2=row&&row.json!==undefined?row.json:row;
+      var inp3=inp2||{};
+
+      if(key==='homelist'||key==='homeplatformlist'){
+        var gtl=providers.map(function(p,pi){
+          var pl=(gByP[p.code]||[]).slice(0,20).map(function(g,gi){return mapGame(p.code,pi,g,gi);});
+          return{id:pi+1,platformId:pi+1,code:p.code,name:p.name||p.code,sort:pi+1,platformList:pl};
+        });
+        return trpcWrap({list:gtl,gameTypeList:gtl,total:gtl.length});
+      }
+
+      if(key.indexOf('gamelist')>=0){
+        var gt=inp3.gameType||inp3.platformCode||null;
+        var pid=inp3.platformId?Number(inp3.platformId):null;
+        var pCode=gt;
+        var pIdx=0;
+        if(!pCode&&pid){var pv=providers[pid-1];pCode=pv?pv.code:null;pIdx=pid-1;}
+        else if(pCode){pIdx=providers.findIndex(function(p){return p.code===pCode;});}
+        var raw=pCode?(gByP[pCode]||[]):providers.reduce(function(a,p){return a.concat(gByP[p.code]||[]);}, []);
+        var page=Math.max(1,Number(inp3.page)||1);
+        var ps=inp3.all?200:Math.min(100,Number(inp3.pageSize)||20);
+        var start=(page-1)*ps;
+        var gl=raw.slice(start,start+ps).map(function(g,gi){return mapGame(pCode||'',pIdx,g,start+gi);});
+        return trpcWrap({gameList:gl,list:gl,total:raw.length});
+      }
+
+      if(key==='homehot'||key==='homepopulargames'){
+        var hot=providers.reduce(function(a,p,pi){
+          return a.concat((gByP[p.code]||[]).slice(0,5).map(function(g,gi){return mapGame(p.code,pi,g,gi);}));
+        },[]).slice(0,20);
+        return trpcWrap({list:[{platformList:hot,games:hot,items:hot}],total:hot.length,hotList:hot,gameList:hot});
+      }
+
+      return null; // não é proc de jogos, vai precisar de fallback
+    });
+
+    // se algum proc não é de jogos, não interceptamos (chamada mista)
+    if(results.some(function(r){return r===null;}))return null;
+    return results.length===1?results[0]:results;
+  }
+
+  window.fetch=function(u,opts){
+    var s=typeof u==='string'?u:((u&&u.url)||'');
+    if(isGameUrl(s)){
+      var _u=u,_o=opts;
+      return getCatalog().then(function(catalog){
+        if(!catalog)return _orig(_u,_o);
+        var data=handleBatch(s,catalog);
+        if(!data)return _orig(_u,_o);
+        return new Response(JSON.stringify(data),{status:200,headers:{'Content-Type':'application/json'}});
+      }).catch(function(){return _orig(_u,_o);});
+    }
+    return _orig.apply(this,arguments);
+  };
+
+  // pre-fetch catalog
+  getCatalog().catch(function(){});
+})();`
+}
+
 // Site estático (../site_baixado): mesma origem que a API — acesse http://localhost:PORT/
 // Desative com SERVE_SITE_BAIXADO=0 (só API).
 const siteBaixadoDir = process.env.SITE_BAIXADO_DIR || path.join(__dirname, '..', 'site_baixado')
 const serveSiteBaixado = process.env.SERVE_SITE_BAIXADO !== '0' && fs.existsSync(siteBaixadoDir)
 if (serveSiteBaixado) {
+  // Serve patch-games.js inline — intercepta chamadas tRPC de jogos no front
+  app.get('/patch-games.js', (req, res) => {
+    res.setHeader('Content-Type', 'application/javascript; charset=utf-8')
+    res.setHeader('Cache-Control', 'no-store')
+    res.send(patchGamesScript())
+  })
+
   app.use(express.static(siteBaixadoDir, { extensions: ['html'], index: ['index.html'] }))
   app.get('*', (req, res, next) => {
     if (req.method !== 'GET' && req.method !== 'HEAD') return next()
@@ -3141,8 +3270,13 @@ if (serveSiteBaixado) {
     if (p.startsWith('/api/') || p.startsWith('/uploads') || p === '/gold_api') return next()
     const ext = path.extname(p)
     if (ext && ext !== '.html') return next()
-    res.sendFile(path.join(siteBaixadoDir, 'index.html'), (err) => {
-      if (err) next(err)
+    // Lê index.html e injeta patch-games.js antes de </head>
+    const indexPath = path.join(siteBaixadoDir, 'index.html')
+    fs.readFile(indexPath, 'utf8', (err, html) => {
+      if (err) return res.sendFile(indexPath, e => { if (e) next(e) })
+      const injected = html.replace('</head>', '<script src="/patch-games.js?v=1"></script></head>')
+      res.setHeader('Content-Type', 'text/html; charset=utf-8')
+      res.send(injected)
     })
   })
 }

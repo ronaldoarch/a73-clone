@@ -230,32 +230,43 @@ async function resolveOne(procPath, input, ctx) {
     try {
       const catalog = await ctx.req?.app?.locals?.getIgamewinCatalog?.()
       if (catalog?.providers?.length) {
-        // Mapeia jogos de cada provedor
-        const mapGames = (code, games) => games.map((g, gi) => ({
-          id: g.game_code || g.code || g.id,
-          code: g.game_code || g.code || g.id,
-          game_code: g.game_code || g.code || g.id,
-          game_name: g.game_name || g.name || g.title || '',
-          name: g.game_name || g.name || g.title || '',
-          imageUrl: g.banner || g.cover || g.picture || g.icon || '',
-          banner: g.banner || g.cover || g.picture || g.icon || '',
-          providerCode: code,
-          isHot: g.isHot || g.hot || false,
-          isNew: g.isNew || g.new_game || false,
-          sort: g.sort || gi,
-          status: 1
-        }))
+        // Mapeia jogos de cada provedor com todos os campos que o site espera
+        const mapGames = (code, games, providerIndex) => games.map((g, gi) => {
+          const gameCode = g.game_code || g.code || g.id || ''
+          const gameName = g.game_name || g.name || g.title || ''
+          const img = g.banner || g.cover || g.picture || g.icon || ''
+          return {
+            // Campos que o site_baixado usa para renderizar e lançar jogos
+            id: gameCode,
+            gameId: gameCode,
+            code: gameCode,
+            game_code: gameCode,
+            gameName,
+            game_name: gameName,
+            name: gameName,
+            imageUrl: img,
+            banner: img,
+            logo: img,
+            platformId: providerIndex + 1,  // id numérico do provedor
+            providerCode: code,
+            isHot: !!(g.isHot || g.hot),
+            isNew: !!(g.isNew || g.new_game),
+            sort: g.sort || gi,
+            status: 1
+          }
+        })
 
         // O site lê: homeList.gameTypeList[n].platformList para exibir os jogos
         const gameTypeList = catalog.providers.map((p, i) => {
-          const games = mapGames(p.code, catalog.gamesByProvider[p.code] || [])
+          const games = mapGames(p.code, catalog.gamesByProvider[p.code] || [], i)
           return {
             id: i + 1,
+            platformId: i + 1,
             code: p.code,
             name: p.name || p.code,
             icon: p.icon || p.logo || '',
             sort: i + 1,
-            platformList: games,  // ← campo que o site usa para renderizar os jogos
+            platformList: games,
             games,
             items: games
           }
@@ -263,18 +274,31 @@ async function resolveOne(procPath, input, ctx) {
 
         const allGames = gameTypeList.flatMap(p => p.games)
 
-        if (u === 'homelist' || u === 'gamelist' || u === 'gametype') {
+        if (u === 'homelist' || u === 'gametype') {
           return okJson({ list: gameTypeList, total: allGames.length, gameTypeList })
+        }
+        // game.list — retorna gameList (campo esperado pelo site)
+        if (u.includes('gamelist')) {
+          const inp = input || {}
+          const gameType = inp.gameType || inp.platformCode || inp.providerCode || null
+          const platId = inp.platformId ? Number(inp.platformId) : null
+          let filtered = allGames
+          if (gameType) {
+            filtered = allGames.filter(g => g.providerCode === gameType || g.code === gameType)
+          } else if (platId) {
+            filtered = allGames.filter(g => g.platformId === platId)
+          }
+          return okJson({ gameList: filtered, list: filtered, total: filtered.length })
         }
         if (u === 'homehot') {
           const hotGames = allGames.filter((g) => g.isHot).length > 0
             ? allGames.filter((g) => g.isHot)
             : allGames.slice(0, 20)
-          return okJson({ list: [{ games: hotGames, items: hotGames, platformList: hotGames }], total: hotGames.length, hotList: hotGames })
+          return okJson({ list: [{ games: hotGames, items: hotGames, platformList: hotGames }], total: hotGames.length, hotList: hotGames, gameList: hotGames })
         }
         if (u === 'homepopulargames') {
           const popular = allGames.slice(0, 40)
-          return okJson({ list: [{ games: popular, items: popular, platformList: popular }], games: popular, total: popular.length })
+          return okJson({ list: [{ games: popular, items: popular, platformList: popular }], games: popular, total: popular.length, gameList: popular })
         }
         return okJson({ list: gameTypeList, total: allGames.length, gameTypeList })
       }

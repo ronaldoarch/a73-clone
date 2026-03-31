@@ -4,6 +4,15 @@
 backend
 site_baixado
 
+# Arquivos do site clonado que conectam ao domínio original — não devem entrar no build
+public/index.html
+public/patch-fetch.js
+public/sw.produce.min.2.1.6.js
+public/patch-register.js
+public/main
+public/launch
+public/original
+
 node_modules
 dist
 dist-ssr

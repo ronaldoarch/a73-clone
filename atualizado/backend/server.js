@@ -3135,20 +3135,35 @@ function patchGamesScript() {
   var _orig=window.fetch;
   var _cat=null,_catTime=0,_CAT_TTL=5*60*1000;
 
-  // Usa window.__rf (fetch original salvo antes do patch-fetch.js) para evitar que
-  // patch-fetch.js intercepte /api/igamewin/catalog e devolva mock tRPC vazio
-  var _rf=window.__rf||window.fetch;
+  // Usa XMLHttpRequest (não fetch) para buscar o catálogo
+  // patch-fetch.js modifica respostas de qualquer URL com /api/ via handleFetchResponse
+  // mas o XHR patch só bloqueia cross-origin — same-origin passa direto sem modificação
+  var _catPromise=null;
   function getCatalog(){
     if(_cat&&Date.now()-_catTime<_CAT_TTL)return Promise.resolve(_cat);
-    return _rf('/api/igamewin/catalog').then(function(r){return r.json();}).then(function(d){
-      if(d&&d.providers&&d.providers.length){
-        _cat=d;_catTime=Date.now();
-        console.log('[PG] catalog ok: providers='+d.providers.length+' totalGames='+Object.keys(d.gamesByProvider||{}).reduce(function(a,k){return a+(d.gamesByProvider[k]||[]).length;},0));
-      } else {
-        console.warn('[PG] catalog vazio ou sem providers', d);
-      }
-      return _cat;
-    }).catch(function(e){console.error('[PG] catalog erro',e);return _cat;});
+    if(_catPromise)return _catPromise;
+    _catPromise=new Promise(function(resolve){
+      var x=new XMLHttpRequest();
+      x.open('GET','/api/igamewin/catalog');
+      x.onload=function(){
+        _catPromise=null;
+        try{
+          var d=JSON.parse(x.responseText);
+          if(d&&d.providers&&d.providers.length){
+            _cat=d;_catTime=Date.now();
+            console.log('[PG] catalog ok: providers='+d.providers.length+' games='+Object.keys(d.gamesByProvider||{}).reduce(function(a,k){return a+(d.gamesByProvider[k]||[]).length;},0));
+          }else{
+            console.warn('[PG] catalog vazio status='+x.status,x.responseText.slice(0,120));
+          }
+        }catch(e){console.error('[PG] catalog parse erro',e.message,x.responseText.slice(0,80));}
+        resolve(_cat);
+      };
+      x.onerror=function(){_catPromise=null;console.error('[PG] catalog xhr erro');resolve(null);};
+      x.ontimeout=function(){_catPromise=null;console.error('[PG] catalog xhr timeout');resolve(null);};
+      x.timeout=10000;
+      x.send();
+    });
+    return _catPromise;
   }
 
   function mapGame(code,provIdx,g,gi){

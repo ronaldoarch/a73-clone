@@ -1,6 +1,8 @@
 /**
  * Bridge tRPC HTTP batch para o site_baixado: devolve o mesmo formato { result: { data: { json } } }
- * que o patch-fetch espera. user.details / user.assets vêm do PostgreSQL; o resto usa fallbacks seguros.
+ * que o patch-fetch espera. Suporta GET (queries) e POST (mutations).
+ * - GET: input vem de req.query.input (JSON) ou req.query[n]
+ * - POST: input vem de req.body (batch array ou objeto)
  */
 import jwt from 'jsonwebtoken'
 
@@ -312,9 +314,25 @@ export async function handleTrpcBatch(req, res, procedureTail) {
     return res.status(400).json([errJson('Nenhum procedimento')])
   }
 
+  // Para GET: input vem de req.query.input (JSON batch) ou req.query[n]
+  let getInputs = null
+  if (req.method === 'GET' && req.query?.input) {
+    try { getInputs = JSON.parse(req.query.input) } catch { getInputs = null }
+  }
+
   const out = []
   for (let i = 0; i < paths.length; i++) {
-    const input = parseBatchInputs(req.body, i)
+    let input
+    if (req.method === 'GET') {
+      if (getInputs !== null && typeof getInputs === 'object') {
+        const row = getInputs[String(i)] ?? getInputs[i]
+        input = row && typeof row === 'object' && 'json' in row ? row.json : row
+      } else {
+        input = null
+      }
+    } else {
+      input = parseBatchInputs(req.body, i)
+    }
     try {
       out.push(await resolveOne(paths[i], input, ctx))
     } catch (e) {
@@ -329,7 +347,8 @@ export async function handleTrpcBatch(req, res, procedureTail) {
 
 export function trpcBatchMiddleware(prisma, jwtSecret) {
   return async (req, res, next) => {
-    if (req.method !== 'POST') return next()
+    // Suporta GET (queries tRPC) e POST (mutations tRPC)
+    if (req.method !== 'POST' && req.method !== 'GET') return next()
     const pathOnly = req.originalUrl.split('?')[0]
     const prefix = '/api/frontend/trpc/'
     if (!pathOnly.startsWith(prefix)) return next()

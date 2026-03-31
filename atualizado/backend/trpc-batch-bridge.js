@@ -230,42 +230,53 @@ async function resolveOne(procPath, input, ctx) {
     try {
       const catalog = await ctx.req?.app?.locals?.getIgamewinCatalog?.()
       if (catalog?.providers?.length) {
-        const gameTypeList = catalog.providers.map((p, i) => ({
-          id: i + 1,
-          code: p.code,
-          name: p.name || p.code,
-          icon: p.icon || p.logo || '',
-          sort: i + 1
+        // Mapeia jogos de cada provedor
+        const mapGames = (code, games) => games.map((g, gi) => ({
+          id: g.game_code || g.code || g.id,
+          code: g.game_code || g.code || g.id,
+          game_code: g.game_code || g.code || g.id,
+          game_name: g.game_name || g.name || g.title || '',
+          name: g.game_name || g.name || g.title || '',
+          imageUrl: g.banner || g.cover || g.picture || g.icon || '',
+          banner: g.banner || g.cover || g.picture || g.icon || '',
+          providerCode: code,
+          isHot: g.isHot || g.hot || false,
+          isNew: g.isNew || g.new_game || false,
+          sort: g.sort || gi,
+          status: 1
         }))
-        const allGames = Object.entries(catalog.gamesByProvider).flatMap(([code, games]) =>
-          games.map((g) => ({
-            // iGameWin API fields: game_code, game_name, banner
-            id: g.game_code || g.code || g.id,
-            code: g.game_code || g.code || g.id,
-            name: g.game_name || g.name || g.title || '',
-            imageUrl: g.banner || g.cover || g.picture || g.icon || g.img || '',
-            providerCode: code,
-            providerName: catalog.providers.find((p) => p.code === code)?.name || code,
-            isHot: g.isHot || g.hot || false,
-            isNew: g.isNew || g.new_game || false,
-            sort: g.sort || 0,
-            status: 1
-          }))
-        )
+
+        // O site lê: homeList.gameTypeList[n].platformList para exibir os jogos
+        const gameTypeList = catalog.providers.map((p, i) => {
+          const games = mapGames(p.code, catalog.gamesByProvider[p.code] || [])
+          return {
+            id: i + 1,
+            code: p.code,
+            name: p.name || p.code,
+            icon: p.icon || p.logo || '',
+            sort: i + 1,
+            platformList: games,  // ← campo que o site usa para renderizar os jogos
+            games,
+            items: games
+          }
+        })
+
+        const allGames = gameTypeList.flatMap(p => p.games)
+
         if (u === 'homelist' || u === 'gamelist' || u === 'gametype') {
-          return okJson({ list: [{ games: allGames, items: allGames }], total: allGames.length, gameTypeList })
+          return okJson({ list: gameTypeList, total: allGames.length, gameTypeList })
         }
         if (u === 'homehot') {
           const hotGames = allGames.filter((g) => g.isHot).length > 0
             ? allGames.filter((g) => g.isHot)
             : allGames.slice(0, 20)
-          return okJson({ list: [{ games: hotGames, items: hotGames }], total: hotGames.length, hotList: hotGames })
+          return okJson({ list: [{ games: hotGames, items: hotGames, platformList: hotGames }], total: hotGames.length, hotList: hotGames })
         }
         if (u === 'homepopulargames') {
           const popular = allGames.slice(0, 40)
-          return okJson({ list: [{ games: popular, items: popular }], games: popular, total: popular.length })
+          return okJson({ list: [{ games: popular, items: popular, platformList: popular }], games: popular, total: popular.length })
         }
-        return okJson({ list: [{ games: allGames, items: allGames }], total: allGames.length, gameTypeList })
+        return okJson({ list: gameTypeList, total: allGames.length, gameTypeList })
       }
     } catch (e) {
       console.error('[trpc-bridge] catalog error', e.message)

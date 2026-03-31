@@ -3255,7 +3255,9 @@ function patchGamesScript() {
 
     // se algum proc não é de jogos, não interceptamos (chamada mista)
     if(results.some(function(r){return r===null;}))return null;
-    return results.length===1?results[0]:results;
+    // tRPC HTTP batch (batch=1) sempre espera ARRAY na resposta, mesmo proc único
+    console.log('[PG] handleBatch procs='+procs.join(','));
+    return results;
   }
 
   function _gw(u,opts){

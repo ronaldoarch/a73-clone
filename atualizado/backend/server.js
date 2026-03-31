@@ -3274,8 +3274,11 @@ if (serveSiteBaixado) {
     const indexPath = path.join(siteBaixadoDir, 'index.html')
     fs.readFile(indexPath, 'utf8', (err, html) => {
       if (err) return res.sendFile(indexPath, e => { if (e) next(e) })
-      const injected = html.replace('</head>', '<script src="/patch-games.js?v=1"></script></head>')
+      const injected = html.replace('</head>', '<script src="/patch-games.js?v=2"></script></head>')
       res.setHeader('Content-Type', 'text/html; charset=utf-8')
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate')
+      res.setHeader('Pragma', 'no-cache')
+      res.removeHeader('ETag')
       res.send(injected)
     })
   })

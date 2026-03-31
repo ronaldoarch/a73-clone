@@ -3232,7 +3232,7 @@ function patchGamesScript() {
     return results.length===1?results[0]:results;
   }
 
-  window.fetch=function(u,opts){
+  function _gw(u,opts){
     var s=typeof u==='string'?u:((u&&u.url)||'');
     if(isGameUrl(s)){
       var _u=u,_o=opts;
@@ -3244,7 +3244,17 @@ function patchGamesScript() {
       }).catch(function(){return _orig(_u,_o);});
     }
     return _orig.apply(this,arguments);
-  };
+  }
+
+  function _applyGW(){
+    // Atualiza _orig para o fetch atual (patch-fetch.js pode ter resetado)
+    if(window.fetch!==_gw){_orig=window.fetch;window.fetch=_gw;}
+    if(typeof globalThis!=='undefined'&&globalThis.fetch!==_gw)globalThis.fetch=_gw;
+  }
+
+  _applyGW();
+  // Re-aplica após DOMContentLoaded porque patch-fetch.js também tem listener que reseta window.fetch
+  document.addEventListener('DOMContentLoaded',_applyGW);
 
   // pre-fetch catalog
   getCatalog().catch(function(){});
@@ -3263,7 +3273,23 @@ if (serveSiteBaixado) {
     res.send(patchGamesScript())
   })
 
-  app.use(express.static(siteBaixadoDir, { extensions: ['html'], index: ['index.html'] }))
+  // Substitui o Service Worker por uma versão pass-through (sem cache) para evitar
+  // que o SW sirva index.html cacheado sem a injeção de patch-games.js
+  app.get('/sw.produce.min.2.1.6.js', (req, res) => {
+    res.setHeader('Content-Type', 'application/javascript; charset=utf-8')
+    res.setHeader('Cache-Control', 'no-store')
+    res.send(`self.addEventListener('install',()=>self.skipWaiting());self.addEventListener('activate',e=>{e.waitUntil(self.registration.unregister().then(()=>clients.claim()));});`)
+  })
+
+  // patch-register.js: cancela registros de SW existentes
+  app.get('/patch-register.js', (req, res) => {
+    res.setHeader('Content-Type', 'application/javascript; charset=utf-8')
+    res.setHeader('Cache-Control', 'no-store')
+    res.send(`if('serviceWorker'in navigator){navigator.serviceWorker.getRegistrations().then(function(r){r.forEach(function(s){s.unregister();});});}`)
+  })
+
+  // index: false evita que express.static sirva index.html sem injeção (para rota /)
+  app.use(express.static(siteBaixadoDir, { extensions: ['html'], index: false }))
   app.get('*', (req, res, next) => {
     if (req.method !== 'GET' && req.method !== 'HEAD') return next()
     const p = (req.path || '').split('?')[0]
@@ -3274,7 +3300,7 @@ if (serveSiteBaixado) {
     const indexPath = path.join(siteBaixadoDir, 'index.html')
     fs.readFile(indexPath, 'utf8', (err, html) => {
       if (err) return res.sendFile(indexPath, e => { if (e) next(e) })
-      const injected = html.replace('</head>', '<script src="/patch-games.js?v=2"></script></head>')
+      const injected = html.replace('</head>', '<script src="/patch-games.js?v=3"></script></head>')
       res.setHeader('Content-Type', 'text/html; charset=utf-8')
       res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate')
       res.setHeader('Pragma', 'no-cache')

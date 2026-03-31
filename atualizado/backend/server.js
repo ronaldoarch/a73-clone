@@ -1774,35 +1774,66 @@ async function getHomeProviders() {
 app.get('/api/igamewin/catalog', async (req, res) => {
   try {
     const forceRefresh = req.query.refresh === '1'
+    // Retorna cache imediatamente se existir e não for forceRefresh
     if (!forceRefresh && catalogCache && Date.now() - catalogCacheTime < CATALOG_TTL) {
       const homeProviders = await getHomeProviders()
       return res.json({ ...catalogCache, homeProviders })
     }
+    // Se tiver cache mas foi pedido refresh: retorna o cache atual e faz refresh em background
+    if (catalogCache && forceRefresh) {
+      const homeProviders = await getHomeProviders()
+      res.json({ ...catalogCache, homeProviders })
+      refreshCatalogBackground()
+      return
+    }
+    // Sem cache: tenta buscar só a lista de provedores (rápido) e retorna enquanto busca jogos em background
     const provRes = await fetchIgamewin({ method: 'provider_list' })
     if (provRes.status !== 1 || !provRes.providers?.length) {
       const homeProviders = await getHomeProviders()
       return res.json({ ...DEMO_CATALOG, homeProviders })
     }
     const providers = provRes.providers.filter(p => p.status === 1).slice(0, 20)
+    // Preenche gamesByProvider com [] para já ter os providers
     const gamesByProvider = {}
-    for (const p of providers) {
-      const gamesRes = await fetchIgamewin({ method: 'game_list', provider_code: p.code })
-      if (gamesRes.status === 1 && gamesRes.games?.length) {
-        gamesByProvider[p.code] = gamesRes.games.filter(g => g.status === 1).slice(0, 200)
-      } else {
-        gamesByProvider[p.code] = []
-      }
-    }
+    providers.forEach(p => { gamesByProvider[p.code] = [] })
     catalogCache = { providers, gamesByProvider }
     catalogCacheTime = Date.now()
     const homeProviders = await getHomeProviders()
+    // Responde imediatamente com providers (sem jogos ainda) e busca jogos em background
     res.json({ ...catalogCache, homeProviders })
+    // Busca jogos em paralelo em background
+    refreshCatalogBackground()
   } catch (e) {
     console.error('igamewin catalog:', e)
     const homeProviders = await getHomeProviders().catch(() => [])
     res.json({ ...DEMO_CATALOG, homeProviders })
   }
 })
+
+async function refreshCatalogBackground() {
+  try {
+    const provRes = await fetchIgamewin({ method: 'provider_list' })
+    if (provRes.status !== 1 || !provRes.providers?.length) return
+    const providers = provRes.providers.filter(p => p.status === 1).slice(0, 20)
+    const gamesByProvider = {}
+    // Busca todos os provedores EM PARALELO (muito mais rápido que sequencial)
+    await Promise.all(providers.map(async (p) => {
+      try {
+        const gamesRes = await fetchIgamewin({ method: 'game_list', provider_code: p.code })
+        gamesByProvider[p.code] = (gamesRes.status === 1 && gamesRes.games?.length)
+          ? gamesRes.games.filter(g => g.status === 1).slice(0, 200)
+          : []
+      } catch {
+        gamesByProvider[p.code] = []
+      }
+    }))
+    catalogCache = { providers, gamesByProvider }
+    catalogCacheTime = Date.now()
+    console.log('[igamewin] catálogo atualizado:', providers.length, 'provedores,', Object.values(gamesByProvider).reduce((s, g) => s + g.length, 0), 'jogos')
+  } catch (e) {
+    console.error('[igamewin] refreshCatalogBackground error:', e.message)
+  }
+}
 
 app.get('/api/settings/home-providers', async (req, res) => {
   try {
@@ -3124,29 +3155,17 @@ async function main() {
   } catch (e) {
     console.warn('DB connect:', e.message)
   }
-  // Expõe catálogo e fetchIgamewin para o trpc-batch-bridge
-  app.locals.getIgamewinCatalog = async (forceRefresh = false) => {
-    if (!forceRefresh && catalogCache && Date.now() - catalogCacheTime < CATALOG_TTL) {
+  // Expõe catálogo para o trpc-batch-bridge — retorna cache imediatamente
+  app.locals.getIgamewinCatalog = async () => {
+    if (catalogCache && Date.now() - catalogCacheTime < CATALOG_TTL) {
       return catalogCache
     }
-    try {
-      const provRes = await fetchIgamewin({ method: 'provider_list' })
-      if (provRes.status !== 1 || !provRes.providers?.length) return null
-      const providers = provRes.providers.filter(p => p.status === 1).slice(0, 20)
-      const gamesByProvider = {}
-      for (const p of providers) {
-        const gamesRes = await fetchIgamewin({ method: 'game_list', provider_code: p.code })
-        if (gamesRes.status === 1 && gamesRes.games?.length) {
-          gamesByProvider[p.code] = gamesRes.games.filter(g => g.status === 1).slice(0, 200)
-        }
-      }
-      catalogCache = { providers, gamesByProvider }
-      catalogCacheTime = Date.now()
-      return catalogCache
-    } catch (e) {
-      return null
-    }
+    // Aguarda no máximo 5s pelo refresh em background
+    await Promise.race([refreshCatalogBackground(), new Promise(r => setTimeout(r, 5000))])
+    return catalogCache || null
   }
+  // Pre-aquece o catálogo em background ao iniciar
+  refreshCatalogBackground().catch(() => {})
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`A73 Backend running on port ${PORT}`)
     if (serveSiteBaixado) {

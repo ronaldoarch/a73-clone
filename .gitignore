@@ -47,3 +47,6 @@ backend/uploads/
 /site_baixado/
 /frontend-clone/
 /jt0c6h_baixado/
+
+# Frontend build artifacts (não fazem parte do deploy atualizado/)
+/public/

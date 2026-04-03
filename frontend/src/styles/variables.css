@@ -1,0 +1,455 @@
+:root {
+  /* ═══════════════════════════════════════════════
+     EP Design System — Core Tokens
+     ═══════════════════════════════════════════════ */
+
+  /* Font Sizes */
+  --ep-font-size-xxs: .5rem;
+  --ep-font-size-xs: .625rem;
+  --ep-font-size-s: .75rem;
+  --ep-font-size-m: .875rem;
+  --ep-font-size-l: 1rem;
+  --ep-font-size-xl: 1.125rem;
+  --ep-font-size-xxl: 1.5rem;
+  --ep-font-size-xxxl: 2.25rem;
+  --ep-font-size-xxxxl: 3rem;
+
+  /* Font Weights */
+  --ep-font-weight-light: 300;
+  --ep-font-weight-regular: 400;
+  --ep-font-weight-medium: 500;
+  --ep-font-weight-semi-bold: 600;
+  --ep-font-weight-bold: 700;
+  --ep-font-weight-900: 900;
+
+  /* Border Radius */
+  --ep-border-radius-xs: .125rem;
+  --ep-border-radius-s: .25rem;
+  --ep-border-radius-m: .375rem;
+  --ep-border-radius-l: .5rem;
+  --ep-border-radius-xl: .625rem;
+  --ep-border-radius-xxl: .75rem;
+  --ep-border-radius-xxxl: 1rem;
+  --ep-border-radius-infinity: 624.9375rem;
+  --ep-border-radius-surface-small: .75rem;
+  --ep-border-radius-surface-default: .375rem;
+  --ep-border-radius-surface-large: 1rem;
+  --ep-border-radius-medium: .5rem;
+
+  /* EP Spacing Values */
+  --ep-values-2: .125rem;
+  --ep-values-4: .25rem;
+  --ep-values-6: .375rem;
+  --ep-values-8: .5rem;
+  --ep-values-10: .625rem;
+  --ep-values-12: .75rem;
+  --ep-values-14: .875rem;
+  --ep-values-16: 1rem;
+  --ep-values-18: 1.125rem;
+  --ep-values-20: 1.25rem;
+  --ep-values-24: 1.5rem;
+  --ep-values-32: 2rem;
+  --ep-values-36: 2.25rem;
+  --ep-values-70: 4.375rem;
+  --ep-values-200: 12.5rem;
+  --ep-values-400: 25rem;
+  --ep-values-600: 37.5rem;
+  --ep-values-700: 43.75rem;
+  --ep-values-900: 56.25rem;
+
+  /* EP Size Aliases */
+  --ep-size-xs: .625rem;
+  --ep-size-s: .75rem;
+  --ep-size-m: .875rem;
+  --ep-size-l: 1rem;
+
+  /* ═══════════════════════════════════════════════
+     EP Color System — Default (blue-default)
+     ═══════════════════════════════════════════════ */
+
+  /* Text Colors */
+  --ep-color-text-default: #D5E0F5;
+  --ep-color-text-default-2: #D5E0F5;
+  --ep-color-text-weaker: rgba(213,224,245,.6);
+  --ep-color-text-weak: rgba(213,224,245,.8);
+  --ep-color-text-weakest: rgba(213,224,245,.4);
+  --ep-color-text-selected: #18AAFF;
+  --ep-color-text-inverse: #0E1E3D;
+  --ep-color-text-inverse-disabled: rgba(213,224,245,.4);
+  --ep-color-text-highlight: #FE963B;
+  --ep-color-text-highlight-white: #FFFFFF;
+  --ep-color-text-highlight-white-weak: rgba(255,255,255,.8);
+  --ep-color-text-highlight-white-weaker: rgba(255,255,255,.6);
+  --ep-color-text-warning: #FA8313;
+  --ep-color-text-success: #17C964;
+  --ep-color-text-info: #18AAFF;
+  --ep-color-text-danger: #F5222D;
+  --ep-color-text-brand-primary: #18AAFF;
+  --ep-color-text-navigation-default: rgba(213,224,245,.6);
+  --ep-color-text-navigation-selected: #18AAFF;
+  --ep-color-text-default-secondary: rgba(213,224,245,.6);
+
+  /* Background Colors */
+  --ep-color-background-fill-body-default: #0E1E3D;
+  --ep-color-background-fill-surface-raised-L1: #18254E;
+  --ep-color-background-fill-surface-raised-L2: #1D2A55;
+  --ep-color-background-fill-surface-lowered: #142044;
+  --ep-color-background-fill-tips: #0A77DA;
+  --ep-color-background-fill-top-nav-primary: #142044;
+  --ep-color-background-fill-top-nav-secondary: #18254E;
+  --ep-color-background-fill-foot-bar: #18254E;
+  --ep-color-background-fill-active-primary: #18AAFF;
+  --ep-color-background-fill-active-disabled: rgba(24,170,255,.4);
+  --ep-color-background-fill-active-active: #0A77DA;
+  --ep-color-background-fill-glow-primary-opacity-40: rgba(24,170,255,.4);
+  --ep-color-background-fill-glow-primary-opacity-100: #18AAFF;
+  --ep-color-background-fill-glow-secondary-opacity-40: rgba(143,255,245,.6);
+  --ep-color-background-fill-btn-level-2-bg: rgba(24,170,255,.15);
+  --ep-color-background-fill-btn-level-3-bg: rgba(24,170,255,.08);
+
+  /* Gradient Colors */
+  --ep-color-background-fill-gradients-primary-a: #18AAFF;
+  --ep-color-background-fill-gradients-primary-b: #0A77DA;
+  --ep-color-background-fill-gradients-secondary-a: #AB63FF;
+  --ep-color-background-fill-gradients-secondary-b: #8200ED;
+  --ep-color-background-fill-gradients-tertiary-a: #18AAFF;
+  --ep-color-background-fill-gradients-tertiary-b: #8FF5F5;
+  --ep-color-background-fill-gradients-tertiary-weak-a: #18AAFF;
+  --ep-color-background-fill-gradients-tertiary-weak-b: rgba(143,255,245,.4);
+
+  /* Border Colors */
+  --ep-color-border-default: rgba(213,224,245,.1);
+  --ep-color-border-highlight: #FE963B;
+  --ep-color-border-highlight-white: rgba(255,255,255,.2);
+  --ep-color-border-selected: #18AAFF;
+  --ep-color-border-success: #17C964;
+  --ep-color-border-brand: #0A77DA;
+  --ep-color-border-warning: #FA8313;
+  --ep-color-border-danger: #F5222D;
+
+  /* Icon Colors */
+  --ep-color-icon-inverse: #FFFFFF;
+  --ep-color-icon-weaker: rgba(213,224,245,.4);
+  --ep-color-icon-default: rgba(213,224,245,.8);
+  --ep-color-icon-brand-primary: #18AAFF;
+  --ep-color-icon-brand-secondary: #AB63FF;
+  --ep-color-icon-danger: #F5222D;
+  --ep-color-icon-highlight: #FE963B;
+  --ep-color-icon-info: #18AAFF;
+  --ep-color-icon-selected: #18AAFF;
+  --ep-color-icon-success: #17C964;
+  --ep-color-icon-warning: #FA8313;
+  --ep-color-icon-tips: #0A77DA;
+  --ep-color-icon-highlight-white: #FFFFFF;
+  --ep-color-icon-navigation-default: rgba(213,224,245,.6);
+  --ep-color-icon-navigation-selected: #18AAFF;
+  --ep-color-icon-inverse-disabled: rgba(213,224,245,.4);
+
+  /* Neutral Colors */
+  --ep-neutral-black-black-10: rgba(0,0,0,.1);
+  --ep-neutral-black-black-40: rgba(0,0,0,.4);
+  --ep-neutral-black-black-60: rgba(0,0,0,.6);
+  --ep-neutral-black-black-80: rgba(0,0,0,.8);
+  --ep-neutral-black-black-100: #000000;
+  --ep-neutral-white-white-10: rgba(255,255,255,.1);
+  --ep-neutral-white-white-20: rgba(255,255,255,.2);
+  --ep-neutral-white-white-60: rgba(255,255,255,.6);
+  --ep-neutral-white-white-70: rgba(255,255,255,.7);
+  --ep-neutral-white-white-80: rgba(255,255,255,.8);
+  --ep-neutral-white-white-90: rgba(255,255,255,.9);
+  --ep-neutral-white-white-100: #FFFFFF;
+  --ep-neutral-transparent: transparent;
+
+  /* Neutral Gray Scale */
+  --ep-neutral-gray-gray-L01: #F5F5F5;
+  --ep-neutral-gray-gray-L02: #E8E8E8;
+  --ep-neutral-gray-gray-L03: #D9D9D9;
+  --ep-neutral-gray-gray-L04: #BFBFBF;
+  --ep-neutral-gray-gray-L05: #8C8C8C;
+  --ep-neutral-gray-gray-L06: #595959;
+  --ep-neutral-gray-gray-L07: #434343;
+  --ep-neutral-gray-gray-L08: #262626;
+  --ep-neutral-gray-gray-L09: #1F1F1F;
+  --ep-neutral-gray-gray-L10: #141414;
+
+  /* Dynamic */
+  --ep-dynamic-primary: linear-gradient(90deg, var(--ep-color-background-fill-gradients-primary-a) -27.5%, var(--ep-color-background-fill-gradients-primary-b) 127.5%);
+  --ep-dynamic-secondary: linear-gradient(90deg, var(--ep-color-background-fill-gradients-secondary-a) 0%, var(--ep-color-background-fill-gradients-secondary-b) 118.75%);
+  --ep-dynamic-tertiary: linear-gradient(180deg, var(--ep-color-background-fill-gradients-tertiary-a) 0%, var(--ep-color-background-fill-gradients-tertiary-b) 100%);
+  --ep-dynamic-tertiary-weak: linear-gradient(90deg, var(--ep-color-background-fill-gradients-tertiary-weak-a) 0%, var(--ep-color-background-fill-gradients-tertiary-weak-b) 118.75%);
+
+  /* Accent Colors */
+  --ep-accent-green: #17C964;
+  --ep-accent-blue: #18AAFF;
+  --ep-light-accent-color-orange: #FE963B;
+  --ep-light-accent-color-red: #F5222D;
+  --ep-primary-primary-500: #18AAFF;
+  --ep-primary-primary-800: #0A77DA;
+  --ep-inverse-inverse-500: #0E1E3D;
+  --ep-secondary-secondary-600: #8200ED;
+  --ep-color-bg-brand-secondary: #AB63FF;
+  --ep-color-progress-bar-pivot: #18AAFF;
+
+  /* Compat */
+  --ep-compat-color-text-default: var(--ep-color-text-default);
+  --ep-compat-color-text-selected: var(--ep-color-text-selected);
+  --ep-compat-color-border-default: var(--ep-color-border-default);
+  --ep-compat-color-border-selected: var(--ep-color-border-selected);
+  --ep-compat-color-background-fill-active-primary: var(--ep-color-background-fill-active-primary);
+  --ep-compat-color-background-fill-active-disabled: var(--ep-color-background-fill-active-disabled);
+  --ep-compat-color-background-fill-body-default: var(--ep-color-background-fill-body-default);
+  --ep-compat-color-background-fill-surface-raised-L1: var(--ep-color-background-fill-surface-raised-L1);
+  --ep-compat-color-background-fill-surface-raised-L2: var(--ep-color-background-fill-surface-raised-L2);
+  --ep-compat-color-background-fill-surface-lowered: var(--ep-color-background-fill-surface-lowered);
+  --ep-compat-color-background-fill-glow-primary-opacity-40: var(--ep-color-background-fill-glow-primary-opacity-40);
+  --ep-compat-color-background-fill-top-nav-secondary: var(--ep-color-background-fill-top-nav-secondary);
+
+  /* ═══════════════════════════════════════════════
+     Legacy Design Tokens
+     ═══════════════════════════════════════════════ */
+
+  /* Background Scale */
+  --color-bg-50: #0b1628;
+  --color-bg-100: #0E1E3D;
+  --color-bg-200: #142044;
+  --color-bg-300: #18254E;
+  --color-bg-400: #1D2A55;
+  --color-bg-500: #1D2A55;
+  --color-bg-600: #253566;
+  --color-bg-700: #2D4077;
+  --color-bg-800: #364B88;
+  --color-bg-900: #3F5699;
+  --color-bg-1100: #0E1E3D;
+  --color-bg-1200: #18254E;
+  --color-bg-1300: #1D2A55;
+  --color-bg-input: #142044;
+  --color-bg-second: #18254E;
+  --color-bg-fifth: #1D2A55;
+  --color-bg-toast: rgba(0,0,0,.75);
+  --color-screen-bg: #0E1E3D;
+
+  /* Primary Colors */
+  --color-primary-600: #18AAFF;
+  --color-primary-700: #0A77DA;
+  --color-primary-800: #0865B8;
+  --color-primary-900: #065098;
+  --color-primary-btn-active: linear-gradient(90deg, #18AAFF -27.5%, #0A77DA 127.5%);
+  --color-primary-btn-disable: rgba(24,170,255,.4);
+  --color-primary-btn-load: rgba(24,170,255,.6);
+  --color-primary-btn-text-active: #FFFFFF;
+  --color-primary-btn-text-disable: rgba(255,255,255,.4);
+
+  /* Theme Colors */
+  --theme-color-100: rgba(24,170,255,.1);
+  --theme-color-400: rgba(24,170,255,.4);
+  --theme-color-500: rgba(24,170,255,.5);
+  --theme-color-600: #18AAFF;
+  --theme-color-700: #0A77DA;
+  --theme-color-800: #18AAFF;
+  --theme-color-800-2: #0A77DA;
+  --theme-color-900: #065098;
+  --theme-color-gradient-100: linear-gradient(90deg, #18AAFF -27.5%, #0A77DA 127.5%);
+  --theme-color-gradient-500: linear-gradient(90deg, #18AAFF -27.5%, #0A77DA 127.5%);
+
+  /* Text Colors */
+  --color-text-100: #D5E0F5;
+  --color-text-80: rgba(213,224,245,.8);
+  --color-text-60: rgba(213,224,245,.6);
+  --color-text-50: rgba(213,224,245,.5);
+  --color-text-40: rgba(213,224,245,.4);
+  --color-text-20: rgba(213,224,245,.2);
+  --color-text-basic: #D5E0F5;
+  --color-text-emphasis: #FFFFFF;
+  --color-text-second: rgba(213,224,245,.6);
+  --color-text-third: rgba(213,224,245,.4);
+  --color-text-btn-basic: #FFFFFF;
+  --color-text-option-basic: rgba(213,224,245,.6);
+  --color-text-option-active: #18AAFF;
+  --color-text-input-basic: #D5E0F5;
+  --color-text-input-placeholder: rgba(213,224,245,.4);
+
+  --text-color-white-100: #FFFFFF;
+  --text-color-white-80: rgba(255,255,255,.8);
+  --text-color-white-60: rgba(255,255,255,.6);
+  --text-color-white-40: rgba(255,255,255,.4);
+  --text-color-white-20: rgba(255,255,255,.2);
+  --text-color-black-100: #000000;
+  --text-color-black-80: rgba(0,0,0,.8);
+  --text-color-black-60: rgba(0,0,0,.6);
+  --text-color-black-40: rgba(0,0,0,.4);
+  --text-color-black-20: rgba(0,0,0,.2);
+
+  /* Semantic Colors */
+  --color-currency: #FE963B;
+  --color-warning: #FA8313;
+  --color-danger: #F5222D;
+  --color-link: #18AAFF;
+  --color-success: #17C964;
+  --color-line: rgba(213,224,245,.1);
+  --color-border: rgba(213,224,245,.1);
+  --color-border-400: rgba(213,224,245,.08);
+  --color-border-500: rgba(213,224,245,.1);
+  --color-border-600: rgba(213,224,245,.15);
+  --color-border-input-basic: rgba(213,224,245,.1);
+
+  /* Accent */
+  --accent-color-orange: #FE963B;
+  --accent-color-orange-1: #FA8313;
+  --accent-color-orange-2: #D96F0A;
+  --accent-color-orange-3: #B85C08;
+  --accent-color-yellow: #FFC41A;
+  --accent-color-yellow-1: #FFD700;
+
+  /* Functional */
+  --ion-color-primary: #18AAFF;
+  --color-report-selected: #18AAFF;
+  --color-activity-selected: #18AAFF;
+  --color-menu-btn-bg: rgba(24,170,255,.15);
+  --color-card-bg-200: #1D2A55;
+  --color-checkbox-bg: rgba(24,170,255,.15);
+  --color-checkbox-border: #18AAFF;
+  --color-bar-bg: #18254E;
+
+  /* Button Gradients */
+  --color-btn-gradient-footer: linear-gradient(90deg, #18AAFF -27.5%, #0A77DA 127.5%);
+  --color-btn-gradient-basic: linear-gradient(90deg, #18AAFF -27.5%, #0A77DA 127.5%);
+  --color-btn-gradient-claim: linear-gradient(90deg, #18AAFF -27.5%, #0A77DA 127.5%);
+  --color-btn-gradient-claimUnable: rgba(24,170,255,.4);
+  --button-bg-color-shade: #0A77DA;
+  --button-bg-color-tint: #18AAFF;
+  --button-left-bg-color-shade: rgba(24,170,255,.3);
+  --button-left-bg-color-tint: rgba(24,170,255,.15);
+  --button-right-bg-color-shade: #0A77DA;
+  --button-right-bg-color-tint: #18AAFF;
+
+  /* Report / Record */
+  --report-select-item-border-color: rgba(213,224,245,.1);
+  --report-select-item-bg: #1D2A55;
+  --report-select-item-color: rgba(213,224,245,.6);
+  --report-selected-item-bg: #18AAFF;
+  --report-selected-item-color: #FFFFFF;
+  --report-record-item-bg: #1D2A55;
+  --report-record-item-radius: .375rem;
+  --report-select-border-color: rgba(213,224,245,.1);
+  --report-selected-border-color: #18AAFF;
+  --report-selected-text-color: #18AAFF;
+  --report-recond-item-bg-color: #1D2A55;
+  --activity-record-select-item-bg: #1D2A55;
+  --activity-record-select-item-color: rgba(213,224,245,.6);
+  --activity-record-selected-item-bg: #18AAFF;
+  --money-text-color: #FE963B;
+  --mlm-selected-text-color: #18AAFF;
+
+  /* Sign-in / Checkin */
+  --sign-default-footer-btn-bg: linear-gradient(90deg, #18AAFF -27.5%, #0A77DA 127.5%);
+
+  /* Rounded */
+  --rounded-small: .25rem;
+  --rounded-middle: .5rem;
+  --rounded-large: .75rem;
+  --rounded-small-b: .25rem;
+  --rounded-middle-b: .5rem;
+  --rounded-middle-t: .5rem;
+  --rounded-large-b: .75rem;
+  --rounded-button-tab: .5rem;
+  --rounded-segment: .375rem;
+  --rounded-card-game: .5rem;
+
+  /* Font Weights */
+  --font-weight-bold: 700;
+  --font-weight-medium: 500;
+  --font-weight-regular: 400;
+
+  /* Font Sizes */
+  --font-size-10: .625rem;
+  --font-size-12: .75rem;
+  --font-size-14: .875rem;
+  --font-size-16: 1rem;
+  --font-size-18: 1.125rem;
+  --font-size-20: 1.25rem;
+
+  /* VIP */
+  --color-vip-text: #D5E0F5;
+  --color-vip-active-bg: #18AAFF;
+  --color-vip-disable-bg: #1D2A55;
+  --color-vip-enable-text: #FFFFFF;
+  --color-vip-disable-text: rgba(213,224,245,.4);
+  --progress-base-bg: rgba(213,224,245,.1);
+  --progress-bg: #18AAFF;
+  --color-bg-progress: rgba(213,224,245,.1);
+
+  /* Gradients */
+  --gradient-primary: linear-gradient(90deg, #18AAFF -27.5%, #0A77DA 127.5%);
+  --gradient-gold: linear-gradient(180deg, #fde68a 0%, #f59e0b 100%);
+  --gradient-green: linear-gradient(135deg, #17C964 0%, #0D9E4F 100%);
+  --gradient-danger: linear-gradient(135deg, #F5222D 0%, #CF1322 100%);
+  --gradients-indicatorLine: linear-gradient(90deg, var(--ep-color-background-fill-gradients-primary-a) -27.5%, var(--ep-color-background-fill-gradients-primary-b) 127.5%);
+  --gradients-disabled-btn-bg: rgba(24,170,255,.4);
+
+  /* Layout */
+  --tab-bar-height: 3.375rem;
+  --tab-height: 54px;
+  --header-height: 48px;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --max-width: 480px;
+
+  /* Radius */
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-full: 9999px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+  --shadow-glow: 0 4px 20px rgba(24, 170, 255, 0.3);
+
+  /* Typography */
+  --font-family: 'Inter', 'Prompt', -apple-system, 'Helvetica Neue', sans-serif;
+  --font-display: 'Prompt', 'Inter', sans-serif;
+  --font-mono: 'Share Tech', 'Roboto Mono', monospace;
+
+  /* Transitions */
+  --transition: 0.2s ease;
+  --transition-slow: 0.4s ease;
+  --transition-spring: 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* Z-index scale */
+  --z-drawer: 10000;
+  --z-modal: 10001;
+  --z-toast: 10002;
+  --z-float: 9999;
+
+  /* Swiper */
+  --swiper-border-radius: .5rem;
+  --swiper-height: 10rem;
+  --swiper-padding: .75rem;
+
+  /* Home Specific */
+  --home-fadeToTransparent-form-color: #0E1E3D;
+  --home-fadeToTransparent-to-color: transparent;
+  --home-currency-text-color: #FE963B;
+
+  /* Game Search */
+  --game-searchbar-bg: #142044;
+  --game-searchbar-placeholder: rgba(213,224,245,.4);
+  --game-searchbar-border-color: rgba(213,224,245,.1);
+
+  /* Input */
+  --input-highlight-color: #18AAFF;
+
+  /* Activity */
+  --activity-unclaim-tint-bg-color: rgba(24,170,255,.15);
+  --activity-unclaim-shade-bg-color: rgba(24,170,255,.08);
+  --color-activity-time: rgba(213,224,245,.6);
+  --color-activity-footer-bg: #18254E;
+  --color-activity-footer-rule: rgba(213,224,245,.6);
+
+  /* Header/Footer Dynamic */
+  --header-dynamic-bg: #142044;
+  --footer-dynamic-bg: #18254E;
+}

@@ -1,0 +1,568 @@
+/* ═══════════════════════════════════════════════
+   Theme Definitions
+   Each theme overrides the EP + legacy tokens
+   ═══════════════════════════════════════════════ */
+
+/* ── blue-default (base/default — already in :root) ── */
+[data-theme="blue-default"] {
+  --ep-color-background-fill-body-default: #0E1E3D;
+  --ep-color-background-fill-surface-raised-L1: #18254E;
+  --ep-color-background-fill-surface-raised-L2: #1D2A55;
+  --ep-color-background-fill-surface-lowered: #142044;
+  --ep-color-background-fill-active-primary: #18AAFF;
+  --ep-color-text-default: #D5E0F5;
+  --ep-color-text-selected: #18AAFF;
+  --ep-color-text-brand-primary: #18AAFF;
+  --ep-color-border-default: rgba(213,224,245,.1);
+  --ep-color-icon-brand-primary: #18AAFF;
+}
+
+/* ── green-default ── */
+[data-theme="green-default"] {
+  --ep-color-background-fill-body-default: #0A1F12;
+  --ep-color-background-fill-surface-raised-L1: #122D1C;
+  --ep-color-background-fill-surface-raised-L2: #183824;
+  --ep-color-background-fill-surface-lowered: #0E2516;
+  --ep-color-background-fill-tips: #15A650;
+  --ep-color-background-fill-top-nav-primary: #0E2516;
+  --ep-color-background-fill-top-nav-secondary: #122D1C;
+  --ep-color-background-fill-foot-bar: #122D1C;
+  --ep-color-background-fill-active-primary: #1BD760;
+  --ep-color-background-fill-active-disabled: rgba(27,215,96,.4);
+  --ep-color-background-fill-active-active: #15A650;
+  --ep-color-background-fill-glow-primary-opacity-40: rgba(27,215,96,.4);
+  --ep-color-background-fill-gradients-primary-a: #1BD760;
+  --ep-color-background-fill-gradients-primary-b: #15A650;
+  --ep-color-background-fill-gradients-secondary-a: #63FF8A;
+  --ep-color-background-fill-gradients-secondary-b: #00B341;
+  --ep-color-background-fill-gradients-tertiary-a: #1BD760;
+  --ep-color-background-fill-gradients-tertiary-b: #8FF5B0;
+  --ep-color-text-default: #D5F0E0;
+  --ep-color-text-selected: #1BD760;
+  --ep-color-text-brand-primary: #1BD760;
+  --ep-color-text-inverse: #0A1F12;
+  --ep-color-border-default: rgba(213,240,224,.1);
+  --ep-color-border-selected: #1BD760;
+  --ep-color-border-brand: #15A650;
+  --ep-color-icon-brand-primary: #1BD760;
+  --ep-color-icon-brand-secondary: #63FF8A;
+  --ep-color-icon-selected: #1BD760;
+
+  --color-bg-100: #0A1F12;
+  --color-bg-300: #122D1C;
+  --color-bg-400: #183824;
+  --color-bg-input: #0E2516;
+  --color-bg-second: #122D1C;
+  --color-screen-bg: #0A1F12;
+  --color-primary-600: #1BD760;
+  --color-primary-700: #15A650;
+  --theme-color-600: #1BD760;
+  --theme-color-700: #15A650;
+  --theme-color-800: #1BD760;
+  --ion-color-primary: #1BD760;
+  --gradient-primary: linear-gradient(90deg, #1BD760 -27.5%, #15A650 127.5%);
+  --header-dynamic-bg: #0E2516;
+  --footer-dynamic-bg: #122D1C;
+  --shadow-glow: 0 4px 20px rgba(27,215,96,.3);
+}
+
+/* ── green-dark ── */
+[data-theme="green-dark"] {
+  --ep-color-background-fill-body-default: #0D1A0F;
+  --ep-color-background-fill-surface-raised-L1: #152619;
+  --ep-color-background-fill-surface-raised-L2: #1B3020;
+  --ep-color-background-fill-surface-lowered: #112014;
+  --ep-color-background-fill-active-primary: #22C55E;
+  --ep-color-background-fill-gradients-primary-a: #22C55E;
+  --ep-color-background-fill-gradients-primary-b: #16A34A;
+  --ep-color-text-default: #D1ECD9;
+  --ep-color-text-selected: #22C55E;
+  --ep-color-text-brand-primary: #22C55E;
+  --ep-color-border-default: rgba(209,236,217,.1);
+  --ep-color-icon-brand-primary: #22C55E;
+
+  --color-bg-100: #0D1A0F;
+  --color-bg-300: #152619;
+  --color-bg-400: #1B3020;
+  --color-bg-input: #112014;
+  --color-screen-bg: #0D1A0F;
+  --color-primary-600: #22C55E;
+  --theme-color-600: #22C55E;
+  --ion-color-primary: #22C55E;
+  --gradient-primary: linear-gradient(90deg, #22C55E -27.5%, #16A34A 127.5%);
+  --header-dynamic-bg: #112014;
+  --footer-dynamic-bg: #152619;
+  --shadow-glow: 0 4px 20px rgba(34,197,94,.3);
+}
+
+/* ── amber-purple ── */
+[data-theme="amber-purple"] {
+  --ep-color-background-fill-body-default: #1A0F2E;
+  --ep-color-background-fill-surface-raised-L1: #241645;
+  --ep-color-background-fill-surface-raised-L2: #2D1B55;
+  --ep-color-background-fill-surface-lowered: #1F1238;
+  --ep-color-background-fill-active-primary: #F5C84C;
+  --ep-color-background-fill-active-disabled: rgba(245,200,76,.4);
+  --ep-color-background-fill-gradients-primary-a: #F5C84C;
+  --ep-color-background-fill-gradients-primary-b: #7041F3;
+  --ep-color-background-fill-gradients-secondary-a: #F5C84C;
+  --ep-color-background-fill-gradients-secondary-b: #7041F3;
+  --ep-color-text-default: #E8DFF5;
+  --ep-color-text-selected: #F5C84C;
+  --ep-color-text-brand-primary: #F5C84C;
+  --ep-color-text-inverse: #1A0F2E;
+  --ep-color-border-default: rgba(232,223,245,.1);
+  --ep-color-border-selected: #F5C84C;
+  --ep-color-icon-brand-primary: #F5C84C;
+  --ep-color-icon-brand-secondary: #7041F3;
+
+  --color-bg-100: #1A0F2E;
+  --color-bg-300: #241645;
+  --color-bg-400: #2D1B55;
+  --color-bg-input: #1F1238;
+  --color-screen-bg: #1A0F2E;
+  --color-primary-600: #F5C84C;
+  --theme-color-600: #F5C84C;
+  --theme-color-800: #F5C84C;
+  --ion-color-primary: #F5C84C;
+  --gradient-primary: linear-gradient(270deg, #7041F3 0%, #F5C84C 130.92%);
+  --header-dynamic-bg: #1F1238;
+  --footer-dynamic-bg: #241645;
+  --shadow-glow: 0 4px 20px rgba(245,200,76,.3);
+}
+
+/* ── phantom-blue ── */
+[data-theme="phantom-blue"] {
+  --ep-color-background-fill-body-default: #080E1F;
+  --ep-color-background-fill-surface-raised-L1: #0C1529;
+  --ep-color-background-fill-surface-raised-L2: #142240;
+  --ep-color-background-fill-surface-lowered: #0A1224;
+  --ep-color-background-fill-active-primary: #6366F1;
+  --ep-color-background-fill-gradients-primary-a: #818CF8;
+  --ep-color-background-fill-gradients-primary-b: #4F46E5;
+  --ep-color-text-default: #D0D5F0;
+  --ep-color-text-selected: #818CF8;
+  --ep-color-text-brand-primary: #818CF8;
+  --ep-color-border-default: rgba(208,213,240,.1);
+  --ep-color-icon-brand-primary: #818CF8;
+
+  --color-bg-100: #080E1F;
+  --color-bg-300: #0C1529;
+  --color-bg-400: #142240;
+  --color-bg-input: #0A1224;
+  --color-screen-bg: #080E1F;
+  --color-primary-600: #6366F1;
+  --theme-color-600: #818CF8;
+  --ion-color-primary: #6366F1;
+  --gradient-primary: linear-gradient(90deg, #818CF8 -27.5%, #4F46E5 127.5%);
+  --header-dynamic-bg: #0A1224;
+  --footer-dynamic-bg: #0C1529;
+  --shadow-glow: 0 4px 20px rgba(99,102,241,.3);
+}
+
+/* ── neo-blue ── */
+[data-theme="neo-blue"] {
+  --ep-color-background-fill-body-default: #0A1628;
+  --ep-color-background-fill-surface-raised-L1: #0F1D32;
+  --ep-color-background-fill-surface-raised-L2: #162544;
+  --ep-color-background-fill-surface-lowered: #0D1A2E;
+  --ep-color-background-fill-active-primary: #3B82F6;
+  --ep-color-background-fill-gradients-primary-a: #60A5FA;
+  --ep-color-background-fill-gradients-primary-b: #2563EB;
+  --ep-color-text-default: #D0DFFA;
+  --ep-color-text-selected: #60A5FA;
+  --ep-color-text-brand-primary: #60A5FA;
+  --ep-color-border-default: rgba(208,223,250,.1);
+  --ep-color-icon-brand-primary: #60A5FA;
+
+  --color-bg-100: #0A1628;
+  --color-bg-300: #0F1D32;
+  --color-bg-400: #162544;
+  --color-bg-input: #0D1A2E;
+  --color-screen-bg: #0A1628;
+  --color-primary-600: #3B82F6;
+  --theme-color-600: #60A5FA;
+  --ion-color-primary: #3B82F6;
+  --gradient-primary: linear-gradient(90deg, #60A5FA -27.5%, #2563EB 127.5%);
+  --header-dynamic-bg: #0D1A2E;
+  --footer-dynamic-bg: #0F1D32;
+  --shadow-glow: 0 4px 20px rgba(59,130,246,.3);
+}
+
+/* ── golden-emerald ── */
+[data-theme="golden-emerald"] {
+  --ep-color-background-fill-body-default: #0A1A0F;
+  --ep-color-background-fill-surface-raised-L1: #0F2818;
+  --ep-color-background-fill-surface-raised-L2: #163420;
+  --ep-color-background-fill-surface-lowered: #0D2014;
+  --ep-color-background-fill-active-primary: #10B981;
+  --ep-color-background-fill-gradients-primary-a: #34D399;
+  --ep-color-background-fill-gradients-primary-b: #059669;
+  --ep-color-text-default: #D0F0E0;
+  --ep-color-text-selected: #34D399;
+  --ep-color-text-brand-primary: #34D399;
+  --ep-color-border-default: rgba(208,240,224,.1);
+  --ep-color-icon-brand-primary: #34D399;
+
+  --color-bg-100: #0A1A0F;
+  --color-bg-300: #0F2818;
+  --color-bg-400: #163420;
+  --color-bg-input: #0D2014;
+  --color-screen-bg: #0A1A0F;
+  --color-primary-600: #10B981;
+  --theme-color-600: #34D399;
+  --ion-color-primary: #10B981;
+  --gradient-primary: linear-gradient(90deg, #34D399 -27.5%, #059669 127.5%);
+  --accent-color-yellow: #FCD34D;
+  --header-dynamic-bg: #0D2014;
+  --footer-dynamic-bg: #0F2818;
+  --shadow-glow: 0 4px 20px rgba(16,185,129,.3);
+}
+
+/* ── midnight-purple ── */
+[data-theme="midnight-purple"] {
+  --ep-color-background-fill-body-default: #090F1F;
+  --ep-color-background-fill-surface-raised-L1: #111827;
+  --ep-color-background-fill-surface-raised-L2: #1F1145;
+  --ep-color-background-fill-surface-lowered: #0D1330;
+  --ep-color-background-fill-active-primary: #A855F7;
+  --ep-color-background-fill-gradients-primary-a: #A855F7;
+  --ep-color-background-fill-gradients-primary-b: #7C22CE;
+  --ep-color-text-default: #E0D5F5;
+  --ep-color-text-selected: #A855F7;
+  --ep-color-text-brand-primary: #A855F7;
+  --ep-color-border-default: rgba(224,213,245,.1);
+  --ep-color-icon-brand-primary: #A855F7;
+
+  --color-bg-100: #090F1F;
+  --color-bg-300: #111827;
+  --color-bg-400: #1F1145;
+  --color-bg-input: #0D1330;
+  --color-screen-bg: #090F1F;
+  --color-primary-600: #A855F7;
+  --theme-color-600: #A855F7;
+  --ion-color-primary: #A855F7;
+  --gradient-primary: linear-gradient(135deg, #A855F7 0%, #7C22CE 100%);
+  --header-dynamic-bg: #0D1330;
+  --footer-dynamic-bg: #111827;
+  --shadow-glow: 0 4px 20px rgba(168,85,247,.3);
+}
+
+/* ── deep-sea-teal ── */
+[data-theme="deep-sea-teal"] {
+  --ep-color-background-fill-body-default: #0A1A1F;
+  --ep-color-background-fill-surface-raised-L1: #0F2830;
+  --ep-color-background-fill-surface-raised-L2: #14343D;
+  --ep-color-background-fill-surface-lowered: #0D2028;
+  --ep-color-background-fill-active-primary: #14B8A6;
+  --ep-color-background-fill-gradients-primary-a: #2DD4BF;
+  --ep-color-background-fill-gradients-primary-b: #0D9488;
+  --ep-color-text-default: #D0F0EB;
+  --ep-color-text-selected: #2DD4BF;
+  --ep-color-text-brand-primary: #2DD4BF;
+  --ep-color-border-default: rgba(208,240,235,.1);
+  --ep-color-icon-brand-primary: #2DD4BF;
+
+  --color-bg-100: #0A1A1F;
+  --color-bg-300: #0F2830;
+  --color-bg-400: #14343D;
+  --color-bg-input: #0D2028;
+  --color-screen-bg: #0A1A1F;
+  --color-primary-600: #14B8A6;
+  --theme-color-600: #2DD4BF;
+  --ion-color-primary: #14B8A6;
+  --gradient-primary: linear-gradient(90deg, #2DD4BF -27.5%, #0D9488 127.5%);
+  --header-dynamic-bg: #0D2028;
+  --footer-dynamic-bg: #0F2830;
+  --shadow-glow: 0 4px 20px rgba(20,184,166,.3);
+}
+
+/* ── stellar-dusk ── */
+[data-theme="stellar-dusk"] {
+  --ep-color-background-fill-body-default: #1A0F1E;
+  --ep-color-background-fill-surface-raised-L1: #261636;
+  --ep-color-background-fill-surface-raised-L2: #301C42;
+  --ep-color-background-fill-surface-lowered: #201230;
+  --ep-color-background-fill-active-primary: #E879F9;
+  --ep-color-background-fill-gradients-primary-a: #E879F9;
+  --ep-color-background-fill-gradients-primary-b: #A21CAF;
+  --ep-color-text-default: #F0D5F5;
+  --ep-color-text-selected: #E879F9;
+  --ep-color-text-brand-primary: #E879F9;
+  --ep-color-border-default: rgba(240,213,245,.1);
+  --ep-color-icon-brand-primary: #E879F9;
+
+  --color-bg-100: #1A0F1E;
+  --color-bg-300: #261636;
+  --color-bg-400: #301C42;
+  --color-bg-input: #201230;
+  --color-screen-bg: #1A0F1E;
+  --color-primary-600: #E879F9;
+  --theme-color-600: #E879F9;
+  --ion-color-primary: #E879F9;
+  --gradient-primary: linear-gradient(90deg, #E879F9 -27.5%, #A21CAF 127.5%);
+  --header-dynamic-bg: #201230;
+  --footer-dynamic-bg: #261636;
+  --shadow-glow: 0 4px 20px rgba(232,121,249,.3);
+}
+
+/* ── prosperity-red ── */
+[data-theme="prosperity-red"] {
+  --ep-color-background-fill-body-default: #1A0D0D;
+  --ep-color-background-fill-surface-raised-L1: #2D1414;
+  --ep-color-background-fill-surface-raised-L2: #3D1B1B;
+  --ep-color-background-fill-surface-lowered: #241010;
+  --ep-color-background-fill-active-primary: #DC2626;
+  --ep-color-background-fill-gradients-primary-a: #EF4444;
+  --ep-color-background-fill-gradients-primary-b: #B91C1C;
+  --ep-color-text-default: #F5D5D5;
+  --ep-color-text-selected: #EF4444;
+  --ep-color-text-brand-primary: #EF4444;
+  --ep-color-border-default: rgba(245,213,213,.1);
+  --ep-color-icon-brand-primary: #EF4444;
+
+  --color-bg-100: #1A0D0D;
+  --color-bg-300: #2D1414;
+  --color-bg-400: #3D1B1B;
+  --color-bg-input: #241010;
+  --color-screen-bg: #1A0D0D;
+  --color-primary-600: #DC2626;
+  --theme-color-600: #EF4444;
+  --ion-color-primary: #DC2626;
+  --gradient-primary: linear-gradient(90deg, #EF4444 -27.5%, #B91C1C 127.5%);
+  --header-dynamic-bg: #241010;
+  --footer-dynamic-bg: #2D1414;
+  --shadow-glow: 0 4px 20px rgba(220,38,38,.3);
+}
+
+/* ── yellow-dark ── */
+[data-theme="yellow-dark"] {
+  --ep-color-background-fill-body-default: #1A1500;
+  --ep-color-background-fill-surface-raised-L1: #2D2400;
+  --ep-color-background-fill-surface-raised-L2: #3D3200;
+  --ep-color-background-fill-surface-lowered: #241C00;
+  --ep-color-background-fill-active-primary: #EAB308;
+  --ep-color-background-fill-gradients-primary-a: #FACC15;
+  --ep-color-background-fill-gradients-primary-b: #CA8A04;
+  --ep-color-text-default: #F5EED5;
+  --ep-color-text-selected: #FACC15;
+  --ep-color-text-brand-primary: #FACC15;
+  --ep-color-border-default: rgba(245,238,213,.1);
+  --ep-color-icon-brand-primary: #FACC15;
+
+  --color-bg-100: #1A1500;
+  --color-bg-300: #2D2400;
+  --color-bg-400: #3D3200;
+  --color-bg-input: #241C00;
+  --color-screen-bg: #1A1500;
+  --color-primary-600: #EAB308;
+  --theme-color-600: #FACC15;
+  --ion-color-primary: #EAB308;
+  --gradient-primary: linear-gradient(90deg, #FACC15 -27.5%, #CA8A04 127.5%);
+  --header-dynamic-bg: #241C00;
+  --footer-dynamic-bg: #2D2400;
+  --shadow-glow: 0 4px 20px rgba(234,179,8,.3);
+}
+
+/* ── purple-light ── */
+[data-theme="purple-light"] {
+  --ep-color-background-fill-body-default: #12082A;
+  --ep-color-background-fill-surface-raised-L1: #1C0E42;
+  --ep-color-background-fill-surface-raised-L2: #251455;
+  --ep-color-background-fill-surface-lowered: #170B35;
+  --ep-color-background-fill-active-primary: #9333EA;
+  --ep-color-background-fill-gradients-primary-a: #A855F7;
+  --ep-color-background-fill-gradients-primary-b: #7E22CE;
+  --ep-color-text-default: #E5D5F5;
+  --ep-color-text-selected: #C084FC;
+  --ep-color-text-brand-primary: #C084FC;
+  --ep-color-border-default: rgba(229,213,245,.1);
+  --ep-color-icon-brand-primary: #C084FC;
+
+  --color-bg-100: #12082A;
+  --color-bg-300: #1C0E42;
+  --color-bg-400: #251455;
+  --color-bg-input: #170B35;
+  --color-screen-bg: #12082A;
+  --color-primary-600: #9333EA;
+  --theme-color-600: #C084FC;
+  --ion-color-primary: #9333EA;
+  --gradient-primary: linear-gradient(90deg, #A855F7 -27.5%, #7E22CE 127.5%);
+  --header-dynamic-bg: #170B35;
+  --footer-dynamic-bg: #1C0E42;
+  --shadow-glow: 0 4px 20px rgba(147,51,234,.3);
+}
+
+/* ── forest-green ── */
+[data-theme="forest-green"] {
+  --ep-color-background-fill-body-default: #0A160D;
+  --ep-color-background-fill-surface-raised-L1: #132218;
+  --ep-color-background-fill-surface-raised-L2: #1A2E20;
+  --ep-color-background-fill-surface-lowered: #0E1C12;
+  --ep-color-background-fill-active-primary: #16A34A;
+  --ep-color-background-fill-gradients-primary-a: #22C55E;
+  --ep-color-background-fill-gradients-primary-b: #15803D;
+  --ep-color-text-default: #D0ECD8;
+  --ep-color-text-selected: #22C55E;
+  --ep-color-text-brand-primary: #22C55E;
+  --ep-color-border-default: rgba(208,236,216,.1);
+  --ep-color-icon-brand-primary: #22C55E;
+
+  --color-bg-100: #0A160D;
+  --color-bg-300: #132218;
+  --color-bg-400: #1A2E20;
+  --color-bg-input: #0E1C12;
+  --color-screen-bg: #0A160D;
+  --color-primary-600: #16A34A;
+  --theme-color-600: #22C55E;
+  --ion-color-primary: #16A34A;
+  --gradient-primary: linear-gradient(90deg, #22C55E -27.5%, #15803D 127.5%);
+  --header-dynamic-bg: #0E1C12;
+  --footer-dynamic-bg: #132218;
+  --shadow-glow: 0 4px 20px rgba(22,163,74,.3);
+}
+
+/* ── supreme-green ── */
+[data-theme="supreme-green"] {
+  --ep-color-background-fill-body-default: #071A0B;
+  --ep-color-background-fill-surface-raised-L1: #0E2A14;
+  --ep-color-background-fill-surface-raised-L2: #14381C;
+  --ep-color-background-fill-surface-lowered: #0B2010;
+  --ep-color-background-fill-active-primary: #15DF7F;
+  --ep-color-background-fill-gradients-primary-a: #15DF7F;
+  --ep-color-background-fill-gradients-primary-b: #0BAF5C;
+  --ep-color-text-default: #D0F5E0;
+  --ep-color-text-selected: #15DF7F;
+  --ep-color-text-brand-primary: #15DF7F;
+  --ep-color-border-default: rgba(208,245,224,.1);
+  --ep-color-icon-brand-primary: #15DF7F;
+
+  --color-bg-100: #071A0B;
+  --color-bg-300: #0E2A14;
+  --color-bg-400: #14381C;
+  --color-bg-input: #0B2010;
+  --color-screen-bg: #071A0B;
+  --color-primary-600: #15DF7F;
+  --theme-color-600: #15DF7F;
+  --ion-color-primary: #15DF7F;
+  --gradient-primary: linear-gradient(90deg, #15DF7F -27.5%, #0BAF5C 127.5%);
+  --header-dynamic-bg: #0B2010;
+  --footer-dynamic-bg: #0E2A14;
+  --shadow-glow: 0 4px 20px rgba(21,223,127,.3);
+}
+
+/* ── auroral-yellow ── */
+[data-theme="auroral-yellow"] {
+  --ep-color-background-fill-body-default: #1A150A;
+  --ep-color-background-fill-surface-raised-L1: #2D2410;
+  --ep-color-background-fill-surface-raised-L2: #3D3216;
+  --ep-color-background-fill-surface-lowered: #241C0D;
+  --ep-color-background-fill-active-primary: #FFD700;
+  --ep-color-background-fill-gradients-primary-a: #FFE500;
+  --ep-color-background-fill-gradients-primary-b: #D4A800;
+  --ep-color-text-default: #F5EDD5;
+  --ep-color-text-selected: #FFD700;
+  --ep-color-text-brand-primary: #FFD700;
+  --ep-color-border-default: rgba(245,237,213,.1);
+  --ep-color-icon-brand-primary: #FFD700;
+
+  --color-bg-100: #1A150A;
+  --color-bg-300: #2D2410;
+  --color-bg-400: #3D3216;
+  --color-bg-input: #241C0D;
+  --color-screen-bg: #1A150A;
+  --color-primary-600: #FFD700;
+  --theme-color-600: #FFD700;
+  --ion-color-primary: #FFD700;
+  --gradient-primary: linear-gradient(90deg, #FFE500 -27.5%, #D4A800 127.5%);
+  --header-dynamic-bg: #241C0D;
+  --footer-dynamic-bg: #2D2410;
+  --shadow-glow: 0 4px 20px rgba(255,215,0,.3);
+}
+
+/* ── mystlight-blue ── */
+[data-theme="mystlight-blue"] {
+  --ep-color-background-fill-body-default: #0A0F1E;
+  --ep-color-background-fill-surface-raised-L1: #101830;
+  --ep-color-background-fill-surface-raised-L2: #162042;
+  --ep-color-background-fill-surface-lowered: #0D1328;
+  --ep-color-background-fill-active-primary: #38BDF8;
+  --ep-color-background-fill-gradients-primary-a: #7DD3FC;
+  --ep-color-background-fill-gradients-primary-b: #0284C7;
+  --ep-color-text-default: #D5E8F5;
+  --ep-color-text-selected: #38BDF8;
+  --ep-color-text-brand-primary: #38BDF8;
+  --ep-color-border-default: rgba(213,232,245,.1);
+  --ep-color-icon-brand-primary: #38BDF8;
+
+  --color-bg-100: #0A0F1E;
+  --color-bg-300: #101830;
+  --color-bg-400: #162042;
+  --color-bg-input: #0D1328;
+  --color-screen-bg: #0A0F1E;
+  --color-primary-600: #38BDF8;
+  --theme-color-600: #38BDF8;
+  --ion-color-primary: #38BDF8;
+  --gradient-primary: linear-gradient(90deg, #7DD3FC -27.5%, #0284C7 127.5%);
+  --header-dynamic-bg: #0D1328;
+  --footer-dynamic-bg: #101830;
+  --shadow-glow: 0 4px 20px rgba(56,189,248,.3);
+}
+
+/* ── goldshine-green ── */
+[data-theme="goldshine-green"] {
+  --ep-color-background-fill-body-default: #0D1A0F;
+  --ep-color-background-fill-surface-raised-L1: #152619;
+  --ep-color-background-fill-surface-raised-L2: #1B3020;
+  --ep-color-background-fill-surface-lowered: #112014;
+  --ep-color-background-fill-active-primary: #F59E0B;
+  --ep-color-background-fill-gradients-primary-a: #FBBF24;
+  --ep-color-background-fill-gradients-primary-b: #D97706;
+  --ep-color-text-default: #D5E8D0;
+  --ep-color-text-selected: #FBBF24;
+  --ep-color-text-brand-primary: #FBBF24;
+  --ep-color-border-default: rgba(213,232,208,.1);
+  --ep-color-icon-brand-primary: #FBBF24;
+
+  --color-bg-100: #0D1A0F;
+  --color-bg-300: #152619;
+  --color-bg-400: #1B3020;
+  --color-bg-input: #112014;
+  --color-screen-bg: #0D1A0F;
+  --color-primary-600: #F59E0B;
+  --theme-color-600: #FBBF24;
+  --ion-color-primary: #F59E0B;
+  --gradient-primary: linear-gradient(90deg, #FBBF24 -27.5%, #D97706 127.5%);
+  --header-dynamic-bg: #112014;
+  --footer-dynamic-bg: #152619;
+  --shadow-glow: 0 4px 20px rgba(245,158,11,.3);
+}
+
+/* ── malt-green ── */
+[data-theme="malt-green"] {
+  --ep-color-background-fill-body-default: #0D1A12;
+  --ep-color-background-fill-surface-raised-L1: #15261B;
+  --ep-color-background-fill-surface-raised-L2: #1B3024;
+  --ep-color-background-fill-surface-lowered: #112016;
+  --ep-color-background-fill-active-primary: #4ADE80;
+  --ep-color-background-fill-gradients-primary-a: #4ADE80;
+  --ep-color-background-fill-gradients-primary-b: #16A34A;
+  --ep-color-text-default: #D0F0DC;
+  --ep-color-text-selected: #4ADE80;
+  --ep-color-text-brand-primary: #4ADE80;
+  --ep-color-border-default: rgba(208,240,220,.1);
+  --ep-color-icon-brand-primary: #4ADE80;
+
+  --color-bg-100: #0D1A12;
+  --color-bg-300: #15261B;
+  --color-bg-400: #1B3024;
+  --color-bg-input: #112016;
+  --color-screen-bg: #0D1A12;
+  --color-primary-600: #4ADE80;
+  --theme-color-600: #4ADE80;
+  --ion-color-primary: #4ADE80;
+  --gradient-primary: linear-gradient(90deg, #4ADE80 -27.5%, #16A34A 127.5%);
+  --header-dynamic-bg: #112016;
+  --footer-dynamic-bg: #15261B;
+  --shadow-glow: 0 4px 20px rgba(74,222,128,.3);
+}

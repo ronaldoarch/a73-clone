@@ -1,0 +1,153 @@
+(function(){
+  if(!window.__APP_CONFIG__||typeof window.__APP_CONFIG__!=="object")window.__APP_CONFIG__={};
+  window.__APP_CONFIG__.apiUrl=location.origin;
+  window.__APP_CONFIG__.wsUrl="";
+  window.__APP_CONFIG__.socketUrl="";
+  var o=window.fetch;
+  var DEMO_TOKEN="a73-local-demo-token";
+  function deepClone(x){try{return JSON.parse(JSON.stringify(x));}catch(e){return x;}}
+  function lastLoginAccount(){try{return(typeof window!=="undefined"&&window.__a73LastLoginAccount)?String(window.__a73LastLoginAccount).trim():"";}catch(e){return"";}}
+  function authLoginShape(){var acc=lastLoginAccount()||"visitante";return{data:{token:DEMO_TOKEN,userId:10001,giftTrialPlayAmount:0,trialPlayAmountType:"",account:acc,nickname:acc}};}
+  function authRegisteShape(){return authLoginShape();}
+  function authTokenShape(){return{token:DEMO_TOKEN};}
+  function authInfoShape(){return{loginType:["Phone","Account"],registerSwitch:true,forgetPasswordSwitch:true};}
+  function userDetailsShape(){var acc=lastLoginAccount()||"visitante";return{userId:10001,id:10001,account:acc,nickname:acc,avatar:"",firstRechargeTime:0};}
+  function userAssetsShape(){return{commission:0,gold:0,balance:0,lockedGold:0,withdrawAmount:0};}
+  var fallbacks={
+    domainInfo:{list:[],config:[{tenantId:0,currency:"BRL",symbol:"R$"},{tenantId:1,currency:"BRL",symbol:"R$"}],domains:[],tenantId:1,currency:"BRL",symbol:"R$"},
+    channelInfo:{id:1,tenantId:1,domain:"localhost",currency:"BRL",symbol:"R$",config:[{tenantId:1,currency:"BRL",symbol:"R$"}]},
+    tenantInfo:{tenantId:1,currency:"BRL",symbol:"R$",id:1,switch:true,background:"theme_SKIN_9.png",region:{currency:"BRL",symbol:"R$",language:"pt-BR"},currencySymbol:"R$",siteName:"Local",appIcon:"/assets/banner01-D4JvzT0X.png",siteLogo:"/assets/banner01-D4JvzT0X.png",appLanguage:["pt-BR","en","es"],appDefaultLanguage:"pt-BR"},
+    authTenants:[{id:1,tenantId:1,currency:"BRL",symbol:"R$",name:"Local"}],
+    homeList:{list:[{games:[],items:[]}],total:0,gameTypeList:[]},
+    homeHot:{list:[{games:[],items:[]}],total:0,hotList:[]},
+    homePopularGames:{list:[{games:[],items:[]}],games:[],total:0},
+    homeMarquee:{content:[],list:[],value:[]},
+    marqueeList:{content:[],list:[],value:[]},
+    homeCarousel:{content:[],list:[],value:[]},
+    carouselConfigList:[],
+    bannerList:{list:[
+      {id:9111,sort:-2,iconUrlType:"default",defaultIconUrl:"/assets/bg-bonus-money-Qv5C9OSY.svg",customIconUrl:"",imageUrl:"/assets/bg-bonus-money-Qv5C9OSY.svg",name:"Bônus R$50",targetType:"internal",targetValue:"{\"type\":\"activity\",\"info\":{\"activityId\":2118}}",showName:true,shortName:"Bônus R$50"},
+      {id:9112,sort:-1,iconUrlType:"default",defaultIconUrl:"/svg/cash.svg",customIconUrl:"",imageUrl:"/svg/cash.svg",name:"Comissão 5%",targetType:"internal",targetValue:"{\"type\":\"promotion\",\"info\":{}}",showName:true,shortName:"Comissão 5%"},
+      {id:9100,sort:1,iconUrlType:"default",defaultIconUrl:"/svg/home.svg",customIconUrl:"",imageUrl:"/svg/home.svg",name:"Início",targetType:"internal",targetValue:"{\"type\":\"home\",\"info\":{}}",showName:true,shortName:"Início"},
+      {id:9101,sort:2,iconUrlType:"default",defaultIconUrl:"/assets/entrar-36-Dr2VMD0M.svg",customIconUrl:"",imageUrl:"/assets/entrar-36-Dr2VMD0M.svg",name:"Depósito",targetType:"internal",targetValue:"{\"type\":\"recharge\",\"info\":{}}",showName:true,shortName:"Depósito"},
+      {id:9102,sort:3,iconUrlType:"default",defaultIconUrl:"/svg/cash.svg",customIconUrl:"",imageUrl:"/svg/cash.svg",name:"Saque",targetType:"internal",targetValue:"{\"type\":\"withdraw\",\"info\":{}}",showName:true,shortName:"Saque"},
+      {id:9103,sort:4,iconUrlType:"default",defaultIconUrl:"/svg/gift.svg",customIconUrl:"",imageUrl:"/svg/gift.svg",name:"Promoções",targetType:"internal",targetValue:"{\"type\":\"activity_list\",\"info\":{}}",showName:true,shortName:"Promoções"},
+      {id:9104,sort:5,iconUrlType:"default",defaultIconUrl:"/svg/ribbon.svg",customIconUrl:"",imageUrl:"/svg/ribbon.svg",name:"VIP",targetType:"internal",targetValue:"{\"type\":\"vip\",\"info\":{}}",showName:true,shortName:"VIP"},
+      {id:9105,sort:6,iconUrlType:"default",defaultIconUrl:"/svg/sparkles.svg",customIconUrl:"",imageUrl:"/svg/sparkles.svg",name:"Indicar amigos",targetType:"internal",targetValue:"{\"type\":\"promotion\",\"info\":{}}",showName:true,shortName:"Indicar"},
+      {id:9106,sort:7,iconUrlType:"default",defaultIconUrl:"/assets/perfil-36-lFSEwN4x.svg",customIconUrl:"",imageUrl:"/assets/perfil-36-lFSEwN4x.svg",name:"Perfil",targetType:"external",targetValue:"/main/perfil",showName:true,shortName:"Perfil"},
+      {id:9107,sort:8,iconUrlType:"default",defaultIconUrl:"/svg/search.svg",customIconUrl:"",imageUrl:"/svg/search.svg",name:"Buscar jogos",targetType:"external",targetValue:"/game/search/POPULAR",showName:true,shortName:"Jogos"},
+      {id:9108,sort:9,iconUrlType:"default",defaultIconUrl:"/svg/wallet.svg",customIconUrl:"",imageUrl:"/svg/wallet.svg",name:"Carteira",targetType:"external",targetValue:"/main/entrar",showName:true,shortName:"Carteira"},
+      {id:9109,sort:10,iconUrlType:"default",defaultIconUrl:"/svg/pricetag.svg",customIconUrl:"",imageUrl:"/svg/pricetag.svg",name:"Resgatar código",targetType:"internal",targetValue:"{\"type\":\"redeem_code\",\"info\":{}}",showName:true,shortName:"Resgatar"},
+      {id:9110,sort:11,iconUrlType:"default",defaultIconUrl:"/svg/menu.svg",customIconUrl:"",imageUrl:"/svg/menu.svg",name:"Central / Ajuda",targetType:"external",targetValue:"/main/inicio",showName:true,shortName:"Menu"}
+    ],total:13},
+    mainMediaList:{list:[],total:0},
+    activityConfig:{configList:{tabSort:['{"title":"Eventos","isOpen":true,"sort":40}','{"title":"Código de Resgate","isOpen":true,"sort":30}','{"title":"Histórico","isOpen":true,"sort":20}','{"title":"Pendente","isOpen":true,"sort":10}']}},
+    taskList:{taskList:[],taskRules:{}},
+    activityListPublic:{list:[{id:2118,type:"Agency",title:"Indique amigos — Bônus R$50",sort:1,status:"ON"}],total:1},
+    bannerQuickEntryListPublic:{list:[
+      {id:9201,imageUrl:"/svg/gift.svg",targetType:"internal",targetValue:"{\"type\":\"activity_list\",\"info\":{}}"},
+      {id:9202,imageUrl:"/assets/entrar-36-Dr2VMD0M.svg",targetType:"internal",targetValue:"{\"type\":\"recharge\",\"info\":{}}"},
+      {id:9203,imageUrl:"/svg/cash.svg",targetType:"internal",targetValue:"{\"type\":\"withdraw\",\"info\":{}}"},
+      {id:9204,imageUrl:"/svg/ribbon.svg",targetType:"internal",targetValue:"{\"type\":\"vip\",\"info\":{}}"},
+      {id:9205,imageUrl:"/svg/sparkles.svg",targetType:"internal",targetValue:"{\"type\":\"promotion\",\"info\":{}}"},
+      {id:9206,imageUrl:"/svg/home.svg",targetType:"internal",targetValue:"{\"type\":\"home\",\"info\":{}}"}
+    ],total:6},
+    tenantFooterText:{text:"",content:[]},
+    announcementLoginOut:{list:[],value:[]}
+  };
+  function decryptMl(t){if(!t||typeof t!=="string")return t;try{var s=decodeURIComponent(atob(t.split("").reverse().join("")));return JSON.parse(s);}catch(e){return null;}}
+  function ensureCurrency(o){if(!o||typeof o!=="object")return o;if(!o.currency){o.currency="BRL";o.symbol="R$";}if(!o.region){o.region={currency:"BRL",symbol:"R$",language:"pt-BR"};}else{if(!o.region.currency){o.region.currency="BRL";o.region.symbol="R$";}if(!o.region.language){o.region.language="pt-BR";}}if(!o.appLanguage||!Array.isArray(o.appLanguage)){o.appLanguage=["pt-BR","en","es"];}if(!o.appDefaultLanguage){o.appDefaultLanguage="pt-BR";}if(!Array.isArray(o.list)){o.list=[];}if(typeof o.total!=="number"){o.total=0;}if(Array.isArray(o.config)&&o.config.length){o.config.forEach(ensureCurrency);}return o;}
+  function ensureListItems(o){if(!o||!o.list)return;if(!Array.isArray(o.list))o.list=[];o.list.forEach(function(item){if(item&&typeof item==="object"){if(!Array.isArray(item.games))item.games=[];if(!Array.isArray(item.items))item.items=[];if("content"in item&&!Array.isArray(item.content))item.content=[];}});}
+  function ensureContentEverywhere(o){if(!o||typeof o!=="object")return;if("content"in o&&!Array.isArray(o.content))o.content=[];if("value"in o&&!Array.isArray(o.value))o.value=[];if(Array.isArray(o.list))o.list.forEach(ensureContentEverywhere);if(Array.isArray(o.games))o.games.forEach(ensureContentEverywhere);}
+  function isPrizePoolProc(proc){return proc&&String(proc).toLowerCase().indexOf("prizepool")>=0;}
+  function isBareSessionProc(proc){var p=String(proc||"").toLowerCase();return p==="authlogin"||p==="authregiste"||p==="authtoken"||p==="authlogout"||p==="authinfo"||p==="userdetails"||p==="userassets";}
+  function mergeBareSessionJson(proc,j,fb){var out=deepClone(j);var u=String(proc||"").toLowerCase();if(u==="authlogin"||u==="authregiste"){var inn=out&&out.data&&typeof out.data==="object"?out.data:null;if(!inn&&out&&out.token)inn=out;if(!inn||!inn.token)out=deepClone(fb);else out={data:Object.assign({},fb.data||{},inn)};}else if(u==="authtoken"){if(!out||typeof out!=="object"||!out.token)out=deepClone(fb);}else if(u==="authlogout"){if(!out||typeof out!=="object")out=deepClone(fb);}else if(u==="authinfo"){if(!out||typeof out!=="object"||!Array.isArray(out.loginType)||out.loginType.length<1)out=deepClone(fb);}else if(u==="userdetails"){if(!out||typeof out!=="object"||out.userId==null||out.userId==="")out=deepClone(fb);}else if(u==="userassets"){if(!out||typeof out!=="object")out=deepClone(fb);}return out;}
+  function isActivityConfigProc(proc){return String(proc||"").toLowerCase()==="activityconfig";}
+  function isTaskListProc(proc){return String(proc||"").toLowerCase()==="tasklist";}
+  function isActivityListMergeProc(proc){var p=String(proc||"").toLowerCase();return p==="activitylist"||p==="activitylistpublic";}
+  function mergeActivityListJson(j){var fb=fallbacks.activityListPublic.list;var raw=Array.isArray(j)?j:(j&&typeof j==="object"&&Array.isArray(j.list)?j.list:[]);var ids={},out=[],i,r;for(i=0;i<raw.length;i++){r=raw[i];if(r&&r.id!=null)ids[String(r.id)]=1;out.push(deepClone(r));}for(i=0;i<fb.length;i++){r=fb[i];if(r&&r.id!=null&&!ids[String(r.id)]){out.push(deepClone(r));ids[String(r.id)]=1;}}var base=j&&typeof j==="object"&&!Array.isArray(j)?j:{};var total=typeof base.total==="number"?base.total:out.length;return{list:out,total:Math.max(total,out.length)};}
+  function isBannerListProc(proc){var p=String(proc||"").toLowerCase();return p==="bannerlist";}
+  function normalizeBannerRow(it){if(!it||typeof it!=="object")return it;var o=deepClone(it);if((!o.imageUrl||o.imageUrl==="")&&o.defaultIconUrl)o.imageUrl=o.defaultIconUrl;if((!o.imageUrl||o.imageUrl==="")&&o.customIconUrl)o.imageUrl=o.customIconUrl;return o;}
+  function finalizeBannerListJson(j,proc){if(!isBannerListProc(proc))return null;var raw=Array.isArray(j)?j:(j&&typeof j==="object"&&Array.isArray(j.list)?j.list:[]);var barr=raw.map(normalizeBannerRow).filter(function(x){return x&&typeof x==="object";});var fb=fallbacks.bannerList.list.map(normalizeBannerRow);if(!barr.length)barr=deepClone(fb);else{var ids={},k;for(k=0;k<barr.length;k++)if(barr[k]&&barr[k].id!=null)ids[barr[k].id]=1;if(barr.length<6){for(k=0;k<fb.length;k++)if(fb[k]&&fb[k].id!=null&&!ids[fb[k].id]){barr.push(deepClone(fb[k]));ids[fb[k].id]=1;}}var force=[9111,9112];for(k=0;k<fb.length;k++)if(fb[k]&&fb[k].id!=null&&force.indexOf(Number(fb[k].id))>=0&&!ids[fb[k].id]){barr.push(deepClone(fb[k]));ids[fb[k].id]=1;}}barr.sort(function(a,b){var sa=typeof a.sort==="number"?a.sort:1e6;var sb=typeof b.sort==="number"?b.sort:1e6;return sa-sb;});for(var i=0;i<barr.length;i++)if(typeof barr[i].sort!=="number")barr[i].sort=i+1;return deepClone(barr);}
+  function isCarouselConfigListProc(proc){return String(proc||"").toLowerCase()==="carouselconfiglist";}
+  function normalizeCarouselConfigListJson(j){if(Array.isArray(j))return deepClone(j);if(j&&typeof j==="object"){if(Array.isArray(j.list))return deepClone(j.list);if(Array.isArray(j.content))return deepClone(j.content);}return [];}
+  function isRedPointProc(proc){return proc&&String(proc).toLowerCase().indexOf("redpoint")>=0;}
+  function normalizeRedPointListJson(j){if(Array.isArray(j))return deepClone(j);if(j&&typeof j==="object"&&Array.isArray(j.list))return deepClone(j.list);return [];}
+  function normalizePrizePoolJson(j,proc){var parr=Array.isArray(j)?j:(j&&typeof j==="object"&&Array.isArray(j.list)?j.list:null);if(parr&&parr.length>=1&&parr[0]&&typeof parr[0].prizePoolValue==="number")return parr;var fb=getFallback(proc);return Array.isArray(fb)&&fb.length?fb:null;}
+  function fixItem(r,proc){if(!r||!r.result)return;if(!r.result.data)r.result.data={};var j=r.result.data.json;if(j===undefined&&r.result.data&&typeof r.result.data==="object"&&!Array.isArray(r.result.data)&&!("json"in r.result.data)){j=r.result.data;r.result.data={json:j};}var fb=getFallback(proc);if(typeof j==="string"){var d=decryptMl(j);j=(d&&typeof d==="object")?d:fb;}if(!j||typeof j!=="object"){j=fb;}if(isBareSessionProc(proc)){var bare=mergeBareSessionJson(proc,j,fb);r.result.data.json=bare;return;}if(isActivityConfigProc(proc)){var ac=(j&&typeof j==="object")?deepClone(j):deepClone(fallbacks.activityConfig);if(!ac.configList||typeof ac.configList!=="object")ac.configList={};if(!Array.isArray(ac.configList.tabSort))ac.configList.tabSort=fallbacks.activityConfig.configList.tabSort.slice();r.result.data.json=ac;return;}if(isTaskListProc(proc)){var tk=(j&&typeof j==="object")?deepClone(j):{};if(!Array.isArray(tk.taskList))tk.taskList=[];if(!tk.taskRules||typeof tk.taskRules!=="object")tk.taskRules={};r.result.data.json=tk;return;}if(isActivityListMergeProc(proc)){r.result.data.json=mergeActivityListJson(j);return;}if(isPrizePoolProc(proc)){var ok=normalizePrizePoolJson(j,proc);if(ok){r.result.data.json=deepClone(ok);return;}}var bl=finalizeBannerListJson(j,proc);if(bl){r.result.data.json=bl;return;}if(isCarouselConfigListProc(proc)){r.result.data.json=normalizeCarouselConfigListJson(Array.isArray(j)||j&&typeof j==="object"?j:fb);return;}
+if(isRedPointProc(proc)){r.result.data.json=normalizeRedPointListJson(Array.isArray(j)||j&&typeof j==="object"?j:fb);return;}if(Array.isArray(j)){j={list:j,total:j.length};}if(j&&typeof j==="object"){ensureCurrency(j);if(!Array.isArray(j.list))j.list=[];if(typeof j.total!=="number")j.total=0;ensureListItems(j);if(!Array.isArray(j.games))j.games=[];if(!Array.isArray(j.content))j.content=[];if(!Array.isArray(j.value))j.value=[];ensureContentEverywhere(j);safeShape(j);}r.result.data.json=j;}
+  function getProcsFromUrl(url){var procs=[];try{var m=(url||"").match(/trpc\/([^?&#]+)/);if(m)procs=m[1].split(",").map(function(p){var x=p.trim().split(".");return x[0]+(x[1]?x[1].charAt(0).toUpperCase()+x[1].slice(1):"");});}catch(e){}if(!procs.length){var u=url||"";if(u.indexOf("tenant")>=0&&u.indexOf("domain")>=0)procs=["domainInfo"];else if(u.indexOf("tenant")>=0)procs=["tenantInfo"];else if(u.indexOf("domain")>=0)procs=["domainInfo"];else if(u.indexOf("prizePool")>=0||u.indexOf("prizepool")>=0)procs=["prizePoolInfo"];else if(u.indexOf("popular")>=0)procs=["homePopularGames"];else if(u.indexOf("carouselConfig")>=0)procs=["carouselConfigList"];else if(u.indexOf("marquee")>=0||u.indexOf("carousel")>=0)procs=["homeMarquee"];else if(u.indexOf("banner")>=0&&u.indexOf("quickEntry")>=0)procs=["bannerQuickEntryListPublic"];else if(u.indexOf("banner")>=0)procs=["bannerList"];else if(u.indexOf("mainMedia")>=0)procs=["mainMediaList"];else if(u.indexOf("task.list")>=0||u.indexOf("task%2Elist")>=0)procs=["taskList"];else if(u.indexOf("activity.config")>=0||u.indexOf("activity%2Econfig")>=0)procs=["activityConfig"];else if(u.indexOf("activity")>=0)procs=["activityListPublic"];else if(u.indexOf("footerText")>=0)procs=["tenantFooterText"];else if(u.indexOf("announcement")>=0&&(u.indexOf("loginout")>=0||u.indexOf("loginOut")>=0))procs=["announcementLoginOut"];else if(u.indexOf("announcement")>=0)procs=["announcementLoginOut"];else if(u.indexOf("home.hot")>=0)procs=["homeHot"];else if(u.indexOf("home.list")>=0||(u.indexOf("home")>=0&&u.indexOf("list")>=0))procs=["homeList"];else if(u.indexOf("home")>=0)procs=["homeList"];else procs=["homeList"];}return procs;}
+  var universalSafe={list:[{games:[],items:[],content:[],value:[]}],games:[],content:[],value:[],total:0,hotList:[],gameTypeList:[]};
+  function fixTrpcJson(data,url){if(!data)return data;var procs=getProcsFromUrl(url);if(Array.isArray(data)){data.forEach(function(r,i){if(!r||!r.result){var p=procs[i]||procs[0]||"homeList";data[i]={result:{data:{json:deepClone(universalSafe),meta:{}}}};}if(data[i]&&data[i].result&&data[i].result.data){var q=procs[i]||procs[0]||"homeList";fixItem(data[i],q);}});return data;}fixItem(data,procs[0]||"homeList");return data;}
+  function getFallback(proc){var u=proc?proc.toLowerCase():"";var fb;if(u.indexOf("domain")>=0&&u.indexOf("tenant")>=0)fb=fallbacks.domainInfo;else if(u.indexOf("channel")>=0)fb=fallbacks.channelInfo;else if(u.indexOf("tenant")>=0&&u.indexOf("info")>=0)fb=fallbacks.tenantInfo;else if(u==="authlogin")fb=authLoginShape();else if(u==="authregiste")fb=authRegisteShape();else if(u==="authtoken")fb=authTokenShape();else if(u==="authlogout")fb={ok:true};else if(u==="authinfo")fb=authInfoShape();else if(u==="userdetails")fb=userDetailsShape();else if(u==="userassets")fb=userAssetsShape();else if(u.indexOf("redpoint")>=0)fb=[];else if(u.indexOf("carouselconfig")>=0)fb=fallbacks.carouselConfigList;else if(u.indexOf("popular")>=0)fb=fallbacks.homePopularGames;else if(u.indexOf("marquee")>=0||u.indexOf("carousel")>=0)fb=fallbacks.homeMarquee;else if(u.indexOf("banner")>=0&&u.indexOf("quick")>=0)fb=fallbacks.bannerQuickEntryListPublic;else if(u.indexOf("banner")>=0)fb=fallbacks.bannerList;else if(u.indexOf("mainmedia")>=0)fb=fallbacks.mainMediaList;else if(u==="activityconfig")fb=fallbacks.activityConfig;else if(u.indexOf("task")===0){if(u==="tasklist")fb=fallbacks.taskList;else if(u==="taskdetails")fb={};else if(u==="taskaward")fb=[];else if(u==="taskreceive"||u==="taskbatchreceive")fb={ok:true};else fb={};}else if(u.indexOf("activity")>=0)fb=fallbacks.activityListPublic;else if(u.indexOf("footer")>=0)fb=fallbacks.tenantFooterText;else if(u.indexOf("announcement")>=0)fb=fallbacks.announcementLoginOut;else if(u.indexOf("prizepool")>=0){var now=Math.floor(Date.now()/1000);fb=[{time:now,prizePoolValue:1287654.32},{time:now+7200,prizePoolValue:1320000}];}else if(u.indexOf("hot")>=0)fb=fallbacks.homeHot;else fb=fallbacks[proc]||fallbacks.homeList;return deepClone(fb);}
+  function mockTrpcResponse(url){var procs=getProcsFromUrl(url);if(!procs.length){var u=url||"";if(u.indexOf("tenant")>=0)procs=["tenantInfo"];else if(u.indexOf("domain")>=0)procs=["domainInfo"];else procs=["homeList"];}var arr=[];for(var i=0;i<procs.length;i++){var fb=getFallback(procs[i]);arr.push({result:{data:{json:fb,meta:{}}}});}var body=arr.length>1?arr:arr[0];try{body=fixTrpcJson(body,url);}catch(e3){}return new Response(JSON.stringify(body),{status:200,headers:{"Content-Type":"application/json"}});}
+  function emptyOkResponse(){return new Response("{}",{status:200,headers:{"Content-Type":"application/json"}});}
+  function safeShape(o){if(!o||typeof o!=="object")return;if(!Array.isArray(o.list))o.list=[];if(!Array.isArray(o.games))o.games=[];if(!Array.isArray(o.content))o.content=[];if(!Array.isArray(o.value))o.value=[];if(!Array.isArray(o.hotList))o.hotList=[];if(!Array.isArray(o.gameTypeList))o.gameTypeList=[];if(Array.isArray(o.gameTypeList))o.gameTypeList.forEach(function(gt){if(gt&&typeof gt==="object"&&!Array.isArray(gt.platformList))gt.platformList=[];});if(!Array.isArray(o.segments))o.segments=o.list||[];if(typeof o.total!=="number")o.total=0;ensureListItems(o);ensureContentEverywhere(o);}
+  function isApiOrTrpc(s){return s&&(s.indexOf("/api/")>=0||s.indexOf("trpc")>=0||s.indexOf("frontend")>=0||s.indexOf("home.")>=0);}
+  function isValidTrpc(j){if(!j)return false;if(Array.isArray(j))return j.some(function(x){return x&&x.result;});return !!(j.result&&j.result.data);}
+  function handleFetchResponse(r,s){if(!isApiOrTrpc(s))return r;if(!r.ok)return mockTrpcResponse(s);return r.clone().text().then(function(t){var j;try{j=t?JSON.parse(t):null;}catch(e){return mockTrpcResponse(s);}if(!j)return mockTrpcResponse(s);if(!isValidTrpc(j))return mockTrpcResponse(s);try{var fixed=fixTrpcJson(j,s);return new Response(JSON.stringify(fixed),{status:200,headers:{"Content-Type":"application/json"}});}catch(e){return mockTrpcResponse(s);}}).catch(function(){return mockTrpcResponse(s);});}
+  function urlString(u){return typeof u==="string"?u:(u&&(u.url||u.toString&&u.toString())||"");}
+  var _allowedHosts=["igamewin.com","www.igamewin.com"];
+  function isAllowedExternal(urlStr){try{if(!urlStr)return false;var abs=new URL(urlStr.indexOf("//")===0?("https:"+urlStr):urlStr);return _allowedHosts.some(function(h){return abs.hostname===h||abs.hostname.endsWith("."+h);});}catch(e){return false;}}
+  function isCrossOrigin(urlStr){try{if(!urlStr)return false;if(isAllowedExternal(urlStr))return false;var base=typeof location!=="undefined"?location.href:"http://localhost/";if(/^https?:\/\//i.test(urlStr)||urlStr.indexOf("//")===0){var abs=new URL(urlStr.indexOf("//")===0?("https:"+urlStr):urlStr,base);var loc=new URL(base);return abs.origin!==loc.origin;}return false;}catch(e){return false;}}
+  function blockExternalFetch(urlStr){if(isApiOrTrpc(urlStr))return mockTrpcResponse(urlStr);return emptyOkResponse();}
+  function rewriteApiHostToOrigin(s){var u=String(s||"");if(!u||(u.indexOf("api5.")<0&&u.indexOf("a-b-c-8.com")<0))return u;try{var base=typeof location!=="undefined"?location.href:"http://localhost/";var abs=new URL(u,base);return abs.pathname+abs.search;}catch(e2){return u;}}
+  function patchedFetch(input,init){var nextIn=input;if(typeof Request!=="undefined"&&input&&input instanceof Request){var ru=rewriteApiHostToOrigin(input.url);if(ru!==input.url)try{nextIn=new Request(ru,input);}catch(eR){nextIn=input;}}else if(typeof input==="string")nextIn=rewriteApiHostToOrigin(input);var outUrl=urlString(nextIn);if(isCrossOrigin(outUrl))return Promise.resolve(blockExternalFetch(outUrl));return o.call(this,nextIn,init).then(function(r){return handleFetchResponse(r,outUrl);});}
+  window.fetch=patchedFetch;
+  if(typeof globalThis!=="undefined")globalThis.fetch=patchedFetch;
+  document.addEventListener("DOMContentLoaded",function(){window.fetch=patchedFetch;if(typeof globalThis!=="undefined")globalThis.fetch=patchedFetch;});
+
+  var Xopen=XMLHttpRequest.prototype.open;
+  var Xsend=XMLHttpRequest.prototype.send;
+  XMLHttpRequest.prototype.open=function(method,url){var u=String(url||"");if(u.indexOf("api5.")>=0||u.indexOf("a-b-c-8.com")>=0){try{var base=typeof location!=="undefined"?location.href:"http://localhost/";var abs=new URL(u,base);url=abs.pathname+abs.search;}catch(e1){}}this.__a73_patch_url=String(url||"");var a=[].slice.call(arguments);a[1]=url;return Xopen.apply(this,a);};
+  XMLHttpRequest.prototype.send=function(body){var u=String(this.__a73_patch_url||"");if(isCrossOrigin(u)){var self=this;setTimeout(function(){try{self.readyState=4;self.status=200;self.responseText="{}";self.response="{}";if(self.onreadystatechange)self.onreadystatechange();if(self.onload)self.onload();}catch(e){}},0);return;}return Xsend.apply(this,arguments);};
+
+  if(navigator.sendBeacon){var sb=navigator.sendBeacon.bind(navigator);navigator.sendBeacon=function(url,data){try{if(isCrossOrigin(String(url)))return true;}catch(e){}return sb(url,data);};}
+
+  var OrigWS=window.WebSocket;
+  window.WebSocket=function(url,protocols){
+    try{
+      var base=typeof location!=="undefined"?location.origin:"http://localhost";
+      var wsUrl=String(url||"");
+      var httpUrl=wsUrl.replace(/^wss?:\/\//i,"https://");
+      var abs=new URL(httpUrl);
+      var loc=new URL(base);
+      if(abs.hostname!==loc.hostname||abs.port!==(loc.port||"")){
+        console.warn("[patch] WebSocket bloqueado:",wsUrl);
+        return {readyState:3,send:function(){},close:function(){},addEventListener:function(){},removeEventListener:function(){},onopen:null,onclose:null,onmessage:null,onerror:null,CONNECTING:0,OPEN:1,CLOSING:2,CLOSED:3};
+      }
+    }catch(e){}
+    return protocols?new OrigWS(url,protocols):new OrigWS(url);
+  };
+  window.WebSocket.prototype=OrigWS.prototype;
+  window.WebSocket.CONNECTING=0;window.WebSocket.OPEN=1;window.WebSocket.CLOSING=2;window.WebSocket.CLOSED=3;
+
+  var origCreateEl=document.createElement.bind(document);
+  document.createElement=function(tag){
+    var el=origCreateEl(tag);
+    var tagLow=String(tag||"").toLowerCase();
+    if(tagLow==="script"||tagLow==="img"||tagLow==="link"||tagLow==="iframe"){
+      var origSetAttr=el.setAttribute.bind(el);
+      el.setAttribute=function(name,value){
+        if((name==="src"||name==="href")&&isCrossOrigin(String(value||""))){
+          console.warn("[patch] Bloqueado recurso externo:",value);
+          return;
+        }
+        return origSetAttr(name,value);
+      };
+      var srcDesc;
+      if(tagLow==="script")srcDesc=Object.getOwnPropertyDescriptor(HTMLScriptElement.prototype,"src");
+      else if(tagLow==="img")srcDesc=Object.getOwnPropertyDescriptor(HTMLImageElement.prototype,"src");
+      else if(tagLow==="iframe")srcDesc=Object.getOwnPropertyDescriptor(HTMLIFrameElement.prototype,"src");
+      else srcDesc=Object.getOwnPropertyDescriptor(el.__proto__,"src");
+      if(srcDesc&&srcDesc.set){
+        Object.defineProperty(el,"src",{
+          get:function(){return srcDesc.get?srcDesc.get.call(el):"";},
+          set:function(v){if(isCrossOrigin(String(v||""))){console.warn("[patch] Bloqueado src externo:",v);return;}if(srcDesc.set)srcDesc.set.call(el,v);},
+          configurable:true
+        });
+      }
+    }
+    return el;
+  };
+})();

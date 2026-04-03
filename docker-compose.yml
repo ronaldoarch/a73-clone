@@ -1,0 +1,42 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        # Repositório privado no GitHub: defina GITHUB_TOKEN no Coolify (PAT com leitura ao repo)
+        GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+    expose:
+      - "3000"
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      JWT_SECRET: ${JWT_SECRET}
+      PORT: "3000"
+      SERVE_SITE_BAIXADO: "1"
+      SITE_BAIXADO_DIR: /app/site_baixado
+      FRONTEND_URL: ${FRONTEND_URL:-}
+      IGAMEWIN_AGENT_CODE: ${IGAMEWIN_AGENT_CODE:-}
+      IGAMEWIN_AGENT_SECRET: ${IGAMEWIN_AGENT_SECRET:-}
+      GATEBOX_WEBHOOK_TOKEN: ${GATEBOX_WEBHOOK_TOKEN:-}
+      CYBER_WEBHOOK_SECRET: ${CYBER_WEBHOOK_SECRET:-}
+      ADMIN_USER: ${ADMIN_USER:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+    volumes:
+      - uploads_data:/app/uploads
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+    networks:
+      - default
+      - coolify
+
+volumes:
+  uploads_data:
+
+networks:
+  coolify:
+    external: true

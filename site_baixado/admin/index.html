@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>A73 Admin - Painel iGaming</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/favicon.ico" sizes="any">
+  <style>
+    :root {
+      --bg-dark: #2d1b69;
+      --bg-card: #121827;
+      --bg-sidebar: #0d1117;
+      --accent: #00d4aa;
+      --accent-hover: #00f5c4;
+      --danger: #ef4444;
+      --warning: #f59e0b;
+      --success: #10b981;
+      --text: #e2e8f0;
+      --text-muted: #94a3b8;
+      --border: #1e293b;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg-dark); color: var(--text); min-height: 100vh; display: flex; }
+    .sidebar { width: 260px; background: var(--bg-sidebar); border-right: 1px solid var(--border); padding: 1rem 0; position: fixed; height: 100vh; overflow-y: auto; }
+    .logo { padding: 0 1.5rem 1.5rem; border-bottom: 1px solid var(--border); margin-bottom: 1rem; font-size: 1.5rem; font-weight: 700; color: var(--accent); }
+    .nav-item { display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem 1.5rem; color: var(--text-muted); cursor: pointer; transition: all 0.2s; border-left: 3px solid transparent; }
+    .nav-item:hover { background: rgba(0,212,170,0.08); color: var(--text); }
+    .nav-item.active { background: rgba(0,212,170,0.12); color: var(--accent); border-left-color: var(--accent); }
+    .nav-item svg { width: 20px; height: 20px; opacity: 0.8; flex-shrink: 0; }
+    .nav-sep { height: 1px; background: var(--border); margin: 0.5rem 1.5rem; }
+    .main { flex: 1; margin-left: 260px; padding: 1.5rem; min-height: 100vh; }
+    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid var(--border); }
+    .header h1 { font-size: 1.5rem; font-weight: 600; }
+    .header-actions { display: flex; gap: 0.5rem; align-items: center; }
+    .btn { padding: 0.5rem 1rem; border-radius: 8px; border: none; cursor: pointer; font-size: 0.9rem; font-weight: 500; transition: all 0.2s; }
+    .btn-primary { background: var(--accent); color: var(--bg-dark); }
+    .btn-primary:hover { background: var(--accent-hover); }
+    .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text); }
+    .btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+    .btn-danger { background: var(--danger); color: #fff; }
+    .btn-danger:hover { opacity: 0.85; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+    .kpi-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem; transition: transform 0.2s; }
+    .kpi-card:hover { transform: translateY(-2px); }
+    .kpi-label { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.25rem; }
+    .kpi-value { font-size: 1.75rem; font-weight: 700; }
+    .kpi-value.green { color: var(--success); }
+    .kpi-value.accent { color: var(--accent); }
+    .kpi-value.warning { color: var(--warning); }
+    .kpi-trend { font-size: 0.8rem; margin-top: 0.25rem; color: var(--text-muted); }
+    .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; margin-bottom: 1.5rem; }
+    .card-header { padding: 1rem 1.25rem; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+    .card-title { font-size: 1rem; font-weight: 600; }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 0.75rem 1.25rem; text-align: left; border-bottom: 1px solid var(--border); }
+    th { background: rgba(0,0,0,0.2); font-weight: 600; font-size: 0.85rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+    tr:hover { background: rgba(0,212,170,0.04); }
+    .badge { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 500; }
+    .badge-success { background: rgba(16,185,129,0.2); color: var(--success); }
+    .badge-warning { background: rgba(245,158,11,0.2); color: var(--warning); }
+    .badge-danger { background: rgba(239,68,68,0.2); color: var(--danger); }
+    .badge-info { background: rgba(0,212,170,0.2); color: var(--accent); }
+    .section { display: none; }
+    .section.active { display: block; }
+    .search-box { padding: 0.5rem 1rem; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-dark); color: var(--text); width: 100%; max-width: 300px; }
+    .search-box:focus { outline: none; border-color: var(--accent); }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+    .form-group { margin-bottom: 1rem; }
+    .form-group label { display: block; margin-bottom: 0.4rem; color: var(--text-muted); font-size: 0.85rem; }
+    .form-group input, .form-group select { width: 100%; max-width: 100%; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    .toast-container { position: fixed; bottom: 1.5rem; right: 1.5rem; z-index: 2000; display: flex; flex-direction: column; gap: 0.5rem; }
+    .toast { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 0.75rem 1.25rem; box-shadow: 0 4px 12px rgba(0,0,0,0.3); animation: toastIn 0.3s ease; }
+    .toast.success { border-left: 4px solid var(--success); }
+    .toast.error { border-left: 4px solid var(--danger); }
+    .toast.info { border-left: 4px solid var(--accent); }
+    @keyframes toastIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+    .row-hidden { display: none !important; }
+    #themeOverride { display: block; }
+    .toggle-row { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; }
+    .toggle-row label { margin-bottom: 0; color: var(--text); }
+    @media (max-width: 768px) {
+      .sidebar { width: 70px; padding: 0.5rem; }
+      .logo span, .nav-item span { display: none; }
+      .main { margin-left: 70px; }
+      .grid-2 { grid-template-columns: 1fr; }
+      .form-row { grid-template-columns: 1fr; }
+    }
+  </style>
+  <style id="themeOverride"></style>
+</head>
+<body>
+  <div id="toastContainer" class="toast-container"></div>
+
+  <!-- Login Overlay -->
+  <div id="loginOverlay" style="position:fixed;inset:0;z-index:9999;background:var(--bg-dark);display:flex;align-items:center;justify-content:center">
+    <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:16px;padding:2.5rem;width:100%;max-width:380px">
+      <h2 style="text-align:center;margin-bottom:0.5rem;color:var(--accent)">🎰 A73 Admin</h2>
+      <p style="text-align:center;color:var(--text-muted);margin-bottom:1.5rem;font-size:0.9rem">Faça login para acessar o painel</p>
+      <div class="form-group"><label>Usuário</label><input type="text" id="loginUser" class="search-box" placeholder="admin" style="max-width:100%"></div>
+      <div class="form-group"><label>Senha</label><input type="password" id="loginPassword" class="search-box" placeholder="••••••••" style="max-width:100%"></div>
+      <div id="loginError" style="color:var(--danger);font-size:0.85rem;margin-bottom:1rem;display:none"></div>
+      <button class="btn btn-primary" id="btnLogin" style="width:100%;padding:0.75rem;font-size:1rem">Entrar</button>
+    </div>
+  </div>
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="logo">🎰 <span>A73 Admin</span></div>
+    <nav class="nav-item active" data-section="dashboard">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
+      <span>Dashboard</span>
+    </nav>
+    <nav class="nav-item" data-section="players">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      <span>Jogadores</span>
+    </nav>
+    <nav class="nav-item" data-section="deposits">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+      <span>Depósitos</span>
+    </nav>
+    <nav class="nav-item" data-section="withdrawals">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+      <span>Saques</span>
+    </nav>
+    <div class="nav-sep"></div>
+    <nav class="nav-item" data-section="promocoes">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+      <span>Promoções</span>
+    </nav>
+    <nav class="nav-item" data-section="branding">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+      <span>Branding</span>
+    </nav>
+    <div class="nav-sep"></div>
+    <nav class="nav-item" data-section="config">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      <span>Configurações</span>
+    </nav>
+    <nav class="nav-item" data-section="gateways">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+      <span>Gateways PIX</span>
+    </nav>
+    <nav class="nav-item" data-section="igamewin">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+      <span>iGameWin</span>
+    </nav>
+    <div class="nav-sep"></div>
+    <nav class="nav-item" data-section="themes">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+      <span>Temas</span>
+    </nav>
+  </aside>
+
+  <main class="main">
+    <!-- ===== Dashboard ===== -->
+    <section id="dashboard" class="section active">
+      <div class="header"><h1>Dashboard</h1><button class="btn btn-outline" onclick="loadDashboard()">↻ Atualizar</button></div>
+      <div class="kpi-grid">
+        <div class="kpi-card"><div class="kpi-label">Total Depósitos</div><div class="kpi-value green" id="kpiTotalDep">—</div><div class="kpi-trend">Acumulado</div></div>
+        <div class="kpi-card"><div class="kpi-label">Jogadores Cadastrados</div><div class="kpi-value" id="kpiUsers">—</div><div class="kpi-trend">Total</div></div>
+        <div class="kpi-card"><div class="kpi-label">Depósitos Hoje</div><div class="kpi-value green" id="kpiDepHoje">—</div><div class="kpi-trend">Hoje</div></div>
+        <div class="kpi-card"><div class="kpi-label">Saques Pendentes</div><div class="kpi-value warning" id="kpiSaquesPend">—</div><div class="kpi-trend">Aguardando</div></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">Atividade Recente</span></div>
+        <div class="table-wrap">
+          <table><thead><tr><th>Data</th><th>Tipo</th><th>Jogador</th><th>Valor</th><th>Status</th></tr></thead>
+          <tbody id="dashboardActivity"><tr><td colspan="5" style="text-align:center;color:var(--text-muted)">Carregando...</td></tr></tbody></table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== Jogadores ===== -->
+    <section id="players" class="section">
+      <div class="header">
+        <h1>Jogadores</h1>
+        <div class="header-actions"><input type="search" id="searchPlayers" class="search-box" placeholder="Buscar por conta ou telefone..."></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">Lista de Jogadores</span></div>
+        <div class="table-wrap">
+          <table><thead><tr><th>ID</th><th>Conta</th><th>Saldo</th><th>Depósitos</th><th>Apostas</th><th>Cadastro</th><th>Ações</th></tr></thead>
+          <tbody id="playersTableBody"><tr><td colspan="7" style="text-align:center;color:var(--text-muted)">Carregando...</td></tr></tbody></table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== Depósitos ===== -->
+    <section id="deposits" class="section">
+      <div class="header">
+        <h1>Depósitos</h1>
+        <div class="header-actions">
+          <select class="btn btn-outline" id="depositFilter" style="cursor:pointer"><option value="">Todos</option><option value="pendente">Pendentes</option><option value="concluido">Concluídos</option><option value="expirado">Expirados</option></select>
+          <button class="btn btn-outline" onclick="loadDeposits()">↻</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">Lista de Depósitos</span></div>
+        <div class="table-wrap">
+          <table><thead><tr><th>ID</th><th>Jogador</th><th>Valor</th><th>Status</th><th>Data</th><th>Ações</th></tr></thead>
+          <tbody id="depositsTableBody"><tr><td colspan="6" style="text-align:center;color:var(--text-muted)">Carregando...</td></tr></tbody></table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== Saques ===== -->
+    <section id="withdrawals" class="section">
+      <div class="header">
+        <h1>Saques</h1>
+        <div class="header-actions">
+          <select class="btn btn-outline" id="withdrawalFilter" style="cursor:pointer"><option value="pendente">Pendentes</option><option value="concluido">Aprovados</option><option value="recusado">Rejeitados</option><option value="">Todos</option></select>
+          <button class="btn btn-outline" onclick="loadWithdrawals()">↻</button>
+        </div>
+      </div>
+      <div class="kpi-grid">
+        <div class="kpi-card"><div class="kpi-label">Pendentes</div><div class="kpi-value warning" id="kpiWdPending">0</div></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">Lista de Saques</span></div>
+        <div class="table-wrap">
+          <table><thead><tr><th>ID</th><th>Jogador</th><th>Valor</th><th>Método</th><th>Chave PIX</th><th>Data</th><th>Ações</th></tr></thead>
+          <tbody id="withdrawalsTableBody"><tr><td colspan="7" style="text-align:center;color:var(--text-muted)">Carregando...</td></tr></tbody></table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== Promoções ===== -->
+    <section id="promocoes" class="section">
+      <div class="header">
+        <h1>Promoções</h1>
+        <div class="header-actions"><button class="btn btn-primary" id="btnAddPromo">+ Nova Promoção</button></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">Lista de Promoções</span></div>
+        <div class="table-wrap">
+          <table><thead><tr><th>Título</th><th>Descrição</th><th>Ativa</th><th>Ações</th></tr></thead>
+          <tbody id="promosTableBody"><tr><td colspan="4" style="text-align:center;color:var(--text-muted)">Carregando...</td></tr></tbody></table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== Branding ===== -->
+    <section id="branding" class="section">
+      <div class="header"><h1>Branding</h1></div>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-header"><span class="card-title">Nome e Título</span></div>
+          <div style="padding:1.25rem">
+            <div class="form-group"><label>Nome do Site</label><input type="text" id="brandSiteName" class="search-box" placeholder="35m" style="max-width:100%"></div>
+            <div class="form-group"><label>Título da Página</label><input type="text" id="brandPageTitle" class="search-box" placeholder="35m" style="max-width:100%"></div>
+            <button class="btn btn-primary" id="btnSaveBranding">Salvar</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><span class="card-title">Uploads</span></div>
+          <div style="padding:1.25rem">
+            <div class="form-group">
+              <label>Logo</label>
+              <input type="file" id="uploadLogo" accept="image/*" class="search-box" style="max-width:100%">
+              <button class="btn btn-primary" style="margin-top:0.5rem" id="btnUploadLogo">Enviar Logo</button>
+            </div>
+            <div class="form-group">
+              <label>Banner Principal</label>
+              <input type="file" id="uploadBanner" accept="image/*" class="search-box" style="max-width:100%">
+              <button class="btn btn-primary" style="margin-top:0.5rem" id="btnUploadBanner">Enviar Banner</button>
+            </div>
+            <div class="form-group">
+              <label>Banner de Carregamento</label>
+              <input type="file" id="uploadLoadingBanner" accept="image/*" class="search-box" style="max-width:100%">
+              <button class="btn btn-primary" style="margin-top:0.5rem" id="btnUploadLoading">Enviar</button>
+              <button class="btn btn-outline" style="margin-top:0.5rem;margin-left:0.5rem" id="btnClearLoading">Restaurar Padrão</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== Configurações ===== -->
+    <section id="config" class="section">
+      <div class="header"><h1>Configurações</h1></div>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-header"><span class="card-title">Valores e Limites</span></div>
+          <div style="padding:1.25rem">
+            <div class="form-row">
+              <div class="form-group"><label>Depósito Mínimo (R$)</label><input type="number" id="cfgDepositoMin" class="search-box" style="max-width:100%"></div>
+              <div class="form-group"><label>Saque Mínimo (R$)</label><input type="number" id="cfgSaqueMin" class="search-box" style="max-width:100%"></div>
+            </div>
+            <div class="form-row">
+              <div class="form-group"><label>Saque Máximo (R$)</label><input type="number" id="cfgSaqueMax" class="search-box" style="max-width:100%"></div>
+              <div class="form-group"><label>URL WhatsApp</label><input type="text" id="cfgWhatsapp" class="search-box" placeholder="https://wa.me/..." style="max-width:100%"></div>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><span class="card-title">Bônus Primeiro Depósito</span></div>
+          <div style="padding:1.25rem">
+            <div class="form-row">
+              <div class="form-group"><label>Valor Fixo (R$)</label><input type="number" id="cfgBonusDep" class="search-box" step="0.01" style="max-width:100%"></div>
+              <div class="form-group"><label>Percentual (%)</label><input type="number" id="cfgBonusDepPct" class="search-box" min="0" max="100" style="max-width:100%"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-header"><span class="card-title">Roleta</span></div>
+          <div style="padding:1.25rem">
+            <div class="form-row">
+              <div class="form-group"><label>Saque Mín. p/ Roleta (R$)</label><input type="number" id="cfgRoletaMin" class="search-box" style="max-width:100%"></div>
+              <div class="form-group"><label>Dias de Bônus</label><input type="number" id="cfgRoletaDays" class="search-box" min="1" max="30" style="max-width:100%"></div>
+            </div>
+            <div class="form-group"><label>Giros Diários</label><input type="number" id="cfgRoletaSpins" class="search-box" min="1" max="10" style="max-width:100%"></div>
+            <div class="form-group"><label>Segmentos da Roleta (8 valores separados por vírgula)</label><input type="text" id="cfgRoletaSegments" class="search-box" placeholder="0.5, 1, 2, 0.5, 5, 0.5, 1, 10" style="max-width:100%"></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><span class="card-title">Provedor de Pagamento</span></div>
+          <div style="padding:1.25rem">
+            <div class="form-group">
+              <label>Provedor PIX Ativo</label>
+              <select id="cfgPaymentProvider" class="search-box" style="max-width:100%;cursor:pointer">
+                <option value="gatebox">Gatebox</option>
+                <option value="cyber">Cyber Payment</option>
+                <option value="none">Nenhum</option>
+              </select>
+            </div>
+            <div class="toggle-row"><input type="checkbox" id="cfgGateboxEnabled"><label for="cfgGateboxEnabled">Gatebox Habilitado</label></div>
+            <div class="toggle-row"><input type="checkbox" id="cfgCyberEnabled"><label for="cfgCyberEnabled">Cyber Payment Habilitado</label></div>
+          </div>
+        </div>
+      </div>
+      <button class="btn btn-primary" id="btnSaveConfig" style="padding:0.75rem 2rem;font-size:1rem">Salvar Configurações</button>
+    </section>
+
+    <!-- ===== Gateways PIX ===== -->
+    <section id="gateways" class="section">
+      <div class="header"><h1>Gateways PIX</h1></div>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-header"><span class="card-title">Gatebox</span></div>
+          <div style="padding:1.25rem">
+            <div class="form-group"><label>API URL</label><input type="text" id="gwGateboxUrl" class="search-box" placeholder="https://api.gatebox.com.br" style="max-width:100%"></div>
+            <div class="form-group"><label>Usuário</label><input type="text" id="gwGateboxUser" class="search-box" style="max-width:100%"></div>
+            <div class="form-group"><label>Senha</label><input type="password" id="gwGateboxPass" class="search-box" placeholder="••••••" style="max-width:100%"></div>
+            <div style="display:flex;gap:0.5rem">
+              <button class="btn btn-primary" id="btnSaveGatebox">Salvar</button>
+              <button class="btn btn-outline" id="btnTestGatebox">Testar PIX</button>
+            </div>
+            <pre id="gateboxTestResult" style="margin-top:1rem;padding:0.75rem;background:var(--bg-dark);border-radius:8px;font-size:0.8rem;white-space:pre-wrap;display:none;max-height:200px;overflow:auto"></pre>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><span class="card-title">Cyber Payment</span></div>
+          <div style="padding:1.25rem">
+            <div class="form-group"><label>API URL</label><input type="text" id="gwCyberUrl" class="search-box" placeholder="https://api.escalecyber.com/v1" style="max-width:100%"></div>
+            <div class="form-group"><label>API Key</label><input type="password" id="gwCyberKey" class="search-box" placeholder="••••••" style="max-width:100%"></div>
+            <div style="display:flex;gap:0.5rem">
+              <button class="btn btn-primary" id="btnSaveCyber">Salvar</button>
+              <button class="btn btn-outline" id="btnTestCyber">Testar PIX</button>
+            </div>
+            <pre id="cyberTestResult" style="margin-top:1rem;padding:0.75rem;background:var(--bg-dark);border-radius:8px;font-size:0.8rem;white-space:pre-wrap;display:none;max-height:200px;overflow:auto"></pre>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== iGameWin ===== -->
+    <section id="igamewin" class="section">
+      <div class="header"><h1>iGameWin - Provedor de Jogos</h1></div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">Credenciais</span></div>
+        <div style="padding:1.25rem">
+          <div class="form-row">
+            <div class="form-group"><label>Agent Code</label><input type="text" id="igwCode" class="search-box" style="max-width:100%"></div>
+            <div class="form-group"><label>Agent Token</label><input type="password" id="igwToken" class="search-box" placeholder="••••••" style="max-width:100%"></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label>Agent Secret</label><input type="password" id="igwSecret" class="search-box" placeholder="••••••" style="max-width:100%"></div>
+            <div class="form-group"><label>Modo da API</label>
+              <select id="igwMode" class="search-box" style="max-width:100%;cursor:pointer"><option value="seamless">Seamless</option><option value="transfer">Transfer</option></select>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label>Site Endpoint (URL pública do backend)</label><input type="text" id="igwEndpoint" class="search-box" placeholder="https://meusite.com" style="max-width:100%"></div>
+            <div></div>
+          </div>
+          <div class="toggle-row"><input type="checkbox" id="igwSandbox"><label for="igwSandbox">Sandbox (ambiente de teste)</label></div>
+          <div class="toggle-row"><input type="checkbox" id="igwDemo"><label for="igwDemo">Modo Demo (catálogo fallback se API falhar)</label></div>
+          <button class="btn btn-primary" id="btnSaveIgamewin">Salvar</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== Temas ===== -->
+    <section id="themes" class="section">
+      <div class="header"><h1>Temas e Cores</h1><button class="btn btn-outline" id="btnResetTheme">Restaurar padrão</button></div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">Temas pré-definidos</span></div>
+        <div style="padding:1.25rem;display:flex;flex-wrap:wrap;gap:0.75rem">
+          <button class="btn btn-outline theme-preset" data-theme="default" style="border-left:4px solid #00d4aa">Padrão (Verde)</button>
+          <button class="btn btn-outline theme-preset" data-theme="purple" style="border-left:4px solid #a855f7">Roxo</button>
+          <button class="btn btn-outline theme-preset" data-theme="blue" style="border-left:4px solid #3b82f6">Azul</button>
+          <button class="btn btn-outline theme-preset" data-theme="orange" style="border-left:4px solid #f97316">Laranja</button>
+          <button class="btn btn-outline theme-preset" data-theme="red" style="border-left:4px solid #ef4444">Vermelho</button>
+          <button class="btn btn-outline theme-preset" data-theme="cyan" style="border-left:4px solid #06b6d4">Ciano</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">Personalizar cores (em tempo real)</span></div>
+        <div style="padding:1.25rem;display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:1.25rem">
+          <div><label style="display:block;margin-bottom:0.5rem;color:var(--text-muted);font-size:0.85rem">Cor de destaque</label><div style="display:flex;gap:0.5rem;align-items:center"><input type="color" id="themeAccent" value="#00d4aa" style="width:48px;height:36px;border:none;border-radius:8px;cursor:pointer;background:transparent"><input type="text" id="themeAccentHex" class="search-box" value="#00d4aa" style="max-width:100px;font-family:monospace"></div></div>
+          <div><label style="display:block;margin-bottom:0.5rem;color:var(--text-muted);font-size:0.85rem">Destaque hover</label><div style="display:flex;gap:0.5rem;align-items:center"><input type="color" id="themeAccentHover" value="#00f5c4" style="width:48px;height:36px;border:none;border-radius:8px;cursor:pointer;background:transparent"><input type="text" id="themeAccentHoverHex" class="search-box" value="#00f5c4" style="max-width:100px;font-family:monospace"></div></div>
+          <div><label style="display:block;margin-bottom:0.5rem;color:var(--text-muted);font-size:0.85rem">Fundo principal</label><div style="display:flex;gap:0.5rem;align-items:center"><input type="color" id="themeBgDark" value="#2d1b69" style="width:48px;height:36px;border:none;border-radius:8px;cursor:pointer;background:transparent"><input type="text" id="themeBgDarkHex" class="search-box" value="#2d1b69" style="max-width:100px;font-family:monospace"></div></div>
+          <div><label style="display:block;margin-bottom:0.5rem;color:var(--text-muted);font-size:0.85rem">Fundo cards</label><div style="display:flex;gap:0.5rem;align-items:center"><input type="color" id="themeBgCard" value="#121827" style="width:48px;height:36px;border:none;border-radius:8px;cursor:pointer;background:transparent"><input type="text" id="themeBgCardHex" class="search-box" value="#121827" style="max-width:100px;font-family:monospace"></div></div>
+          <div><label style="display:block;margin-bottom:0.5rem;color:var(--text-muted);font-size:0.85rem">Fundo sidebar</label><div style="display:flex;gap:0.5rem;align-items:center"><input type="color" id="themeBgSidebar" value="#0d1117" style="width:48px;height:36px;border:none;border-radius:8px;cursor:pointer;background:transparent"><input type="text" id="themeBgSidebarHex" class="search-box" value="#0d1117" style="max-width:100px;font-family:monospace"></div></div>
+          <div><label style="display:block;margin-bottom:0.5rem;color:var(--text-muted);font-size:0.85rem">Texto</label><div style="display:flex;gap:0.5rem;align-items:center"><input type="color" id="themeText" value="#e2e8f0" style="width:48px;height:36px;border:none;border-radius:8px;cursor:pointer;background:transparent"><input type="text" id="themeTextHex" class="search-box" value="#e2e8f0" style="max-width:100px;font-family:monospace"></div></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    // ── API ──
+    let adminToken = localStorage.getItem('adminToken') || '';
+    const api = async (path, opts = {}) => {
+      const h = { 'Content-Type': 'application/json' };
+      if (adminToken) h['Authorization'] = 'Bearer ' + adminToken;
+      const res = await fetch(path, { ...opts, headers: h });
+      if (res.status === 401) { adminToken = ''; localStorage.removeItem('adminToken'); loginOverlay.style.display = 'flex'; throw new Error('Sessão expirada'); }
+      return res.json();
+    };
+    const apiUpload = async (path, file, fieldName = 'file') => {
+      const fd = new FormData(); fd.append(fieldName, file);
+      const h = {}; if (adminToken) h['Authorization'] = 'Bearer ' + adminToken;
+      const res = await fetch(path, { method: 'POST', headers: h, body: fd });
+      if (res.status === 401) { adminToken = ''; localStorage.removeItem('adminToken'); loginOverlay.style.display = 'flex'; throw new Error('Sessão expirada'); }
+      return res.json();
+    };
+    const fmtMoney = v => 'R$ ' + Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+    const showToast = (msg, type = 'info') => { const el = document.createElement('div'); el.className = 'toast ' + type; el.textContent = msg; document.getElementById('toastContainer').appendChild(el); setTimeout(() => el.remove(), 3500); };
+
+    // ── Login ──
+    const loginOverlay = document.getElementById('loginOverlay');
+    if (adminToken) loginOverlay.style.display = 'none';
+    const doLogin = async () => {
+      const user = document.getElementById('loginUser').value.trim();
+      const password = document.getElementById('loginPassword').value;
+      const errEl = document.getElementById('loginError');
+      errEl.style.display = 'none';
+      if (!user || !password) { errEl.textContent = 'Preencha usuário e senha.'; errEl.style.display = 'block'; return; }
+      try {
+        const data = await fetch('/api/admin/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user, password }) }).then(r => r.json());
+        if (data.ok && data.token) { adminToken = data.token; localStorage.setItem('adminToken', adminToken); loginOverlay.style.display = 'none'; initAllData(); }
+        else { errEl.textContent = data.error?.message || 'Credenciais inválidas'; errEl.style.display = 'block'; }
+      } catch (e) { errEl.textContent = 'Erro de conexão.'; errEl.style.display = 'block'; }
+    };
+    document.getElementById('btnLogin').addEventListener('click', doLogin);
+    document.getElementById('loginPassword').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+
+    // ── Navigation ──
+    document.querySelectorAll('.nav-item').forEach(el => {
+      el.addEventListener('click', () => {
+        document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+        document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+        el.classList.add('active');
+        const sec = el.dataset.section;
+        document.getElementById(sec).classList.add('active');
+        if (sec === 'deposits') loadDeposits();
+        if (sec === 'withdrawals') loadWithdrawals();
+        if (sec === 'gateways') loadGateways();
+        if (sec === 'igamewin') loadIgamewin();
+        if (sec === 'config') loadConfig();
+        if (sec === 'branding') loadBranding();
+        if (sec === 'promocoes') loadPromos();
+      });
+    });
+
+    // ── Dashboard ──
+    const loadDashboard = async () => {
+      try {
+        const d = await api('/api/admin/dashboard');
+        document.getElementById('kpiTotalDep').textContent = fmtMoney(d.totalDeposits);
+        document.getElementById('kpiUsers').textContent = d.usersCount ?? 0;
+        document.getElementById('kpiDepHoje').textContent = fmtMoney(d.depositsToday);
+        document.getElementById('kpiSaquesPend').textContent = fmtMoney(d.withdrawalsPending);
+        const tb = document.getElementById('dashboardActivity');
+        let rows = '';
+        (d.recentDeposits || []).forEach(dep => { rows += '<tr><td>' + (dep.data || '') + '</td><td>Depósito</td><td>' + (dep.user || '') + '</td><td>' + fmtMoney(dep.valor) + '</td><td><span class="badge badge-success">Aprovado</span></td></tr>'; });
+        (d.recentWithdrawals || []).forEach(w => { const b = w.status === 'concluido' ? 'badge-success' : w.status === 'recusado' ? 'badge-danger' : 'badge-warning'; rows += '<tr><td>' + (w.data || '') + '</td><td>Saque</td><td>' + (w.user || '') + '</td><td>' + fmtMoney(w.valor) + '</td><td><span class="badge ' + b + '">' + w.status + '</span></td></tr>'; });
+        tb.innerHTML = rows || '<tr><td colspan="5" style="text-align:center;color:var(--text-muted)">Nenhuma atividade recente</td></tr>';
+      } catch (e) { console.error('dashboard', e); }
+    };
+
+    // ── Jogadores ──
+    const loadPlayers = async (q) => {
+      try {
+        const d = await api('/api/admin/usuarios' + (q ? '?q=' + encodeURIComponent(q) : ''));
+        const tb = document.getElementById('playersTableBody');
+        let rows = '';
+        (d.list || []).forEach(u => {
+          rows += '<tr><td title="' + u.id + '">' + u.id.slice(0, 8) + '…</td><td>' + (u.account || u.phone) + '</td><td>' + fmtMoney(u.balance) + '</td><td>' + fmtMoney(u.valorDeposito) + '</td><td>' + fmtMoney(u.apostaAcumulada) + '</td><td>' + (u.createdAt || '') + '</td><td><button class="btn btn-outline btn-add-bonus" style="padding:0.2rem 0.5rem;font-size:0.8rem" data-id="' + u.id + '" data-account="' + (u.account || '') + '">+ Bônus</button></td></tr>';
+        });
+        tb.innerHTML = rows || '<tr><td colspan="7" style="text-align:center;color:var(--text-muted)">Nenhum jogador</td></tr>';
+      } catch (e) { console.error('players', e); }
+    };
+    let pTimer; document.getElementById('searchPlayers').addEventListener('input', e => { clearTimeout(pTimer); pTimer = setTimeout(() => loadPlayers(e.target.value), 400); });
+
+    // ── Depósitos ──
+    const loadDeposits = async () => {
+      try {
+        const st = document.getElementById('depositFilter').value;
+        const d = await api('/api/admin/depositos' + (st ? '?status=' + st : ''));
+        const tb = document.getElementById('depositsTableBody');
+        let rows = '';
+        (d.list || []).forEach(dep => {
+          const badge = dep.status === 'concluido' ? 'badge-success' : dep.status === 'pendente' ? 'badge-warning' : 'badge-danger';
+          const actions = dep.status === 'pendente' ? '<button class="btn btn-primary btn-approve-dep" data-id="' + dep.id + '" style="padding:0.2rem 0.5rem;font-size:0.8rem">Aprovar</button>' : '—';
+          rows += '<tr><td title="' + dep.id + '">' + dep.id.slice(0, 8) + '…</td><td>' + (dep.user || '') + '</td><td>' + fmtMoney(dep.valor) + '</td><td><span class="badge ' + badge + '">' + dep.status + '</span></td><td>' + (dep.createdAt || '') + '</td><td>' + actions + '</td></tr>';
+        });
+        tb.innerHTML = rows || '<tr><td colspan="6" style="text-align:center;color:var(--text-muted)">Nenhum depósito</td></tr>';
+      } catch (e) { console.error('deposits', e); }
+    };
+    document.getElementById('depositFilter').addEventListener('change', loadDeposits);
+
+    // ── Saques ──
+    const loadWithdrawals = async () => {
+      try {
+        const st = document.getElementById('withdrawalFilter').value;
+        const d = await api('/api/admin/saques' + (st ? '?status=' + st : ''));
+        const tb = document.getElementById('withdrawalsTableBody');
+        let rows = '';
+        let pendingCount = 0;
+        (d.list || []).forEach(w => {
+          const isPending = w.status === 'pendente' || w.status === 'processando';
+          if (isPending) pendingCount++;
+          const badge = w.status === 'concluido' ? 'badge-success' : w.status === 'recusado' ? 'badge-danger' : 'badge-warning';
+          const actions = isPending
+            ? '<button class="btn btn-primary btn-approve-wd" data-id="' + w.id + '" data-val="' + w.valor + '" style="padding:0.2rem 0.5rem;font-size:0.8rem;margin-right:0.25rem">Aprovar</button><button class="btn btn-outline btn-reject-wd" data-id="' + w.id + '" style="padding:0.2rem 0.5rem;font-size:0.8rem">Rejeitar</button>'
+            : '<span class="badge ' + badge + '">' + w.status + '</span>';
+          rows += '<tr><td title="' + w.id + '">' + w.id.slice(0, 8) + '…</td><td>' + (w.user || '') + '</td><td>' + fmtMoney(w.valor) + '</td><td>' + (w.metodo || 'PIX') + '</td><td>' + (w.cpfId || '—') + '</td><td>' + (w.createdAt || '') + '</td><td>' + actions + '</td></tr>';
+        });
+        tb.innerHTML = rows || '<tr><td colspan="7" style="text-align:center;color:var(--text-muted)">Nenhum saque</td></tr>';
+        document.getElementById('kpiWdPending').textContent = pendingCount;
+      } catch (e) { console.error('withdrawals', e); }
+    };
+    document.getElementById('withdrawalFilter').addEventListener('change', loadWithdrawals);
+
+    // ── Promoções ──
+    let promosData = [];
+    const loadPromos = async () => {
+      try {
+        promosData = await api('/api/admin/promocoes');
+        const tb = document.getElementById('promosTableBody');
+        let rows = '';
+        promosData.forEach((p, i) => {
+          rows += '<tr><td>' + (p.titulo || '(sem título)') + '</td><td>' + (p.descricao || '').slice(0, 60) + '</td><td><span class="badge ' + (p.ativa !== false ? 'badge-success">Sim' : 'badge-danger">Não') + '</span></td><td><button class="btn btn-outline btn-del-promo" data-idx="' + i + '" style="padding:0.2rem 0.5rem;font-size:0.8rem">Remover</button></td></tr>';
+        });
+        tb.innerHTML = rows || '<tr><td colspan="4" style="text-align:center;color:var(--text-muted)">Nenhuma promoção</td></tr>';
+      } catch (e) { console.error('promos', e); }
+    };
+    document.getElementById('btnAddPromo').addEventListener('click', () => {
+      const titulo = prompt('Título da promoção:');
+      if (!titulo) return;
+      const descricao = prompt('Descrição:') || '';
+      promosData.push({ id: 'p-' + Date.now(), titulo, descricao, ativa: true, bannerUrl: '', url: '' });
+      api('/api/admin/promocoes', { method: 'POST', body: JSON.stringify(promosData) })
+        .then(r => { showToast('Promoção criada.', 'success'); loadPromos(); })
+        .catch(() => showToast('Erro ao salvar.', 'error'));
+    });
+
+    // ── Branding ──
+    const loadBranding = async () => {
+      try {
+        const d = await api('/api/settings');
+        document.getElementById('brandSiteName').value = d.siteName || '';
+        document.getElementById('brandPageTitle').value = d.pageTitle || '';
+      } catch (e) { console.error('branding', e); }
+    };
+    document.getElementById('btnSaveBranding').addEventListener('click', async () => {
+      try {
+        const r = await api('/api/settings/branding', { method: 'POST', body: JSON.stringify({ siteName: document.getElementById('brandSiteName').value, pageTitle: document.getElementById('brandPageTitle').value }) });
+        showToast(r.ok ? 'Branding salvo.' : (r.error || 'Erro'), r.ok ? 'success' : 'error');
+      } catch (e) { showToast('Erro.', 'error'); }
+    });
+    document.getElementById('btnUploadLogo').addEventListener('click', async () => {
+      const f = document.getElementById('uploadLogo').files[0]; if (!f) return showToast('Selecione um arquivo.', 'error');
+      try { const r = await apiUpload('/api/upload/logo', f, 'file'); showToast(r.ok || r.url ? 'Logo enviado.' : (r.error || 'Erro'), r.ok || r.url ? 'success' : 'error'); } catch (e) { showToast('Erro.', 'error'); }
+    });
+    document.getElementById('btnUploadBanner').addEventListener('click', async () => {
+      const f = document.getElementById('uploadBanner').files[0]; if (!f) return showToast('Selecione um arquivo.', 'error');
+      try { const r = await apiUpload('/api/upload/banner', f, 'file'); showToast(r.ok || r.url ? 'Banner enviado.' : (r.error || 'Erro'), r.ok || r.url ? 'success' : 'error'); } catch (e) { showToast('Erro.', 'error'); }
+    });
+    document.getElementById('btnUploadLoading').addEventListener('click', async () => {
+      const f = document.getElementById('uploadLoadingBanner').files[0]; if (!f) return showToast('Selecione um arquivo.', 'error');
+      try { const r = await apiUpload('/api/upload/loading-banner', f, 'file'); showToast(r.ok ? 'Banner de loading enviado.' : (r.error || 'Erro'), r.ok ? 'success' : 'error'); } catch (e) { showToast('Erro.', 'error'); }
+    });
+    document.getElementById('btnClearLoading').addEventListener('click', async () => {
+      try { const r = await api('/api/settings/loading-banner/clear', { method: 'POST' }); showToast(r.ok ? 'Loading banner restaurado.' : 'Erro', r.ok ? 'success' : 'error'); } catch (e) { showToast('Erro.', 'error'); }
+    });
+
+    // ── Configurações ──
+    const loadConfig = async () => {
+      try {
+        const cfg = await api('/api/admin/config');
+        document.getElementById('cfgDepositoMin').value = cfg.depositoMin ?? 10;
+        document.getElementById('cfgSaqueMin').value = cfg.saqueMin ?? 20;
+        document.getElementById('cfgSaqueMax').value = cfg.saqueMax ?? 40000;
+        document.getElementById('cfgWhatsapp').value = cfg.whatsappUrl || '';
+        document.getElementById('cfgBonusDep').value = cfg.bonusPrimeiroDep ?? 0;
+        document.getElementById('cfgBonusDepPct').value = cfg.bonusPrimeiroDepPercent ?? 0;
+        document.getElementById('cfgRoletaMin').value = cfg.roletaMinWithdraw ?? 100;
+        document.getElementById('cfgRoletaDays').value = cfg.roletaBonusDays ?? 3;
+        document.getElementById('cfgRoletaSpins').value = cfg.roletaDailySpins ?? 1;
+        document.getElementById('cfgPaymentProvider').value = cfg.paymentProvider || 'gatebox';
+        document.getElementById('cfgGateboxEnabled').checked = cfg.gateboxEnabled !== false;
+        document.getElementById('cfgCyberEnabled').checked = cfg.cyberEnabled !== false;
+        if (Array.isArray(cfg.roletaSegments)) {
+          document.getElementById('cfgRoletaSegments').value = cfg.roletaSegments.map(s => s.value ?? s).join(', ');
+        }
+      } catch (e) { console.error('config', e); }
+    };
+    document.getElementById('btnSaveConfig').addEventListener('click', async () => {
+      const segStr = document.getElementById('cfgRoletaSegments').value;
+      const segArr = segStr.split(',').map(s => parseFloat(s.trim()) || 0);
+      const roletaSegments = segArr.length === 8 ? segArr.map(v => ({ label: 'R$ ' + v, value: v })) : undefined;
+      const body = {
+        depositoMin: parseInt(document.getElementById('cfgDepositoMin').value) || 10,
+        saqueMin: parseInt(document.getElementById('cfgSaqueMin').value) || 20,
+        saqueMax: parseInt(document.getElementById('cfgSaqueMax').value) || 40000,
+        whatsappUrl: document.getElementById('cfgWhatsapp').value,
+        bonusPrimeiroDep: parseFloat(document.getElementById('cfgBonusDep').value) || 0,
+        bonusPrimeiroDepPercent: parseFloat(document.getElementById('cfgBonusDepPct').value) || 0,
+        roletaMinWithdraw: parseInt(document.getElementById('cfgRoletaMin').value) || 100,
+        roletaBonusDays: parseInt(document.getElementById('cfgRoletaDays').value) || 3,
+        roletaDailySpins: parseInt(document.getElementById('cfgRoletaSpins').value) || 1,
+        paymentProvider: document.getElementById('cfgPaymentProvider').value,
+        gateboxEnabled: document.getElementById('cfgGateboxEnabled').checked,
+        cyberEnabled: document.getElementById('cfgCyberEnabled').checked
+      };
+      if (roletaSegments) body.roletaSegments = roletaSegments;
+      try {
+        const r = await api('/api/admin/config', { method: 'POST', body: JSON.stringify(body) });
+        showToast(r.ok ? 'Configurações salvas.' : (r.error || 'Erro'), r.ok ? 'success' : 'error');
+      } catch (e) { showToast('Erro ao salvar.', 'error'); }
+    });
+
+    // ── Gateways PIX ──
+    const loadGateways = async () => {
+      try {
+        const [gb, cy] = await Promise.all([api('/api/admin/gatebox'), api('/api/admin/cyber')]);
+        document.getElementById('gwGateboxUrl').value = gb.apiUrl || '';
+        document.getElementById('gwGateboxUser').value = gb.username || '';
+        document.getElementById('gwGateboxPass').value = gb.password || '';
+        document.getElementById('gwCyberUrl').value = cy.apiUrl || '';
+        document.getElementById('gwCyberKey').value = cy.apiKey || '';
+      } catch (e) { console.error('gateways', e); }
+    };
+    document.getElementById('btnSaveGatebox').addEventListener('click', async () => {
+      try {
+        const r = await api('/api/admin/gatebox', { method: 'POST', body: JSON.stringify({ apiUrl: document.getElementById('gwGateboxUrl').value, username: document.getElementById('gwGateboxUser').value, password: document.getElementById('gwGateboxPass').value }) });
+        showToast(r.ok ? 'Gatebox salvo.' : (r.error || 'Erro'), r.ok ? 'success' : 'error');
+      } catch (e) { showToast('Erro.', 'error'); }
+    });
+    document.getElementById('btnTestGatebox').addEventListener('click', async () => {
+      const pre = document.getElementById('gateboxTestResult'); pre.style.display = 'block'; pre.textContent = 'Testando...';
+      try { const r = await api('/api/admin/gatebox/test-pix', { method: 'POST' }); pre.textContent = JSON.stringify(r, null, 2); } catch (e) { pre.textContent = 'Erro: ' + e.message; }
+    });
+    document.getElementById('btnSaveCyber').addEventListener('click', async () => {
+      try {
+        const r = await api('/api/admin/cyber', { method: 'POST', body: JSON.stringify({ apiUrl: document.getElementById('gwCyberUrl').value, apiKey: document.getElementById('gwCyberKey').value }) });
+        showToast(r.ok ? 'Cyber salvo.' : (r.error || 'Erro'), r.ok ? 'success' : 'error');
+      } catch (e) { showToast('Erro.', 'error'); }
+    });
+    document.getElementById('btnTestCyber').addEventListener('click', async () => {
+      const pre = document.getElementById('cyberTestResult'); pre.style.display = 'block'; pre.textContent = 'Testando...';
+      try { const r = await api('/api/admin/cyber/test-pix', { method: 'POST' }); pre.textContent = JSON.stringify(r, null, 2); } catch (e) { pre.textContent = 'Erro: ' + e.message; }
+    });
+
+    // ── iGameWin ──
+    const loadIgamewin = async () => {
+      try {
+        const d = await api('/api/settings/igamewin');
+        document.getElementById('igwCode').value = d.agent_code || '';
+        document.getElementById('igwToken').value = d.agent_token || '';
+        document.getElementById('igwSecret').value = d.agent_secret || '';
+        document.getElementById('igwMode').value = d.api_mode || 'seamless';
+        document.getElementById('igwEndpoint').value = d.site_endpoint || '';
+        document.getElementById('igwSandbox').checked = d.sandbox !== false;
+        document.getElementById('igwDemo').checked = d.is_demo !== false;
+      } catch (e) { console.error('igamewin', e); }
+    };
+    document.getElementById('btnSaveIgamewin').addEventListener('click', async () => {
+      try {
+        const r = await api('/api/settings/igamewin', { method: 'POST', body: JSON.stringify({
+          agent_code: document.getElementById('igwCode').value,
+          agent_token: document.getElementById('igwToken').value,
+          agent_secret: document.getElementById('igwSecret').value,
+          api_mode: document.getElementById('igwMode').value,
+          sandbox: document.getElementById('igwSandbox').checked,
+          is_demo: document.getElementById('igwDemo').checked
+        }) });
+        showToast(r.ok ? 'iGameWin salvo.' : (r.error || 'Erro'), r.ok ? 'success' : 'error');
+      } catch (e) { showToast('Erro.', 'error'); }
+    });
+
+    // ── Event Delegation ──
+    document.body.addEventListener('click', (e) => {
+      const btn = e.target.closest('button');
+      if (!btn) return;
+      if (btn.classList.contains('btn-add-bonus')) {
+        const userId = btn.dataset.id, account = btn.dataset.account || '';
+        const valor = prompt('Valor do bônus para ' + account + ':');
+        if (valor && parseFloat(valor) > 0) {
+          api('/api/admin/usuarios/' + userId + '/add-bonus', { method: 'POST', body: JSON.stringify({ amount: parseFloat(valor) }) })
+            .then(r => { if (r.ok) { showToast('Bônus adicionado.', 'success'); loadPlayers(); loadDashboard(); } else showToast(r.error || 'Erro', 'error'); })
+            .catch(() => showToast('Erro.', 'error'));
+        }
+        return;
+      }
+      if (btn.classList.contains('btn-approve-dep')) {
+        const id = btn.dataset.id;
+        if (confirm('Aprovar este depósito?')) {
+          api('/api/admin/depositos/' + id + '/approve', { method: 'POST' })
+            .then(r => { if (r.ok) { showToast('Depósito aprovado.', 'success'); loadDeposits(); loadDashboard(); } else showToast(r.error || 'Erro', 'error'); })
+            .catch(() => showToast('Erro.', 'error'));
+        }
+        return;
+      }
+      if (btn.classList.contains('btn-approve-wd')) {
+        if (confirm('Aprovar saque de ' + fmtMoney(btn.dataset.val) + '?')) {
+          api('/api/admin/saques/' + btn.dataset.id, { method: 'PATCH', body: JSON.stringify({ status: 'concluido' }) })
+            .then(r => { if (r.ok) { showToast('Saque aprovado.', 'success'); loadWithdrawals(); loadDashboard(); } else showToast(r.error || 'Erro', 'error'); })
+            .catch(() => showToast('Erro.', 'error'));
+        }
+        return;
+      }
+      if (btn.classList.contains('btn-reject-wd')) {
+        if (confirm('Rejeitar este saque? Saldo será devolvido.')) {
+          api('/api/admin/saques/' + btn.dataset.id, { method: 'PATCH', body: JSON.stringify({ status: 'recusado' }) })
+            .then(r => { if (r.ok) { showToast('Saque recusado.', 'success'); loadWithdrawals(); loadDashboard(); } else showToast(r.error || 'Erro', 'error'); })
+            .catch(() => showToast('Erro.', 'error'));
+        }
+        return;
+      }
+      if (btn.classList.contains('btn-del-promo')) {
+        const idx = parseInt(btn.dataset.idx);
+        if (confirm('Remover esta promoção?')) {
+          promosData.splice(idx, 1);
+          api('/api/admin/promocoes', { method: 'POST', body: JSON.stringify(promosData) })
+            .then(() => { showToast('Promoção removida.', 'success'); loadPromos(); })
+            .catch(() => showToast('Erro.', 'error'));
+        }
+        return;
+      }
+    });
+
+    // ── Temas ──
+    const THEME_DEFAULT = { accent:'#00d4aa', accentHover:'#00f5c4', bgDark:'#2d1b69', bgCard:'#121827', bgSidebar:'#0d1117', text:'#e2e8f0', textMuted:'#94a3b8', border:'#1e293b', success:'#10b981', danger:'#ef4444', warning:'#f59e0b' };
+    const THEME_PRESETS = { default: THEME_DEFAULT, purple: { ...THEME_DEFAULT, accent:'#a855f7', accentHover:'#c084fc' }, blue: { ...THEME_DEFAULT, accent:'#3b82f6', accentHover:'#60a5fa' }, orange: { ...THEME_DEFAULT, accent:'#f97316', accentHover:'#fb923c' }, red: { ...THEME_DEFAULT, accent:'#ef4444', accentHover:'#f87171' }, cyan: { ...THEME_DEFAULT, accent:'#06b6d4', accentHover:'#22d3ee' } };
+    const hexToRgba = (hex, a) => { const m = hex.slice(1).match(/.{2}/g); if (!m) return `rgba(0,212,170,${a})`; return `rgba(${m.map(x=>parseInt(x,16)).join(',')},${a})`; };
+    const applyTheme = (t) => { const r = document.documentElement; Object.entries({ '--accent': t.accent, '--accent-hover': t.accentHover, '--bg-dark': t.bgDark, '--bg-card': t.bgCard, '--bg-sidebar': t.bgSidebar, '--text': t.text, '--text-muted': t.textMuted, '--border': t.border, '--success': t.success, '--danger': t.danger, '--warning': t.warning }).forEach(([k, v]) => r.style.setProperty(k, v)); };
+    const setThemeInputs = (t) => { ['themeAccent','themeAccentHover','themeBgDark','themeBgCard','themeBgSidebar','themeText'].forEach((id, i) => { const keys = ['accent','accentHover','bgDark','bgCard','bgSidebar','text']; const el = document.getElementById(id), hex = document.getElementById(id+'Hex'); if (el && hex) { el.value = t[keys[i]]; hex.value = t[keys[i]]; } }); };
+    const getThemeFromInputs = () => ({ accent: document.getElementById('themeAccent')?.value || THEME_DEFAULT.accent, accentHover: document.getElementById('themeAccentHover')?.value || THEME_DEFAULT.accentHover, bgDark: document.getElementById('themeBgDark')?.value || THEME_DEFAULT.bgDark, bgCard: document.getElementById('themeBgCard')?.value || THEME_DEFAULT.bgCard, bgSidebar: document.getElementById('themeBgSidebar')?.value || THEME_DEFAULT.bgSidebar, text: document.getElementById('themeText')?.value || THEME_DEFAULT.text, textMuted: THEME_DEFAULT.textMuted, border: THEME_DEFAULT.border, success: THEME_DEFAULT.success, danger: THEME_DEFAULT.danger, warning: THEME_DEFAULT.warning });
+    const saveTheme = () => localStorage.setItem('adminTheme', JSON.stringify(getThemeFromInputs()));
+    const loadTheme = () => { try { const t = JSON.parse(localStorage.getItem('adminTheme') || 'null'); applyTheme(t || THEME_DEFAULT); if (t) setThemeInputs(t); } catch (e) { applyTheme(THEME_DEFAULT); } };
+    loadTheme();
+    ['themeAccent','themeAccentHover','themeBgDark','themeBgCard','themeBgSidebar','themeText'].forEach(id => {
+      const el = document.getElementById(id), hex = document.getElementById(id + 'Hex');
+      if (!el || !hex) return;
+      el.addEventListener('input', () => { hex.value = el.value; applyTheme(getThemeFromInputs()); saveTheme(); });
+      hex.addEventListener('input', () => { if (/^#[0-9A-Fa-f]{6}$/.test(hex.value)) { el.value = hex.value; applyTheme(getThemeFromInputs()); saveTheme(); } });
+    });
+    document.querySelectorAll('.theme-preset').forEach(btn => btn.addEventListener('click', () => { const t = THEME_PRESETS[btn.dataset.theme] || THEME_DEFAULT; setThemeInputs(t); applyTheme(t); saveTheme(); showToast('Tema aplicado.', 'success'); }));
+    document.getElementById('btnResetTheme')?.addEventListener('click', () => { setThemeInputs(THEME_DEFAULT); applyTheme(THEME_DEFAULT); saveTheme(); showToast('Tema restaurado.', 'success'); });
+
+    // ── Init ──
+    const initAllData = () => { loadDashboard(); loadPlayers(); };
+    if (adminToken) initAllData();
+  </script>
+</body>
+</html>

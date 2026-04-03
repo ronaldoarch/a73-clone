@@ -1,0 +1,81 @@
+# ──────────────────────────────────────────────────────────────
+# A73 Cassino — build único (backend Express + frontend estático)
+# Base dir Coolify: atualizado/
+# ──────────────────────────────────────────────────────────────
+FROM node:20-bookworm-slim
+
+# Deps sistema (Prisma precisa de OpenSSL)
+RUN apt-get update && \
+    apt-get install -y openssl ca-certificates curl tar && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# ── 1. Instalar dependências do backend ─────────────────────
+COPY backend/package*.json ./
+RUN npm ci --omit=dev
+
+# ── 2. Prisma ────────────────────────────────────────────────
+COPY backend/prisma ./prisma/
+RUN npx prisma generate
+
+# ── 3. Código do backend ─────────────────────────────────────
+COPY backend/ ./
+
+# ── 4. Frontend estático (site_baixado) ──────────────────────
+# Repositório privado: GitHub devolve 404 sem autenticação. Em Coolify defina
+# GITHUB_TOKEN (PAT com scope repo / leitura de releases) como Build Argument.
+# Repositório público: deixe GITHUB_TOKEN vazio — usa URL directa.
+ARG SITE_BAIXADO_URL=https://github.com/ronaldoarch/a73-clone/releases/download/v1.0-site-baixado/site_baixado.tar.gz
+# ID do asset "site_baixado.tar.gz" na release v1.0-site-baixado (API: .../releases/assets/<id>)
+ARG SITE_BAIXADO_ASSET_ID=384144780
+ARG GITHUB_REPO=ronaldoarch/a73-clone
+ARG GITHUB_TOKEN=
+ARG SKIP_SITE_DOWNLOAD=0
+
+RUN if [ -d /app/site_baixado ] && [ "$(ls -A /app/site_baixado 2>/dev/null | wc -l)" -gt 5 ]; then \
+        echo "site_baixado already present, skipping download"; \
+    elif [ "${SKIP_SITE_DOWNLOAD}" = "1" ]; then \
+        echo "SKIP_SITE_DOWNLOAD=1, skipping"; \
+        mkdir -p /app/site_baixado; \
+    else \
+        echo "Downloading site_baixado from GitHub Release..."; \
+        DOWNLOAD_OK=0; \
+        if [ -n "${GITHUB_TOKEN}" ]; then \
+            curl -fSL --stderr - \
+                -H "Accept: application/octet-stream" \
+                -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+                -H "X-GitHub-Api-Version: 2022-11-28" \
+                -o /tmp/site_baixado.tar.gz \
+                "https://api.github.com/repos/${GITHUB_REPO}/releases/assets/${SITE_BAIXADO_ASSET_ID}" \
+            && DOWNLOAD_OK=1; \
+        else \
+            curl -fSL --stderr - -A "A73-Dockerfile/1.0" "${SITE_BAIXADO_URL}" \
+                -o /tmp/site_baixado.tar.gz \
+            && DOWNLOAD_OK=1; \
+        fi; \
+        if [ "$DOWNLOAD_OK" = "1" ]; then \
+            tar -xzf /tmp/site_baixado.tar.gz -C /app && \
+            rm /tmp/site_baixado.tar.gz && \
+            echo "Download concluído."; \
+        else \
+            echo "AVISO: Download do site_baixado falhou. Criando diretório vazio."; \
+            mkdir -p /app/site_baixado; \
+        fi; \
+    fi
+
+# ── 5. Admin customizado (sobrescreve o do site_baixado baixado) ─
+COPY site_baixado/admin/ /app/site_baixado/admin/
+
+# ── 6. Finalização ────────────────────────────────────────────
+RUN mkdir -p /app/uploads && chmod +x /app/entrypoint.sh
+
+EXPOSE 3000
+
+ENV SERVE_SITE_BAIXADO=1
+# O server.js usa: path.join(__dirname, '..', 'site_baixado')
+# __dirname = /app → ../site_baixado = /site_baixado
+# Por isso usamos SITE_BAIXADO_DIR para apontar para /app/site_baixado
+ENV SITE_BAIXADO_DIR=/app/site_baixado
+
+ENTRYPOINT ["./entrypoint.sh"]

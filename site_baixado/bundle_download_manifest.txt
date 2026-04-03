@@ -1,0 +1,13 @@
+baixados_ok=777
+já_existiam=247
+falhas=9
+
+/assets/src/components/first/Input/assets/warning.svg	HTTP Error 404: Not Found
+/first/svg/tabbar/bg-${l}.svg	HTTP Error 404: Not Found
+/images/activity/follow${S.resetType}.png	HTTP Error 404: Not Found
+/images/activity/follow${S.resetType}Circle.png	HTTP Error 404: Not Found
+/images/activity/halo${S.resetType}.png	HTTP Error 404: Not Found
+/images/activity/invite-rule-poster.png	HTTP Error 404: Not Found
+/images/activity/rescue_${S.resetType.toLocaleLowerCase()}_banner${e}.png	HTTP Error 404: Not Found
+/svg/agent/bg-invite-level-${t.level-1}.svg	HTTP Error 404: Not Found
+/svg/rectangle1.svg	HTTP Error 404: Not Found

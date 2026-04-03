@@ -1,0 +1,302 @@
+/* ═══════════════════════════════════════════════
+   Animation Keyframes — Extracted from original
+   ═══════════════════════════════════════════════ */
+
+@keyframes fadeToTransparent {
+  0% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@keyframes shiny {
+  0% { opacity: 0; transform: scale(0) rotate(45deg); }
+  80% { opacity: .5; transform: scale(0) rotate(45deg); }
+  81% { opacity: 1; transform: scale(4) rotate(45deg); }
+  100% { opacity: 0; transform: scale(50) rotate(45deg); }
+}
+
+@keyframes rotation {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes scale {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .3; }
+}
+
+@keyframes breathing {
+  0%, 100% { opacity: .6; }
+  50% { opacity: 1; }
+}
+
+@keyframes fadeIn {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-2px); }
+  75% { transform: translateX(2px); }
+}
+
+@keyframes shine {
+  0% { left: -100%; }
+  100% { left: 200%; }
+}
+
+@keyframes floating {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+
+@keyframes arrow {
+  0%, 100% { transform: translateX(-5px); }
+  50% { transform: translateX(0); }
+}
+
+@keyframes scaleFade {
+  0% { transform: scale(.5); opacity: 1; }
+  50% { transform: scale(2); opacity: .5; }
+  100% { transform: scale(3.5); opacity: 0; }
+}
+
+@keyframes scroll-up {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(-100%); }
+}
+
+@keyframes scroll-horizontal {
+  0% { transform: translate(0); }
+  100% { transform: translate(-50%); }
+}
+
+@keyframes supportFloat {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-8px) scale(1.02); }
+}
+
+@keyframes iconBounce {
+  0%, 100% { transform: scale(1) rotate(0); }
+  25% { transform: scale(1.1) rotate(-5deg); }
+  75% { transform: scale(1.1) rotate(5deg); }
+}
+
+@keyframes moveUpDown {
+  0%, 100% { transform: translateY(0); }
+  25% { transform: translateY(2px); }
+  75% { transform: translateY(-10px); }
+}
+
+@keyframes moveUpDown1 {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+
+@keyframes moveUpDown2 {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+@keyframes moveUpDown3 {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-12px); }
+}
+
+@keyframes lighter {
+  0% { transform: scale(.3); opacity: 1; }
+  100% { transform: scale(1.8); opacity: 0; }
+}
+
+@keyframes scaleAnimation {
+  0%, 100% { transform: scale(2); }
+  50% { transform: scale(1); }
+}
+
+@keyframes redPacketShake {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-8deg); }
+  75% { transform: rotate(8deg); }
+}
+
+@keyframes twinkling1 {
+  0%, 100% { opacity: 0; }
+  50% { opacity: 1; }
+}
+
+@keyframes fingerTranslate {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(-3px, 3px); }
+}
+
+@keyframes zoom {
+  0% { transform: scale(0); }
+  100% { transform: scale(1); }
+}
+
+@keyframes buttonAnimation {
+  0% { transform: scale(0); }
+  70% { transform: scale(1.2); }
+  100% { transform: scale(1); }
+}
+
+@keyframes apertureAnimation {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes lightAnimation {
+  0% { opacity: 0.3; }
+  50% { opacity: 1; }
+  100% { opacity: 0.3; }
+}
+
+@keyframes lightBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+@keyframes scrollAnimation {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(-50%); }
+}
+
+@keyframes turntableShiny {
+  0% { opacity: 0; transform: rotate(0deg); }
+  50% { opacity: 1; }
+  100% { opacity: 0; transform: rotate(360deg); }
+}
+
+@keyframes finger-effect {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(-3px, 3px) scale(0.95); }
+}
+
+@keyframes startBtnScaleIn {
+  0% { transform: scale(0); }
+  80% { transform: scale(1.15); }
+  100% { transform: scale(1); }
+}
+
+@keyframes wheelScaleIn {
+  0% { transform: scale(0) rotate(-180deg); }
+  80% { transform: scale(1.05) rotate(10deg); }
+  100% { transform: scale(1) rotate(0deg); }
+}
+
+@keyframes wheelScaleOut {
+  0% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(0); opacity: 0; }
+}
+
+@keyframes wheelRangeAmountIn {
+  0% { transform: translateY(20px); opacity: 0; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes liuguang-move {
+  0% { left: -100%; }
+  100% { left: 200%; }
+}
+
+@keyframes twinkle {
+  0%, 100% { opacity: 0; transform: scale(.5); }
+  50% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes cardAnimation {
+  0% { transform: rotateY(0deg); }
+  100% { transform: rotateY(180deg); }
+}
+
+@keyframes scale-move {
+  0% { transform: scale(1) translate(0, 0); }
+  50% { transform: scale(1.1) translate(-2px, -2px); }
+  100% { transform: scale(1) translate(0, 0); }
+}
+
+@keyframes shake-status {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-3deg); }
+  75% { transform: rotate(3deg); }
+}
+
+@keyframes shake-rotate-start {
+  0% { transform: rotate(0deg); }
+  25% { transform: rotate(-15deg); }
+  50% { transform: rotate(0deg); }
+  75% { transform: rotate(15deg); }
+  100% { transform: rotate(0deg); }
+}
+
+@keyframes shake-scale-start {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
+@keyframes shake-scale-opening {
+  0%, 100% { transform: scale(1); }
+  25% { transform: scale(0.95); }
+  50% { transform: scale(1.1); }
+  75% { transform: scale(0.98); }
+}
+
+@keyframes bounce-cycle {
+  0%, 100% { transform: translateY(0); }
+  30% { transform: translateY(-15px); }
+  50% { transform: translateY(0); }
+  70% { transform: translateY(-8px); }
+  85% { transform: translateY(0); }
+}
+
+@keyframes pigElasticBounce {
+  0%, 100% { transform: translateY(0) scaleY(1); }
+  20% { transform: translateY(-20px) scaleY(1.1); }
+  40% { transform: translateY(0) scaleY(.95); }
+  60% { transform: translateY(-10px) scaleY(1.05); }
+  80% { transform: translateY(0) scaleY(.98); }
+}
+
+@keyframes bubbleRise {
+  0% { transform: translateY(0) scale(1); opacity: .6; }
+  100% { transform: translateY(-100px) scale(.3); opacity: 0; }
+}
+
+@keyframes physics-collision-bounce {
+  0% { transform: translate(0, 0); }
+  25% { transform: translate(10px, -10px); }
+  50% { transform: translate(-5px, 5px); }
+  75% { transform: translate(8px, -3px); }
+  100% { transform: translate(0, 0); }
+}
+
+@keyframes flexibleRingSpin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes spin-bounce {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes marquee {
+  0% { transform: translateX(100%); }
+  100% { transform: translateX(-100%); }
+}
+
+@keyframes rotate {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}

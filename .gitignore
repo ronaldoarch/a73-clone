@@ -1,0 +1,7 @@
+node_modules/
+dist/
+.env
+*.log
+uploads/
+site_baixado.tar.gz
+._site_baixado

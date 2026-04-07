@@ -62,6 +62,7 @@ async function launchGame() {
       body: JSON.stringify({
         game_code: gameCode,
         provider_code: provider,
+        user_code: auth.isLoggedIn ? (auth.account || 'guest') : 'guest',
         lang: 'pt'
       })
     })

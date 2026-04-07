@@ -10,13 +10,19 @@
 
       <form @submit.prevent="handleLogin" class="auth-form">
         <div class="input-group">
-          <label>Conta</label>
-          <input
-            v-model="account"
-            type="text"
-            placeholder="Digite sua conta"
-            autocomplete="username"
-          />
+          <label>Telefone</label>
+          <div class="phone-wrap">
+            <span class="phone-prefix">+55</span>
+            <input
+              v-model="account"
+              type="tel"
+              inputmode="numeric"
+              placeholder="Digite seu telefone"
+              autocomplete="tel"
+              maxlength="15"
+              @input="onPhoneInput"
+            />
+          </div>
         </div>
 
         <div class="input-group">
@@ -64,14 +70,19 @@ const showPwd = ref(false)
 const submitting = ref(false)
 const error = ref('')
 
+function onPhoneInput(e) {
+  account.value = e.target.value.replace(/\D/g, '')
+}
+
 async function handleLogin() {
-  if (!account.value || !password.value) {
+  const phone = account.value.replace(/\D/g, '')
+  if (!phone || !password.value) {
     error.value = 'Preencha todos os campos'
     return
   }
   submitting.value = true
   error.value = ''
-  const result = await auth.login(account.value, password.value)
+  const result = await auth.login(phone, password.value)
   submitting.value = false
   if (result.success) {
     router.push('/main/inicio')
@@ -151,6 +162,26 @@ async function handleLogin() {
 
 .input-group input::placeholder {
   color: var(--ep-color-text-weakest);
+}
+
+.phone-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.phone-prefix {
+  position: absolute;
+  left: .875rem;
+  font-size: var(--ep-font-size-m, .9375rem);
+  color: var(--ep-color-text-weaker);
+  font-weight: 600;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.phone-wrap input {
+  padding-left: 3.25rem;
 }
 
 .password-wrap {

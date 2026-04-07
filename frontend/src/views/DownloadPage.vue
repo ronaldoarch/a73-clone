@@ -7,16 +7,23 @@
       <h2>Baixar APP</h2>
     </div>
 
-    <div class="app-showcase">
-      <div class="app-icon-large">
-        <img src="https://upload-us.i-j-2-k.com/s5/app-icon/1222508/LOGO.jpg" alt="A73" />
+    <div class="hero-banner">
+      <img src="/assets/download/download-4.png" alt="A73 - O melhor app de jogos" class="hero-img" />
+      <div class="hero-overlay">
+        <img src="/assets/download/download.png" alt="A73" class="hero-app-icon" />
+        <div class="hero-text">
+          <h1>A73.COM</h1>
+          <p>O melhor app de jogos do Brasil</p>
+        </div>
       </div>
-      <h3>A73.COM</h3>
+    </div>
+
+    <div class="app-showcase">
       <div class="app-rating">
         <span class="stars">⭐⭐⭐⭐⭐</span>
         <span class="rating-text">4.8 (12.5k avaliações)</span>
       </div>
-      <p class="app-desc">O melhor app de jogos do Brasil. Slots, ao vivo, esportes e mais!</p>
+      <p class="app-desc">Slots, ao vivo, esportes e mais! Jogue onde e quando quiser.</p>
     </div>
 
     <div class="download-options">
@@ -35,6 +42,10 @@
       </button>
     </div>
 
+    <div class="promo-banner">
+      <img src="/assets/ui/banner-promo.jpg" alt="Promoção A73" class="promo-img" />
+    </div>
+
     <div class="features-list">
       <h3>Recursos</h3>
       <div class="feature-item" v-for="f in features" :key="f.title">
@@ -50,9 +61,29 @@
       <h3>Como instalar o PWA</h3>
       <div class="guide-steps">
         <div class="guide-step" v-for="(step, i) in guideSteps" :key="i">
-          <span class="step-num">{{ i + 1 }}</span>
-          <span class="step-text">{{ step }}</span>
+          <div class="step-header">
+            <span class="step-num">{{ i + 1 }}</span>
+            <span class="step-text">{{ step.text }}</span>
+          </div>
+          <div class="step-screenshot">
+            <img :src="step.img" :alt="step.text" loading="lazy" />
+          </div>
         </div>
+      </div>
+    </div>
+
+    <div class="demo-section">
+      <h3>Veja como é fácil</h3>
+      <div class="demo-gif-wrapper">
+        <img src="/assets/download/download-2.gif" alt="Demonstração de instalação" class="demo-gif" loading="lazy" />
+      </div>
+    </div>
+
+    <div class="app-screenshots">
+      <h3>Screenshots</h3>
+      <div class="screenshots-scroll">
+        <img src="/assets/download/download.jpg" alt="Screenshot do app" class="screenshot-item" loading="lazy" />
+        <img src="/assets/download/download (4).png" alt="Promoções" class="screenshot-item" loading="lazy" />
       </div>
     </div>
   </div>
@@ -67,10 +98,18 @@ const features = [
 ]
 
 const guideSteps = [
-  'Abra o A73.com no seu navegador (Chrome/Safari)',
-  'Toque nos 3 pontos (⋮) ou no ícone de compartilhar',
-  'Selecione "Adicionar à tela inicial"',
-  'Confirme a instalação e pronto!'
+  {
+    text: 'Abra o A73.com no seu navegador (Chrome/Safari)',
+    img: '/assets/download/download-2.png'
+  },
+  {
+    text: 'Toque nos 3 pontos (⋮) ou no ícone de compartilhar',
+    img: '/assets/download/download-3.png'
+  },
+  {
+    text: 'Selecione "Adicionar à tela inicial" e confirme',
+    img: '/assets/download/download-1.gif'
+  }
 ]
 
 function downloadAPK() {
@@ -87,36 +126,303 @@ function installPWA() {
 </script>
 
 <style scoped>
-.download-page { padding: 0 12px 24px; background: var(--bg-secondary); min-height: 100%; }
-.page-header { display: flex; align-items: center; padding: 12px 0; gap: 12px; }
-.page-header h2 { flex: 1; font-size: 18px; font-weight: 700; }
-.back-btn { color: var(--text-primary); padding: 4px; }
+.download-page {
+  padding: 0 12px 24px;
+  background: var(--bg-secondary);
+  min-height: 100%;
+}
 
-.app-showcase { text-align: center; padding: 24px 0; }
-.app-icon-large { width: 80px; height: 80px; border-radius: 18px; overflow: hidden; margin: 0 auto 12px; box-shadow: 0 4px 20px rgba(168,85,247,0.3); }
-.app-icon-large img { width: 100%; height: 100%; object-fit: cover; }
-.app-showcase h3 { font-size: 22px; font-weight: 800; margin-bottom: 6px; }
-.app-rating { display: flex; align-items: center; justify-content: center; gap: 6px; margin-bottom: 8px; }
-.stars { font-size: 14px; }
-.rating-text { font-size: 12px; color: var(--text-muted); }
-.app-desc { font-size: 13px; color: var(--text-secondary); }
+.page-header {
+  display: flex;
+  align-items: center;
+  padding: 12px 0;
+  gap: 12px;
+}
 
-.download-options { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
-.dl-btn { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 14px; border-radius: var(--radius-md); font-size: 15px; font-weight: 700; color: #fff; }
-.dl-btn.android { background: linear-gradient(135deg, #22c55e, #16a34a); }
-.dl-btn.pwa { background: linear-gradient(135deg, var(--purple-400), var(--purple-600)); }
-.dl-btn:active { transform: scale(0.98); }
+.page-header h2 {
+  flex: 1;
+  font-size: 18px;
+  font-weight: 700;
+}
 
-.features-list { margin-bottom: 20px; }
-.features-list h3 { font-size: 16px; font-weight: 700; margin-bottom: 12px; }
-.feature-item { display: flex; align-items: flex-start; gap: 12px; padding: 12px; background: var(--bg-card); border-radius: var(--radius-md); margin-bottom: 6px; }
-.feat-icon { font-size: 24px; flex-shrink: 0; }
-.feat-info h4 { font-size: 14px; font-weight: 600; margin-bottom: 2px; }
-.feat-info p { font-size: 12px; color: var(--text-muted); }
+.back-btn {
+  color: var(--text-primary);
+  padding: 4px;
+}
 
-.install-guide { background: var(--bg-card); border-radius: var(--radius-lg); padding: 16px; }
-.install-guide h3 { font-size: 15px; font-weight: 700; margin-bottom: 12px; }
-.guide-step { display: flex; align-items: center; gap: 12px; padding: 10px 0; }
-.step-num { width: 28px; height: 28px; border-radius: 50%; background: var(--purple-500); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; flex-shrink: 0; }
-.step-text { font-size: 13px; color: var(--text-secondary); }
+/* Hero Banner */
+.hero-banner {
+  position: relative;
+  border-radius: var(--radius-lg, 12px);
+  overflow: hidden;
+  margin-bottom: 16px;
+  aspect-ratio: 16 / 9;
+}
+
+.hero-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.hero-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
+}
+
+.hero-app-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  object-fit: cover;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  flex-shrink: 0;
+}
+
+.hero-text h1 {
+  font-size: 20px;
+  font-weight: 800;
+  color: #fff;
+  line-height: 1.2;
+}
+
+.hero-text p {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.8);
+  margin-top: 2px;
+}
+
+/* App Showcase */
+.app-showcase {
+  text-align: center;
+  padding: 8px 0 16px;
+}
+
+.app-rating {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.stars {
+  font-size: 14px;
+}
+
+.rating-text {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.app-desc {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+/* Download Buttons */
+.download-options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.dl-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 14px;
+  border-radius: var(--radius-md, 8px);
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+  transition: transform 0.15s;
+}
+
+.dl-btn.android {
+  background: linear-gradient(135deg, #22c55e, #16a34a);
+}
+
+.dl-btn.pwa {
+  background: linear-gradient(135deg, var(--purple-400, #a855f7), var(--purple-600, #9333ea));
+}
+
+.dl-btn:active {
+  transform: scale(0.98);
+}
+
+/* Promo Banner */
+.promo-banner {
+  border-radius: var(--radius-lg, 12px);
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+
+.promo-img {
+  width: 100%;
+  display: block;
+}
+
+/* Features */
+.features-list {
+  margin-bottom: 16px;
+}
+
+.features-list h3 {
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+
+.feature-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px;
+  background: var(--bg-card);
+  border-radius: var(--radius-md, 8px);
+  margin-bottom: 6px;
+}
+
+.feat-icon {
+  font-size: 24px;
+  flex-shrink: 0;
+}
+
+.feat-info h4 {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.feat-info p {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* Install Guide */
+.install-guide {
+  background: var(--bg-card);
+  border-radius: var(--radius-lg, 12px);
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.install-guide h3 {
+  font-size: 15px;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+
+.guide-step {
+  margin-bottom: 16px;
+}
+
+.guide-step:last-child {
+  margin-bottom: 0;
+}
+
+.step-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.step-num {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--purple-500, #a855f7);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.step-text {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.step-screenshot {
+  border-radius: var(--radius-md, 8px);
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  margin-left: 40px;
+}
+
+.step-screenshot img {
+  width: 100%;
+  display: block;
+}
+
+/* Demo Section */
+.demo-section {
+  margin-bottom: 16px;
+}
+
+.demo-section h3 {
+  font-size: 15px;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+
+.demo-gif-wrapper {
+  border-radius: var(--radius-lg, 12px);
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--bg-card);
+}
+
+.demo-gif {
+  width: 100%;
+  display: block;
+}
+
+/* Screenshots Carousel */
+.app-screenshots {
+  margin-bottom: 16px;
+}
+
+.app-screenshots h3 {
+  font-size: 15px;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+
+.screenshots-scroll {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 4px;
+}
+
+.screenshots-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.screenshot-item {
+  flex-shrink: 0;
+  width: 75%;
+  border-radius: var(--radius-md, 8px);
+  object-fit: cover;
+  scroll-snap-align: start;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
 </style>

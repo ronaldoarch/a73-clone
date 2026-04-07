@@ -109,6 +109,65 @@ export function applyTelegramTheme() {
   return true
 }
 
+/**
+ * Parse start_param from Telegram WebApp init data.
+ * The original platform encodes JSON as reversed base64.
+ */
+export function getTelegramStartParams() {
+  const wa = getTelegramWebApp()
+  if (!wa || !isTelegramWebApp()) return {}
+
+  const startParam = wa.initDataUnsafe?.start_param
+  if (!startParam) return {}
+
+  try {
+    const reversed = startParam.split('').reverse().join('')
+    const decoded = decodeURIComponent(atob(reversed))
+    return JSON.parse(decoded)
+  } catch {
+    return {}
+  }
+}
+
+/**
+ * Close the Telegram WebApp properly (exit fullscreen first if needed).
+ */
+export function telegramCloseApp() {
+  const wa = getTelegramWebApp()
+  if (!wa || !isTelegramWebApp()) return
+
+  if (wa.isFullscreen) {
+    wa.exitFullscreen?.()
+    setTimeout(() => wa.close?.(), 1000)
+  } else {
+    wa.close?.()
+  }
+}
+
+/**
+ * Get diagnostic info about the Telegram WebApp environment.
+ */
+export function getTelegramDiagnostics() {
+  const wa = getTelegramWebApp()
+  if (!wa) return null
+
+  return {
+    version: wa.version,
+    platform: wa.platform,
+    isExpanded: wa.isExpanded,
+    isFullscreen: wa.isFullscreen,
+    initData: wa.initData ? 'loaded' : 'unloaded',
+    supportedMethods: {
+      expand: !!wa.expand,
+      requestFullscreen: !!wa.requestFullscreen,
+      exitFullscreen: !!wa.exitFullscreen,
+      disableVerticalSwipes: !!wa.disableVerticalSwipes,
+      enableVerticalSwipes: !!wa.enableVerticalSwipes,
+      close: !!wa.close
+    }
+  }
+}
+
 export function initTelegramWebApp() {
   if (!isTelegramWebApp()) return false
 

@@ -11,7 +11,8 @@ const routes = [
   { path: '/main/perfil', name: 'Profile', component: () => import('../views/ProfilePage.vue') },
   { path: '/main/menu', name: 'Menu', component: () => import('../views/MenuPage.vue') },
   { path: '/main/comissao', name: 'Commission', component: () => import('../views/CommissionPage.vue') },
-  { path: '/main/entrar', name: 'HomeEntrar', component: () => import('../views/HomePage.vue') },
+  { path: '/main/entrar', name: 'HomeEntrar', component: () => import('../views/DepositPage.vue'), meta: { auth: true } },
+  { path: '/main/withdraw', name: 'HomeWithdraw', component: () => import('../views/WithdrawPage.vue'), meta: { auth: true } },
 
   // Auth
   { path: '/login', name: 'Login', component: () => import('../views/LoginPage.vue') },
@@ -52,12 +53,12 @@ const routes = [
   { path: '/report/:type', name: 'ReportType', component: () => import('../views/ReportPage.vue'), meta: { auth: true } },
 
   // Promotions / VIP
-  { path: '/activity/vip', name: 'VIP', component: () => import('../views/VipPage.vue') },
+  { path: '/activity/vip', name: 'VIP', component: () => import('../views/VipPage.vue'), meta: { auth: true } },
   { path: '/Redeem', name: 'Redeem', component: () => import('../views/RedeemPage.vue') },
   { path: '/subscribeReward', name: 'SubscribeReward', component: () => import('../views/PromoPage.vue') },
 
   // Agency / MLM
-  { path: '/spread', name: 'Spread', component: () => import('../views/SpreadPage.vue'), meta: { auth: true } },
+  { path: '/spread', name: 'Spread', component: () => import('../views/AgencyPage.vue'), meta: { auth: true } },
   { path: '/mlmAgent', name: 'MLMAgent', component: () => import('../views/SpreadPage.vue'), meta: { auth: true },
     children: [
       { path: 'invitation', name: 'AgentInvitation', component: () => import('../views/SpreadPage.vue') },
@@ -73,33 +74,56 @@ const routes = [
     ]
   },
 
-  // Activity pages
+  // Activity pages (all types from original site)
   { path: '/activity/RedPacket/:id?', name: 'RedPacket', component: () => import('../views/activities/RedPacketPage.vue') },
   { path: '/activity/AssistanceCash/:id?', name: 'AssistanceCash', component: () => import('../views/activities/LuckyWheelPage.vue') },
   { path: '/activity/MysteryReward/:id?', name: 'MysteryReward', component: () => import('../views/activities/MysteryRewardPage.vue') },
+  { path: '/activity/mysteryReward/:id?', name: 'MysteryRewardAlt', component: () => import('../views/activities/MysteryRewardPage.vue') },
   { path: '/activity/SignIn/:id?', name: 'SignIn', component: () => import('../views/activities/SignInPage.vue') },
+  { path: '/activity/SignInVolume/:id?', name: 'SignInVolume', component: () => import('../views/activities/SignInPage.vue') },
   { path: '/activity/LevelSignIn/:id?', name: 'LevelSignIn', component: () => import('../views/activities/SignInPage.vue') },
+  { path: '/activity/memberReward/:id?', name: 'MemberReward', component: () => import('../views/activities/MemberAppreciationPage.vue') },
   { path: '/activity/MemberAppreciation/:id?', name: 'MemberAppreciation', component: () => import('../views/activities/MemberAppreciationPage.vue') },
-  { path: '/activity/LuckyBet/:id?', name: 'LuckyBet', component: () => import('../views/activities/LuckyBetPage.vue') },
+  { path: '/activity/MemberRewardMultiDay/:id?', name: 'MemberRewardMultiDay', component: () => import('../views/activities/MemberAppreciationPage.vue') },
+  { path: '/activity/luckyBet/:id?', name: 'LuckyBet', component: () => import('../views/activities/LuckyBetPage.vue') },
   { path: '/activity/Rescue/:id?', name: 'Rescue', component: () => import('../views/activities/RescuePage.vue') },
+  { path: '/activity/Assistance/:id?', name: 'Assistance', component: () => import('../views/activities/LuckyWheelPage.vue') },
   { path: '/activity/CommissionReward/:id?', name: 'CommissionReward', component: () => import('../views/activities/CommissionRewardPage.vue') },
+  { path: '/activity/CommissionReward/details/:id?', name: 'CommissionRewardDetails', component: () => import('../views/activities/CommissionRewardPage.vue') },
   { path: '/activity/RechargePromotion/:id?', name: 'RechargePromotion', component: () => import('../views/activities/RechargePromotionPage.vue') },
   { path: '/activity/LuckyWheel/:id?', name: 'LuckyWheel', component: () => import('../views/activities/LuckyWheelPage.vue') },
+  { path: '/activity/Recharge/:id?', name: 'Recharge', component: () => import('../views/activities/RechargePromotionPage.vue') },
   { path: '/activity/InviteCPF/:id?', name: 'InviteCPF', component: () => import('../views/activities/InviteCpfPage.vue') },
+  { path: '/activity/CPFActivity/:id?', name: 'CPFActivity', component: () => import('../views/activities/InviteCpfPage.vue') },
+  { path: '/activity/CPFActivity/record/:id?', name: 'CPFActivityRecord', component: () => import('../views/activities/InviteCpfPage.vue') },
+  { path: '/activity/WalletUserActivity/:id?', name: 'WalletUserActivity', component: () => import('../views/activities/InviteCpfPage.vue') },
+  { path: '/activity/WalletUserActivity/record/:id?', name: 'WalletUserRecord', component: () => import('../views/activities/InviteCpfPage.vue') },
   { path: '/activity/ReferralRewardsNew/:id?', name: 'ReferralRewards', component: () => import('../views/activities/ReferralRewardsPage.vue') },
+  { path: '/activity/ReferralRewardsNew/details/:id?', name: 'ReferralRewardsDetails', component: () => import('../views/activities/ReferralRewardsPage.vue') },
   { path: '/activity/NewUserExclusive/:id?', name: 'NewUserExclusive', component: () => import('../views/activities/NewUserExclusivePage.vue') },
   { path: '/activity/ValidBet/:id?', name: 'ValidBet', component: () => import('../views/activities/ValidBetPage.vue') },
   { path: '/activity/RechargeBonus/:id?', name: 'RechargeBonus', component: () => import('../views/activities/RechargeBonusPage.vue') },
   { path: '/activity/RegisterReward/:id?', name: 'RegisterReward', component: () => import('../views/activities/RegisterRewardPage.vue') },
   { path: '/activity/Agency/:id?', name: 'AgencyActivity', component: () => import('../views/activities/AgencyPage.vue') },
+  { path: '/activity/agency/details/:id?', name: 'AgencyDetails', component: () => import('../views/activities/AgencyPage.vue') },
+  { path: '/activity/AgencyTwo/:id?', name: 'AgencyTwo', component: () => import('../views/activities/AgencyPage.vue') },
+  { path: '/activity/AgencyTwo/details/:id?', name: 'AgencyTwoDetails', component: () => import('../views/activities/AgencyPage.vue') },
   { path: '/activity/Custom/:id?', name: 'CustomActivity', component: () => import('../views/activities/CustomActivityPage.vue') },
 
   // Download
   { path: '/download', name: 'Download', component: () => import('../views/DownloadPage.vue') },
 
+  // Share
+  { path: '/share', name: 'Share', component: () => import('../views/SpreadPage.vue') },
+  { path: '/user/report', name: 'UserReport', component: () => import('../views/ReportPage.vue'), meta: { auth: true } },
+
+  // Rebate record
+  { path: '/activity/rebate/record', name: 'RebateRecord', component: () => import('../views/PromoPage.vue'), meta: { auth: true } },
+  { path: '/activity/RechargeReward/:id?', name: 'RechargeReward', component: () => import('../views/activities/RechargePromotionPage.vue') },
+
   // Misc
   { path: '/restricted', name: 'Restricted', component: () => import('../views/RestrictedPage.vue') },
-  { path: '/unAvailable', name: 'Unavailable', component: () => import('../views/RestrictedPage.vue') },
+  { path: '/unAvailable', name: 'Unavailable', component: () => import('../views/UnavailablePage.vue') },
   { path: '/405', name: 'Forbidden', component: () => import('../views/RestrictedPage.vue') },
 
   // Catch-all
@@ -115,8 +139,10 @@ const router = createRouter({
   }
 })
 
-router.beforeEach((to, from, next) => {
-  const token = localStorage.getItem('auth_token')
+router.beforeEach(async (to, from, next) => {
+  const token = localStorage.getItem('auth_token') ||
+                localStorage.getItem('token') ||
+                sessionStorage.getItem('token') || ''
   if (to.meta.auth && !token) {
     next({ name: 'Login', query: { redirect: to.fullPath } })
     return

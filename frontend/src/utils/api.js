@@ -1,3 +1,5 @@
+import superjson from 'superjson'
+import { v4 as uuidv4 } from 'uuid'
 import { useAuthStore } from '../stores/auth'
 
 const BASE_URL = '/api/frontend/trpc'
@@ -10,7 +12,7 @@ const pendingRequests = new Map()
 function generateDeviceId() {
   let id = localStorage.getItem('x-device-id')
   if (!id) {
-    id = 'web_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10)
+    id = uuidv4()
     localStorage.setItem('x-device-id', id)
   }
   return id
@@ -68,9 +70,23 @@ export async function trpcQuery(procedure, input = null, options = {}) {
   return result
 }
 
+function deserializeResponse(data) {
+  const json = data?.result?.data?.json
+  const meta = data?.result?.data?.meta
+  if (json && meta?.values) {
+    try {
+      return superjson.deserialize({ json, meta: meta.values })
+    } catch {
+      return json
+    }
+  }
+  return json ?? data
+}
+
 async function _executeQuery(procedure, input, retriesLeft) {
-  const url = input != null
-    ? `${BASE_URL}/${procedure}?input=${encodeURIComponent(JSON.stringify({ json: input }))}`
+  const serializedInput = input != null ? superjson.serialize(input) : null
+  const url = serializedInput
+    ? `${BASE_URL}/${procedure}?input=${encodeURIComponent(JSON.stringify({ json: serializedInput.json, meta: serializedInput.meta ? { values: serializedInput.meta } : undefined }))}`
     : `${BASE_URL}/${procedure}`
 
   for (let attempt = 0; attempt <= retriesLeft; attempt++) {
@@ -80,7 +96,7 @@ async function _executeQuery(procedure, input, retriesLeft) {
       if (data?.error) {
         throw new Error(data.error.json?.message || data.error.message || 'Query failed')
       }
-      return data?.result?.data?.json ?? data
+      return deserializeResponse(data)
     } catch (err) {
       if (attempt < retriesLeft) {
         await sleep(RETRY_DELAY * Math.pow(2, attempt))
@@ -93,19 +109,20 @@ async function _executeQuery(procedure, input, retriesLeft) {
 
 export async function trpcMutation(procedure, input, options = {}) {
   const { retries = MAX_RETRIES } = options
+  const serialized = superjson.serialize(input)
 
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
       const res = await fetch(`${BASE_URL}/${procedure}`, {
         method: 'POST',
         headers: getHeaders(),
-        body: JSON.stringify({ json: input })
+        body: JSON.stringify({ json: serialized.json, meta: serialized.meta ? { values: serialized.meta } : undefined })
       })
       const data = await res.json()
       if (data?.error) {
         throw new Error(data.error.json?.message || data.error.message || 'Mutation failed')
       }
-      return data?.result?.data?.json ?? data
+      return deserializeResponse(data)
     } catch (err) {
       if (attempt < retries) {
         await sleep(RETRY_DELAY * Math.pow(2, attempt))

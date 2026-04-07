@@ -10,14 +10,25 @@
 
       <form @submit.prevent="handleRegister" class="auth-form">
         <div class="input-group">
-          <label>Conta</label>
-          <input v-model="account" type="text" placeholder="Escolha um nome de usuário" autocomplete="username" />
+          <label>Telefone</label>
+          <div class="phone-wrap">
+            <span class="phone-prefix">+55</span>
+            <input
+              v-model="account"
+              type="tel"
+              inputmode="numeric"
+              placeholder="Digite seu telefone"
+              autocomplete="tel"
+              maxlength="15"
+              @input="onPhoneInput"
+            />
+          </div>
         </div>
 
         <div class="input-group">
           <label>Senha</label>
           <div class="password-wrap">
-            <input v-model="password" :type="showPwd ? 'text' : 'password'" placeholder="Crie uma senha" autocomplete="new-password" />
+            <input v-model="password" :type="showPwd ? 'text' : 'password'" placeholder="Crie uma senha (mín. 6 caracteres)" autocomplete="new-password" />
             <button type="button" class="eye-btn" @click="showPwd = !showPwd">
               <svg v-if="showPwd" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
               <svg v-else width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
@@ -60,9 +71,18 @@ const showPwd = ref(false)
 const submitting = ref(false)
 const error = ref('')
 
+function onPhoneInput(e) {
+  account.value = e.target.value.replace(/\D/g, '')
+}
+
 async function handleRegister() {
-  if (!account.value || !password.value || !confirmPassword.value) {
+  const phone = account.value.replace(/\D/g, '')
+  if (!phone || !password.value || !confirmPassword.value) {
     error.value = 'Preencha todos os campos'
+    return
+  }
+  if (phone.length < 10 || phone.length > 15) {
+    error.value = 'Telefone inválido (10-15 dígitos)'
     return
   }
   if (password.value !== confirmPassword.value) {
@@ -75,7 +95,7 @@ async function handleRegister() {
   }
   submitting.value = true
   error.value = ''
-  const result = await auth.register(account.value, password.value, confirmPassword.value)
+  const result = await auth.register(phone, password.value, confirmPassword.value)
   submitting.value = false
   if (result.success) {
     router.push('/main/inicio')
@@ -152,6 +172,26 @@ async function handleRegister() {
 }
 
 .input-group input::placeholder { color: var(--ep-color-text-weakest); }
+
+.phone-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.phone-prefix {
+  position: absolute;
+  left: .875rem;
+  font-size: var(--ep-font-size-m, .9375rem);
+  color: var(--ep-color-text-weaker);
+  font-weight: 600;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.phone-wrap input {
+  padding-left: 3.25rem;
+}
 
 .password-wrap { position: relative; }
 .password-wrap input { padding-right: 2.75rem; }

@@ -1,24 +1,35 @@
 <template>
-  <div v-if="visible" class="bonus-pool">
-    <div class="bonus-inner">
-      <span class="bonus-label">Prêmio acumulado</span>
-      <span class="bonus-value">
-        <span class="bonus-currency">R$</span>
-        <span class="bonus-amount" ref="amountRef">{{ displayAmount }}</span>
-      </span>
+  <div v-if="visible" class="bonus-pool-wrap" @click="$router.push('/main/promo')">
+    <div class="bonus-pool-banner">
+      <img class="bp-bg" src="/assets/jackpot/bg.png" alt="Jackpot" />
+      <img class="bp-coins" src="/assets/jackpot/coins.png" alt="" />
+
+      <div class="bp-value-bar">
+        <span class="bp-arrow">❯</span>
+        <span class="bp-amount">
+          <span v-for="(ch, i) in displayChars" :key="i"
+            class="bp-char" :class="{
+              'bp-sep': ch === '.' || ch === ',',
+              'bp-num': ch !== '.' && ch !== ','
+            }">{{ ch }}</span>
+        </span>
+        <span class="bp-arrow">❮</span>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted, onBeforeUnmount, computed } from 'vue'
+import { useBonusPool } from '../utils/bonusPool'
 
-const props = defineProps({
-  visible: { type: Boolean, default: true }
+const visible = ref(true)
+const { money, start, stop } = useBonusPool()
+
+const baseValue = 139522934.76
+const poolValue = computed(() => {
+  return money.value > 0 ? money.value / 100 : baseValue + Math.random() * 1000
 })
-
-const poolValue = ref(1847293.56)
-let interval = null
 
 const displayAmount = computed(() => {
   return poolValue.value.toLocaleString('pt-BR', {
@@ -27,68 +38,88 @@ const displayAmount = computed(() => {
   })
 })
 
-function tick() {
-  poolValue.value += Math.random() * 15 + 2
-}
+const displayChars = computed(() => displayAmount.value.split(''))
 
-onMounted(() => {
-  interval = setInterval(tick, 2000 + Math.random() * 3000)
-})
-
-onBeforeUnmount(() => {
-  if (interval) clearInterval(interval)
-})
+onMounted(() => { start() })
+onBeforeUnmount(() => { stop() })
 </script>
 
 <style scoped>
-.bonus-pool {
-  background: var(--ep-color-background-fill-surface-raised-L2);
-  border-radius: var(--ep-border-radius-l, .5rem);
-  padding: .625rem .875rem;
-  margin: .5rem 0;
-  border: 1px solid var(--ep-color-border-default);
+.bonus-pool-wrap {
+  margin: .625rem 0;
+  cursor: pointer;
+}
+
+.bonus-pool-banner {
   position: relative;
+  border-radius: .75rem;
   overflow: hidden;
+  background: linear-gradient(135deg, #1a0533, #2d1065);
 }
 
-.bonus-pool::before {
-  content: "";
+.bp-bg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.bp-coins {
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: var(--gradient-primary);
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+  z-index: 2;
+  animation: coins-float 3s ease-in-out infinite;
 }
 
-.bonus-inner {
+.bp-value-bar {
+  position: absolute;
+  bottom: 10%;
+  left: 50%;
+  transform: translateX(-50%);
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: .5rem;
+  z-index: 3;
+  padding: 0;
+  white-space: nowrap;
 }
 
-.bonus-label {
-  font-size: var(--ep-font-size-s, .8125rem);
-  color: var(--ep-color-text-weaker);
-  font-weight: var(--ep-font-weight-medium, 500);
+.bp-arrow {
+  font-size: 1.25rem;
+  font-weight: 900;
+  color: #FFD700;
+  line-height: 1;
+  text-shadow: 0 0 10px rgba(255, 215, 0, .6);
 }
 
-.bonus-value {
+.bp-amount {
   display: flex;
   align-items: baseline;
-  gap: .25rem;
 }
 
-.bonus-currency {
-  font-size: var(--ep-font-size-s, .75rem);
-  color: var(--color-currency, #FE963B);
-  font-weight: var(--ep-font-weight-semi-bold, 600);
+.bp-char {
+  display: inline-block;
+  font-weight: 900;
+  color: #fff;
+  font-family: var(--font-mono, 'Share Tech Mono', monospace);
+  text-shadow: 0 2px 10px rgba(0, 0, 0, .7);
 }
 
-.bonus-amount {
-  font-size: 1.125rem;
-  font-weight: 800;
-  color: var(--color-currency, #FE963B);
-  font-family: var(--font-display);
+.bp-num {
+  font-size: 2.25rem;
+  letter-spacing: 1px;
+}
+
+.bp-sep {
+  color: rgba(255, 255, 255, .6);
+  font-size: 1.5rem;
+}
+
+@keyframes coins-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
 }
 </style>

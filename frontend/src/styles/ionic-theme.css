@@ -1,0 +1,127 @@
+:root {
+  --ion-color-primary: #18AAFF;
+  --ion-color-primary-rgb: 24, 170, 255;
+  --ion-color-primary-contrast: #ffffff;
+  --ion-color-primary-contrast-rgb: 255, 255, 255;
+  --ion-color-primary-shade: #0A77DA;
+  --ion-color-primary-tint: #30b3ff;
+
+  --ion-color-secondary: #AB63FF;
+  --ion-color-secondary-rgb: 171, 99, 255;
+  --ion-color-secondary-contrast: #ffffff;
+  --ion-color-secondary-contrast-rgb: 255, 255, 255;
+  --ion-color-secondary-shade: #8200ED;
+  --ion-color-secondary-tint: #b573ff;
+
+  --ion-color-tertiary: #FE963B;
+  --ion-color-tertiary-rgb: 254, 150, 59;
+  --ion-color-tertiary-contrast: #000000;
+  --ion-color-tertiary-contrast-rgb: 0, 0, 0;
+  --ion-color-tertiary-shade: #e08434;
+  --ion-color-tertiary-tint: #fea14f;
+
+  --ion-color-success: #17C964;
+  --ion-color-success-rgb: 23, 201, 100;
+  --ion-color-success-contrast: #000000;
+  --ion-color-success-contrast-rgb: 0, 0, 0;
+  --ion-color-success-shade: #0D9E4F;
+  --ion-color-success-tint: #2ecf74;
+
+  --ion-color-warning: #FA8313;
+  --ion-color-warning-rgb: 250, 131, 19;
+  --ion-color-warning-contrast: #000000;
+  --ion-color-warning-contrast-rgb: 0, 0, 0;
+  --ion-color-warning-shade: #dc7411;
+  --ion-color-warning-tint: #fb8f2b;
+
+  --ion-color-danger: #F5222D;
+  --ion-color-danger-rgb: 245, 34, 45;
+  --ion-color-danger-contrast: #ffffff;
+  --ion-color-danger-contrast-rgb: 255, 255, 255;
+  --ion-color-danger-shade: #CF1322;
+  --ion-color-danger-tint: #f63842;
+
+  --ion-color-dark: #D5E0F5;
+  --ion-color-dark-rgb: 213, 224, 245;
+  --ion-color-dark-contrast: #0E1E3D;
+  --ion-color-dark-contrast-rgb: 14, 30, 61;
+  --ion-color-dark-shade: #bcc5d8;
+  --ion-color-dark-tint: #d9e3f6;
+
+  --ion-color-medium: rgba(213, 224, 245, 0.6);
+  --ion-color-medium-rgb: 213, 224, 245;
+  --ion-color-medium-contrast: #0E1E3D;
+  --ion-color-medium-contrast-rgb: 14, 30, 61;
+  --ion-color-medium-shade: rgba(213, 224, 245, 0.5);
+  --ion-color-medium-tint: rgba(213, 224, 245, 0.7);
+
+  --ion-color-light: #18254E;
+  --ion-color-light-rgb: 24, 37, 78;
+  --ion-color-light-contrast: #D5E0F5;
+  --ion-color-light-contrast-rgb: 213, 224, 245;
+  --ion-color-light-shade: #142044;
+  --ion-color-light-tint: #1D2A55;
+
+  --ion-background-color: var(--ep-color-background-fill-body-default);
+  --ion-background-color-rgb: 14, 30, 61;
+  --ion-text-color: var(--ep-color-text-default);
+  --ion-text-color-rgb: 213, 224, 245;
+
+  --ion-toolbar-background: var(--ep-color-background-fill-top-nav-secondary);
+  --ion-toolbar-color: var(--ep-color-text-default);
+  --ion-tab-bar-background: var(--ep-color-background-fill-foot-bar);
+  --ion-tab-bar-color: rgba(213, 224, 245, 0.6);
+  --ion-tab-bar-color-selected: #18AAFF;
+
+  --ion-card-background: var(--ep-color-background-fill-surface-raised-L1);
+  --ion-item-background: transparent;
+  --ion-overlay-background-color: rgba(0, 0, 0, 0.6);
+
+  --ion-border-color: var(--ep-color-border-default);
+  --ion-placeholder-color: var(--ep-color-text-weakest);
+
+  --ion-font-family: var(--font-family);
+  --ion-safe-area-top: var(--safe-top);
+  --ion-safe-area-bottom: var(--safe-bottom);
+}
+
+ion-content {
+  --background: var(--ep-color-background-fill-body-default);
+  --color: var(--ep-color-text-default);
+}
+
+ion-modal {
+  --background: var(--ep-color-background-fill-surface-raised-L1);
+  --border-radius: 1rem;
+}
+
+ion-toast {
+  --background: var(--color-bg-toast);
+  --color: #fff;
+  --border-radius: .5rem;
+}
+
+ion-action-sheet {
+  --background: var(--ep-color-background-fill-surface-raised-L1);
+  --color: var(--ep-color-text-default);
+}
+
+ion-refresher-content {
+  --color: var(--ep-color-text-selected);
+}
+
+ion-button {
+  --border-radius: var(--ep-border-radius-l);
+}
+
+ion-input, ion-textarea {
+  --background: var(--ep-color-background-fill-surface-lowered);
+  --color: var(--ep-color-text-default);
+  --placeholder-color: var(--ep-color-text-weakest);
+  --border-color: var(--ep-color-border-default);
+}
+
+ion-list {
+  --ion-item-background: transparent;
+  background: transparent;
+}

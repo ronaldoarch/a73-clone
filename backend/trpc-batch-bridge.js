@@ -120,7 +120,7 @@ function getBearer(req) {
 
 function fallbackForProc(procKey) {
   const u = procKey.toLowerCase()
-  if (u.includes('domain') && u.includes('tenant')) return deepClone(fallbacks.domainInfo)
+  if (u === 'domaininfo' || (u.includes('domain') && u.includes('info'))) return deepClone(fallbacks.domainInfo)
   if (u.includes('channel')) return deepClone(fallbacks.channelInfo)
   if (u.includes('tenant') && u.includes('info')) return deepClone(fallbacks.tenantInfo)
   if (u === 'authtenants' || u.includes('authtenant')) return deepClone(fallbacks.authTenants)
@@ -217,14 +217,67 @@ async function resolveOne(procPath, input, ctx) {
 
   if (key === 'authLogout' || key === 'authlogout') return okJson({ ok: true })
 
-  // ── iGameWin catalog procedures ───────────────────────────────
+  // ── Activity list (public) ───────────────────────────────
   const u = key.toLowerCase()
+
+  if (u === 'activitylistpublic' || u === 'activitylist') {
+    try {
+      const s = await prisma.setting.findUnique({ where: { id: 'promocoes' } })
+      if (s?.value) {
+        const parsed = typeof s.value === 'string' ? JSON.parse(s.value) : s.value
+        if (Array.isArray(parsed) && parsed.length) {
+          const list = parsed.map((p, i) => ({
+            id: p.id || i + 1,
+            type: p.type || 'Custom',
+            title: p.titulo || p.title || '',
+            description: p.descricao || p.description || '',
+            bannerUrl: p.bannerUrl || p.banner || '',
+            url: p.url || p.link || '',
+            status: p.status === 'Em andamento' ? 'PROCESSING' : (p.status || 'PROCESSING'),
+            sort: p.ordem ?? i
+          }))
+          return okJson({ list, total: list.length })
+        }
+      }
+    } catch {}
+    return okJson(deepClone(fallbacks.activityListPublic))
+  }
+
+  // ── Bonus pool / prize pool ───────────────────────────────
+  if (u === 'systembonuspool' || u === 'bonuspool' || u.includes('prizepool')) {
+    const now = Math.floor(Date.now() / 1000)
+    const base = 78000000 + Math.floor(Math.random() * 2000000)
+    return okJson([
+      { time: now, prizePoolValue: base },
+      { time: now + 7200, prizePoolValue: base + Math.floor(Math.random() * 500000) }
+    ])
+  }
+
+  // ── Carousel / banners from DB ───────────────────────────────
+  if (u === 'carouselconfiglist' || u === 'carousellist') {
+    try {
+      const s = await prisma.setting.findUnique({ where: { id: 'main' } })
+      if (s?.value) {
+        const parsed = typeof s.value === 'string' ? JSON.parse(s.value) : s.value
+        const banner = parsed?.banner || parsed?.loadingBanner
+        if (banner) {
+          return okJson([
+            { id: 1, imageUrl: banner, sort: 1, targetType: 'none', targetValue: '' },
+          ])
+        }
+      }
+    } catch {}
+    return okJson([])
+  }
+
+  // ── iGameWin catalog procedures ───────────────────────────────
   const isGameProc =
     u === 'homelist' ||
     u === 'homehot' ||
     u === 'homepopulargames' ||
     u === 'homeplatformlist' ||
     u === 'homeplatform' ||
+    u === 'gamecatalog' ||
     u.includes('gamelist') ||
     u.includes('gametype') ||
     u.includes('platformlist')
@@ -256,6 +309,19 @@ async function resolveOne(procPath, input, ctx) {
             hotSort: g.sort || gi,
             gameType: code
           }
+        }
+
+        if (u === 'gamecatalog') {
+          const allGames = catalog.providers.flatMap((p, pi) =>
+            (catalog.gamesByProvider[p.code] || []).map((g, gi) => mapGame(p.code, pi, g, gi))
+          )
+          return okJson({
+            games: allGames,
+            gameList: allGames,
+            list: allGames,
+            total: allGames.length,
+            providers: catalog.providers.map((p, i) => ({ code: p.code, name: p.name || p.code, logo: p.logo || '', id: i + 1 }))
+          })
         }
 
         if (u === 'homelist' || u === 'homeplatformlist' || u === 'gametype') {
@@ -331,6 +397,62 @@ async function resolveOne(procPath, input, ctx) {
     // fallback if catalog unavailable
     const fb2 = fallbackForProc(key)
     return okJson(fb2)
+  }
+
+  // ── Report: assets change list (statement) ──────────────
+  if (u === 'userassetschangelist' || u === 'assetschangelist') {
+    return okJson({
+      totalRechargeAmountChange: 0,
+      totalWithdrawAmountChange: 0,
+      totalRewardAmountChange: 0,
+      assetsChangeList: []
+    })
+  }
+
+  // ── Report: game record list (betting) ──────────────
+  if (u === 'usergamerecordlist' || u === 'gamerecordlist') {
+    return okJson({ gameRecordList: [] })
+  }
+
+  // ── Report: profit list (personal) ──────────────
+  if (u === 'userprofitlist' || u === 'profitlist') {
+    return okJson({
+      totalGameRounds: 0,
+      totalValidBetAmount: 0,
+      totalProfitAmount: 0,
+      userDayProfitList: []
+    })
+  }
+
+  // ── VIP info ──────────────
+  if (u === 'vipinfo' || u === 'vip.info') {
+    return okJson({
+      curVipLevel: 0,
+      nextVipLevel: 1,
+      rechargeNeed: 0,
+      betNeed: 0,
+      rechargeRequirements: 10000,
+      betRequirements: 50000,
+      curRechargeAmount: 0,
+      curBetAmount: 0,
+      rechargeProgress: 0,
+      betProgress: 0
+    })
+  }
+
+  // ── Activity: redeem code ──────────────
+  if (u === 'activityredeemcode' || u === 'redeemcode') {
+    return okJson({ success: false, message: 'Código inválido ou expirado.' })
+  }
+
+  // ── Activity: claim rebate ──────────────
+  if (u === 'activityclaimrebate' || u === 'claimrebate') {
+    return okJson({ success: true, amount: 0 })
+  }
+
+  // ── Reward record list ──────────────
+  if (u === 'userrewardrecordlist' || u === 'rewardrecordlist') {
+    return okJson({ recordList: [], all: { allAmount: 0 }, total: 0 })
   }
 
   const fb = fallbackForProc(key)

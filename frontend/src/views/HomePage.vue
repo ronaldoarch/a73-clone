@@ -1,77 +1,94 @@
 <template>
   <div class="home-page">
-    <!-- App Banner -->
-    <div class="app-banner" v-if="showBanner">
-      <button class="banner-close" @click="closeBanner">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
-      </button>
-      <div class="banner-inner">
-        <div class="banner-left">
-          <div class="banner-app-icon">
-            <img src="https://upload-us.i-j-2-k.com/s5/app-icon/1222508/LOGO.jpg" alt="A73" />
+    <!-- Banner Carousel (Swiper) -->
+    <div class="carousel-wrapper" v-if="displayBanners.length">
+      <Swiper
+        :modules="swiperModules"
+        :slides-per-view="1"
+        :loop="displayBanners.length > 1"
+        :autoplay="{ delay: 4000, disableOnInteraction: false }"
+        :pagination="{ clickable: true }"
+        :space-between="0"
+        class="banner-swiper"
+      >
+        <SwiperSlide v-for="(banner, i) in displayBanners" :key="i">
+          <div class="carousel-slide" @click="onBannerClick(banner)">
+            <img
+              :src="banner.img"
+              :alt="banner.title || ''"
+              @error="(e) => e.target.src = '/assets/banners/banner-bonus.svg'"
+            />
           </div>
-          <div>
-            <div class="banner-title-text">Baixe Nosso APP,</div>
-            <div class="banner-title-text">Ganhe Super Prêmios!</div>
-          </div>
-        </div>
-        <button class="banner-btn shiny" @click="$router.push('/download')">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+        </SwiperSlide>
+      </Swiper>
+    </div>
+
+    <!-- Category Icons - Hexagonal -->
+    <div class="category-icons" v-if="displayCategories.length">
+      <div
+        v-for="cat in displayCategories"
+        :key="cat.id"
+        class="cat-item"
+        :class="{ active: activeCat === cat.id }"
+        @click="onCategoryClick(cat)"
+      >
+        <div class="cat-hex-wrap">
+          <svg class="cat-hex-bg" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">
+            <defs>
+              <linearGradient :id="'hex-grad-' + cat.id" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#FFE44D"/>
+                <stop offset="100%" stop-color="#D4960A"/>
+              </linearGradient>
+            </defs>
+            <polygon :fill="`url(#hex-grad-${cat.id})`" points="50,2 93,27 93,73 50,98 7,73 7,27" />
+            <polygon fill="rgba(255,255,255,.15)" points="50,8 87,30 87,70 50,92 13,70 13,30" />
           </svg>
-          Instalar
-        </button>
+          <span v-if="cat.isEmoji" class="cat-hex-emoji">{{ cat.abbrev }}</span>
+          <span v-else class="cat-hex-logo">{{ cat.abbrev }}</span>
+          <span class="cat-hex-name">{{ cat.label }}</span>
+        </div>
       </div>
     </div>
 
-    <!-- Bonus Pool -->
-    <BonusPool />
-
-    <!-- Marquee -->
-    <div v-if="marqueeText" class="marquee-bar">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="var(--color-currency)"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
-      <div class="marquee-text-wrap">
+    <!-- Marquee + Search -->
+    <div class="marquee-search-row">
+      <div class="marquee-dot"></div>
+      <div class="marquee-icon-wrap">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="#FFE44D"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+      </div>
+      <div v-if="marqueeText" class="marquee-text-wrap">
         <span class="marquee-text">{{ marqueeText }}</span>
       </div>
-    </div>
-
-    <!-- Game Segments -->
-    <div class="segment-tabs">
-      <button
-        v-for="seg in segments"
-        :key="seg.id"
-        class="seg-btn"
-        :class="{ active: activeSeg === seg.id }"
-        @click="activeSeg = seg.id"
-      >
-        <span class="seg-icon" v-html="seg.icon"></span>
-        <span class="seg-label">{{ seg.label }}</span>
+      <button class="search-icon-btn" @click="$router.push('/game/search')">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
+        </svg>
       </button>
     </div>
 
-    <!-- Search bar -->
-    <div class="home-search" @click="$router.push('/game/search')">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
-      </svg>
-      <span>Pesquisar jogos...</span>
+    <!-- Activity Banners - with real images -->
+    <div class="activity-banners">
+      <div class="activity-row-2">
+        <div class="activity-img-card" @click="$router.push('/spread')">
+          <img src="/assets/download/download.gif" alt="Convide amigos" />
+        </div>
+        <div class="activity-img-card" @click="$router.push('/activity/vip')">
+          <img src="/assets/download/download-2.gif" alt="VIP" />
+        </div>
+      </div>
+      <div class="activity-wide-card" @click="$router.push('/main/promo')">
+        <img src="/assets/download/download-1.gif" alt="Bônus Login" />
+      </div>
     </div>
+
+    <!-- Hot Games Horizontal Scroll -->
+    <HotGamesScroll :max-games="20" card-size="size-md" />
 
     <!-- Loading -->
     <div v-if="loading" class="loading-state">
       <div class="loading-spinner"></div>
       <p>Carregando jogos...</p>
     </div>
-
-    <!-- Popular Section -->
-    <GameSection
-      v-if="hotGames.length"
-      name="Popular"
-      :games="hotGames"
-      :total-count="hotGames.length"
-      :max-games="20"
-      provider-code=""
-    />
 
     <!-- Provider Sections -->
     <GameSection
@@ -85,23 +102,29 @@
       @view-all="$router.push(`/game/category/all/${provider.code}`)"
     />
 
-    <!-- All Providers List -->
-    <div v-if="providers.length > 5" class="all-providers">
-      <h3 class="all-providers-title">Todos os Provedores</h3>
-      <div class="providers-grid">
-        <div
-          v-for="p in providers"
-          :key="p.code"
-          class="provider-card"
-          @click="$router.push(`/game/category/all/${p.code}`)"
-        >
-          <div class="prov-badge" :style="{ background: getColor(p.code) }">
-            {{ (p.name || p.code).charAt(0) }}
-          </div>
-          <span class="prov-name">{{ p.name || p.code }}</span>
-          <span class="prov-count">{{ (gamesByProvider[p.code] || []).length }}</span>
+
+    <!-- Footer -->
+    <div class="home-footer">
+      <div class="footer-social" v-if="socialLinks.length">
+        <span class="footer-social-title">Redes Sociais</span>
+        <div class="footer-social-icons">
+          <a v-for="link in socialLinks" :key="link.name" :href="link.url" target="_blank" class="social-link">
+            <span class="social-icon-wrap" :style="{ background: link.color }">
+              <span class="social-letter">{{ link.name.charAt(0) }}</span>
+            </span>
+          </a>
         </div>
       </div>
+
+      <div class="footer-badges">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity=".4"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+        <span class="footer-18">18+</span>
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity=".4"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      </div>
+
+      <div class="footer-desc">Jogos de azar podem ser viciantes. Jogue com responsabilidade.</div>
+      <div class="footer-name">{{ systemStore.tenantName || 'A73' }}</div>
+      <div class="footer-copy">©2026 {{ systemStore.tenantName || 'A73' }}. Todos os direitos reservados.</div>
     </div>
 
     <div class="bottom-spacer"></div>
@@ -111,48 +134,119 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { storeToRefs } from 'pinia'
+import { useRouter } from 'vue-router'
+import { Swiper, SwiperSlide } from 'swiper/vue'
+import { Autoplay, Pagination } from 'swiper/modules'
+import 'swiper/css'
+import 'swiper/css/pagination'
 import { useGamesStore } from '../stores/games'
 import { useSystemStore } from '../stores/system'
 import GameSection from '../components/GameSection.vue'
-import BonusPool from '../components/BonusPool.vue'
+import HotGamesScroll from '../components/HotGamesScroll.vue'
 
+const swiperModules = [Autoplay, Pagination]
+
+const router = useRouter()
 const store = useGamesStore()
 const systemStore = useSystemStore()
 const { providers, gamesByProvider, loading, hotGames, topProviders } = storeToRefs(store)
 const { fetchCatalog, getProviderGames } = store
 
-const showBanner = ref(!sessionStorage.getItem('banner_closed'))
-const activeSeg = ref('hot')
+const activeCat = ref('hot')
+
+const fallbackBanners = [
+  { img: '/assets/banners/banner-cashback.svg', title: '5% Cashback', route: '/main/promo' },
+  { img: '/assets/banners/banner-vip.svg', title: 'VIP', route: '/activity/vip' },
+  { img: '/assets/banners/banner-bonus.svg', title: 'Bônus Primeiro Depósito', route: '/main/promo' },
+]
+
+const displayBanners = computed(() => {
+  const apiList = systemStore.carouselList
+  if (apiList?.length) {
+    return apiList.map(b => ({
+      img: b.imageUrl || b.img || b.banner || '',
+      title: b.title || b.name || '',
+      route: b.targetValue || b.url || '/main/promo',
+      targetType: b.targetType || 'none'
+    })).filter(b => b.img)
+  }
+  return fallbackBanners
+})
+
+function onBannerClick(banner) {
+  if (banner.route) router.push(banner.route)
+}
 
 const marqueeText = computed(() => {
   const items = systemStore.marqueeContent
-  if (items.length) return items.map(i => i.content || i.text || i).join(' • ')
-  return ''
+  if (items?.length) return items.map(i => i.content || i.text || i).join('    ')
+  return '🍊🤡 Participe do Evento Super Popular e Ganhe Prêmios Incríveis! 🎁    💎 Site oficial permanente【A73.com】Favorito~seguir!    🔥 Depósito rápido, saque instantâneo, suporte 24h!    🎰 1000+ jogos dos melhores provedores do mundo! 🌍'
 })
 
-const segments = [
-  { id: 'hot', label: 'Popular', icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M13.5.67s.74 2.65.74 4.8c0 2.06-1.35 3.73-3.41 3.73-2.07 0-3.63-1.67-3.63-3.73l.03-.36C5.21 7.51 4 10.62 4 14c0 4.42 3.58 8 8 8s8-3.58 8-8C20 8.61 17.41 3.8 13.5.67z"/></svg>' },
-  { id: 'slots', label: 'Slots', icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="2" y="4" width="20" height="16" rx="2"/></svg>' },
-  { id: 'live', label: 'Ao Vivo', icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="3"/><path d="M7.05 7.05a7 7 0 010 9.9M16.95 7.05a7 7 0 010 9.9"/></svg>' },
-  { id: 'fish', label: 'Pesca', icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 20c-4.4 0-8-3.6-8-8h2c0 3.3 2.7 6 6 6s6-2.7 6-6h2c0 4.4-3.6 8-8 8z"/></svg>' },
-  { id: 'sport', label: 'Esporte', icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/></svg>' },
-]
-
-const colors = ['#18AAFF', '#AB63FF', '#17C964', '#FA8313', '#F5222D', '#FFC41A', '#14B8A6', '#E879F9']
-function getColor(code) {
-  let h = 0
-  for (let i = 0; i < code.length; i++) h = code.charCodeAt(i) + ((h << 5) - h)
-  return colors[Math.abs(h) % colors.length]
+const providerLogos = {
+  'pg': 'PG', 'pgsoft': 'PG',
+  'pp': 'PP', 'pragmatic': 'PP', 'pragmaticplay': 'PP',
+  'jili': 'JL', 'jl': 'JL',
+  'cq9': 'CQ9',
+  'fc': 'FC', 'fachai': 'FC',
+  'mg': 'MG', 'microgaming': 'MG',
+  'evo': 'EVO', 'evolution': 'EVO',
+  'sg': 'SG', 'spadegaming': 'SG',
+  'live22': 'L22',
+  'joker': 'JK',
+  'ka': 'KA', 'kagaming': 'KA',
+  'rt': 'RT', 'redtiger': 'RT',
+  'habanero': 'HB', 'hb': 'HB',
+  'booongo': 'BG', 'bg': 'BG',
+  'netent': 'NE', 'ne': 'NE',
+  'playtech': 'PT', 'pt': 'PT',
 }
 
-function closeBanner() {
-  showBanner.value = false
-  sessionStorage.setItem('banner_closed', '1')
+const displayCategories = computed(() => {
+  const cats = [
+    {
+      id: 'hot',
+      label: 'Popular',
+      hexColor: '#F5C84C',
+      abbrev: '🔥',
+      isEmoji: true
+    }
+  ]
+  const provs = providers.value.slice(0, 7)
+  provs.forEach((p) => {
+    const code = (p.code || '').toLowerCase()
+    const name = (p.name || p.code || '').toUpperCase()
+    const abbrev = providerLogos[code] || name.slice(0, 2)
+    cats.push({
+      id: p.code,
+      label: name.length > 6 ? name.slice(0, 5) + '…' : name,
+      hexColor: '#F5C84C',
+      abbrev,
+      isEmoji: false
+    })
+  })
+  return cats
+})
+
+function onCategoryClick(cat) {
+  activeCat.value = cat.id
+  if (cat.id === 'hot') return
+  router.push(`/game/category/all/${cat.id}`)
 }
+
+const socialLinks = computed(() => [
+  { name: 'Telegram', url: 'https://t.me/a73support', color: '#0088cc' },
+  { name: 'WhatsApp', url: 'https://wa.me/', color: '#25D366' },
+  { name: 'Instagram', url: '#', color: 'linear-gradient(135deg, #833AB4, #E1306C, #F77737)' },
+  { name: 'Facebook', url: '#', color: '#1877F2' },
+])
+
+
 
 onMounted(() => {
   fetchCatalog()
   systemStore.fetchMarquee()
+  systemStore.fetchCarousel()
 })
 </script>
 
@@ -162,244 +256,192 @@ onMounted(() => {
   background: var(--ep-color-background-fill-body-default);
 }
 
-.app-banner {
-  position: relative;
+/* ── Carousel (Swiper) ── */
+.carousel-wrapper {
+  position: relative; border-radius: .75rem; overflow: hidden; margin: .5rem 0;
+}
+.banner-swiper { width: 100%; aspect-ratio: 16 / 7; border-radius: .75rem; }
+.carousel-slide { width: 100%; height: 100%; cursor: pointer; }
+.carousel-slide img {
+  width: 100%; height: 100%; object-fit: cover; border-radius: .75rem;
+  background: linear-gradient(135deg, #2D1B69 0%, #4C1D95 50%, #1A0A3E 100%);
+}
+.banner-swiper :deep(.swiper-pagination-bullet) {
+  width: .375rem; height: .375rem; background: rgba(255,255,255,.4); opacity: 1;
+}
+.banner-swiper :deep(.swiper-pagination-bullet-active) {
+  width: 1rem; border-radius: .1875rem; background: #fff;
 }
 
-.banner-close {
-  position: absolute;
-  top: .75rem;
-  left: .25rem;
-  width: 1.125rem;
-  height: 1.125rem;
-  border-radius: 50%;
-  background: var(--ep-neutral-black-black-40, rgba(0,0,0,.4));
-  color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 2;
-}
-
-.banner-inner {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  background: var(--ep-color-background-fill-surface-raised-L1);
-  border-radius: var(--ep-border-radius-l, .5rem);
-  padding: .625rem .875rem;
-  margin: .5rem 0;
-  border: 1px solid var(--ep-color-border-default);
-}
-
-.banner-left {
-  display: flex;
-  align-items: center;
-  gap: .625rem;
-}
-
-.banner-app-icon {
-  width: 2.5rem;
-  height: 2.5rem;
-  border-radius: .625rem;
-  overflow: hidden;
-  flex-shrink: 0;
-}
-
-.banner-app-icon img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.banner-title-text {
-  font-size: var(--ep-font-size-s, .75rem);
-  font-weight: var(--ep-font-weight-bold, 700);
-  color: var(--ep-color-text-default);
-  line-height: 1.4;
-}
-
-.banner-btn {
-  display: flex;
-  align-items: center;
-  gap: .25rem;
-  padding: .5rem .875rem;
-  background: var(--gradient-primary);
-  border-radius: var(--ep-border-radius-infinity, 624.9375rem);
-  color: var(--ep-color-text-inverse, #0E1E3D);
-  font-size: var(--ep-font-size-s, .75rem);
-  font-weight: var(--ep-font-weight-bold, 700);
-  white-space: nowrap;
-  position: relative;
-  overflow: hidden;
-}
-
-.marquee-bar {
-  display: flex;
-  align-items: center;
-  gap: .5rem;
-  padding: .375rem .625rem;
-  background: var(--ep-color-background-fill-surface-raised-L2);
-  border-radius: var(--ep-border-radius-m, .375rem);
-  margin: .25rem 0 .5rem;
-  overflow: hidden;
-  border: 1px solid var(--ep-color-border-default);
-}
-
-.marquee-text-wrap {
-  flex: 1;
-  overflow: hidden;
-}
-
-.marquee-text {
-  display: inline-block;
-  white-space: nowrap;
-  animation: scroll-horizontal 20s linear infinite;
-  font-size: var(--ep-font-size-s, .75rem);
-  color: var(--ep-color-text-weaker);
-}
-
-.marquee-text:hover {
-  animation-play-state: paused;
-}
-
-.segment-tabs {
-  display: flex;
-  gap: .25rem;
-  overflow-x: auto;
-  padding: .25rem 0 .5rem;
+/* ── Category Icons ── */
+.category-icons {
+  display: flex; gap: .5rem; overflow-x: auto; padding: .75rem 0;
   -webkit-overflow-scrolling: touch;
 }
-
-.segment-tabs::-webkit-scrollbar {
-  display: none;
+.category-icons::-webkit-scrollbar { display: none; }
+.cat-item {
+  display: flex; flex-direction: column; align-items: center;
+  flex-shrink: 0; cursor: pointer;
+}
+.cat-item:active .cat-hex-wrap { transform: scale(0.92); }
+.cat-item.active .cat-hex-wrap {
+  transform: scale(1.08);
+  filter: brightness(1.15);
 }
 
-.seg-btn {
-  display: flex;
-  align-items: center;
-  gap: .25rem;
-  padding: .4375rem .875rem;
-  border-radius: var(--ep-border-radius-infinity, 624.9375rem);
-  background: var(--ep-color-background-fill-surface-raised-L2);
-  color: var(--ep-color-text-weaker);
-  font-size: var(--ep-font-size-s, .75rem);
-  font-weight: var(--ep-font-weight-semi-bold, 600);
-  white-space: nowrap;
-  transition: all .2s ease;
-  flex-shrink: 0;
+.cat-hex-wrap {
+  width: 3.75rem; height: 3.75rem;
+  position: relative;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  transition: transform .2s ease, filter .2s ease;
+}
+.cat-hex-bg {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  filter: drop-shadow(0 2px 5px rgba(0,0,0,.35));
+}
+.cat-hex-emoji {
+  position: relative; z-index: 1;
+  font-size: 1.25rem;
+  line-height: 1;
+}
+.cat-hex-logo {
+  position: relative; z-index: 1;
+  font-size: .875rem; font-weight: 900;
+  color: #1a0a2e;
+  text-shadow: 0 1px 0 rgba(255,255,255,.3);
+  letter-spacing: .5px;
+  line-height: 1;
+}
+.cat-hex-name {
+  position: relative; z-index: 1;
+  font-size: .5rem; font-weight: 800;
+  color: #fff; text-align: center;
+  line-height: 1; white-space: nowrap;
+  text-shadow: 0 1px 2px rgba(0,0,0,.3);
+  letter-spacing: .3px;
+  margin-top: .0625rem;
+}
+
+/* ── Marquee + Search ── */
+.marquee-search-row {
+  display: flex; align-items: center; gap: .5rem; padding: .5rem .625rem;
+  background: var(--ep-color-background-fill-surface-raised-L1);
+  border-radius: .5rem; margin: 0 0 .625rem; overflow: hidden;
   border: 1px solid var(--ep-color-border-default);
 }
-
-.seg-btn.active {
-  background: var(--gradient-primary);
-  color: var(--ep-color-text-inverse, #0E1E3D);
-  border-color: transparent;
-  font-weight: var(--ep-font-weight-bold, 700);
+.marquee-dot {
+  width: .5rem; height: .5rem; border-radius: 50%;
+  background: var(--ep-accent-green, #17C964); flex-shrink: 0;
+  animation: breathing 2s ease-in-out infinite;
+}
+.marquee-text-wrap { flex: 1; overflow: hidden; }
+.marquee-text {
+  display: inline-block; white-space: nowrap;
+  animation: scroll-horizontal 20s linear infinite;
+  font-size: .75rem; color: var(--ep-color-text-weaker);
+}
+.marquee-text:hover { animation-play-state: paused; }
+.search-icon-btn {
+  width: 2rem; height: 2rem; border-radius: 50%;
+  background: var(--ep-color-background-fill-surface-raised-L2);
+  color: var(--ep-color-text-weaker); display: flex; align-items: center;
+  justify-content: center; flex-shrink: 0; transition: all .2s ease;
+}
+.search-icon-btn:active {
+  transform: scale(0.9); background: var(--ep-color-background-fill-active-primary);
+  color: var(--ep-color-text-inverse);
 }
 
-.seg-btn:active {
-  opacity: 0.7;
+/* ── Activity Banners (image-based) ── */
+.activity-banners { margin: .375rem 0 .625rem; }
+.activity-row-2 {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: .375rem; margin-bottom: .375rem;
+}
+.activity-img-card {
+  border-radius: .5rem; overflow: hidden; cursor: pointer;
+  transition: transform .15s ease; position: relative;
+}
+.activity-img-card:active { transform: scale(0.97); }
+.activity-img-card img {
+  width: 100%; height: 100%; object-fit: cover; display: block;
+}
+.activity-wide-card {
+  border-radius: .5rem; overflow: hidden; cursor: pointer;
+  transition: transform .15s ease;
+}
+.activity-wide-card:active { transform: scale(0.97); }
+.activity-wide-card img {
+  width: 100%; height: auto; display: block;
 }
 
-.seg-icon {
-  display: flex;
-  align-items: center;
-}
-
-.home-search {
-  display: flex;
-  align-items: center;
-  gap: .5rem;
-  padding: .625rem .875rem;
-  background: var(--game-searchbar-bg, var(--ep-color-background-fill-surface-lowered));
-  border-radius: var(--ep-border-radius-l, .5rem);
-  margin: 0 0 .75rem;
-  cursor: pointer;
-  border: 1px solid var(--game-searchbar-border-color, var(--ep-color-border-default));
-}
-
-.home-search svg {
-  color: var(--ep-color-text-weakest);
-  flex-shrink: 0;
-}
-
-.home-search span {
-  color: var(--game-searchbar-placeholder, var(--ep-color-text-weakest));
-  font-size: var(--ep-font-size-s, .8125rem);
-}
-
+/* ── Loading ── */
 .loading-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 3.75rem 0;
-  gap: .75rem;
-  color: var(--ep-color-text-weakest);
+  display: flex; flex-direction: column; align-items: center;
+  padding: 3.75rem 0; gap: .75rem; color: var(--ep-color-text-weakest);
+}
+.loading-spinner {
+  width: 2rem; height: 2rem; border: 3px solid var(--ep-color-border-default);
+  border-top-color: var(--ep-color-text-selected);
+  border-radius: 50%; animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.home-footer {
+  text-align: center; padding: 1.5rem .75rem 1rem;
+  margin-top: 1.5rem;
+  background: var(--ep-color-background-fill-surface-raised-L1);
+  border-radius: .75rem .75rem 0 0;
+}
+.footer-social { margin-bottom: 1rem; }
+.footer-social-title {
+  display: block; font-size: .6875rem; font-weight: 600;
+  color: var(--ep-color-text-weakest); margin-bottom: .5rem;
+  text-transform: uppercase; letter-spacing: .5px;
+}
+.footer-social-icons {
+  display: flex; justify-content: center; gap: .75rem;
+}
+.social-link { text-decoration: none; }
+.social-icon-wrap {
+  width: 2rem; height: 2rem; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  transition: transform .15s; box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+}
+.social-icon-wrap:active { transform: scale(0.9); }
+.social-letter { font-size: .75rem; font-weight: 800; color: #fff; }
+
+.footer-badges {
+  display: flex; justify-content: center; align-items: center; gap: 1rem;
+  margin-bottom: .75rem; color: var(--ep-color-text-weakest);
+}
+.footer-18 {
+  font-size: 1.125rem; font-weight: 800;
+  color: var(--ep-color-text-weakest); opacity: .6;
+  border: 2px solid; border-radius: .25rem; padding: .125rem .375rem;
+}
+.footer-desc {
+  font-size: .625rem; color: var(--ep-color-text-weakest);
+  margin-bottom: .75rem; opacity: .7;
+}
+.footer-name {
+  font-size: 1.125rem; font-weight: 700; color: var(--ep-color-text-default);
+  margin-bottom: .375rem;
+}
+.footer-copy {
+  font-size: .625rem; color: var(--ep-color-text-weakest);
 }
 
-.all-providers {
-  margin-top: .75rem;
+.bottom-spacer { height: 1.5rem; }
+
+@keyframes breathing {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.85); }
 }
 
-.all-providers-title {
-  font-size: var(--ep-font-size-m, .9375rem);
-  font-weight: var(--ep-font-weight-bold, 700);
-  margin-bottom: .625rem;
-  color: var(--ep-color-text-default);
-}
-
-.providers-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: .5rem;
-}
-
-.provider-card {
-  display: flex;
-  align-items: center;
-  gap: .625rem;
-  padding: .75rem;
-  background: var(--ep-color-background-fill-surface-raised-L2);
-  border-radius: var(--ep-border-radius-l, .5rem);
-  cursor: pointer;
-  transition: all .2s ease;
-  border: 1px solid var(--ep-color-border-default);
-}
-
-.provider-card:active {
-  opacity: 0.7;
-}
-
-.prov-badge {
-  width: 1.875rem;
-  height: 1.875rem;
-  border-radius: .5rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: var(--ep-font-size-m, .875rem);
-  font-weight: var(--ep-font-weight-bold, 700);
-  color: #fff;
-  flex-shrink: 0;
-}
-
-.prov-name {
-  font-size: var(--ep-font-size-s, .8125rem);
-  font-weight: var(--ep-font-weight-semi-bold, 600);
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--ep-color-text-default);
-}
-
-.prov-count {
-  font-size: var(--ep-font-size-s, .75rem);
-  color: var(--ep-color-text-weakest);
-}
-
-.bottom-spacer {
-  height: 1.5rem;
+@keyframes scroll-horizontal {
+  0% { transform: translateX(100%); }
+  100% { transform: translateX(-100%); }
 }
 </style>

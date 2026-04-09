@@ -40,6 +40,7 @@ import { useSystemStore } from './stores/system'
 import { useAuthStore } from './stores/auth'
 import { useUserStore } from './stores/user'
 import { isValidAppUiTheme } from './constants/appThemeCatalog'
+import { applyBrandingIcons } from './utils/pwaIcons'
 
 const route = useRoute()
 const authStore = useAuthStore()
@@ -115,12 +116,22 @@ watch(
   { deep: true }
 )
 
+watch(
+  () => systemStore.settings?.logo,
+  (logo) => {
+    const u = typeof logo === 'string' ? logo.trim() : ''
+    if (u) applyBrandingIcons(u)
+  }
+)
+
 onMounted(async () => {
   document.getElementById('app')?.classList.remove('app-full-bleed')
 
   try {
     const system = useSystemStore()
     await system.init()
+    const lg = system.settings?.logo
+    if (typeof lg === 'string' && lg.trim()) applyBrandingIcons(lg.trim())
     mergeAnnouncementsForModal()
     system.fetchAnnouncements().then(() => mergeAnnouncementsForModal()).catch(() => {})
   } catch (e) {

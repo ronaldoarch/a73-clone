@@ -3509,14 +3509,25 @@ app.get('/api/settings', async (req, res) => {
   }
 })
 
-// GET manifest (PWA) - dinâmico com base em settings (nome e logo)
-app.get('/api/manifest', async (req, res) => {
+function pwaManifestIconMime(logo) {
+  const l = String(logo || '').toLowerCase()
+  if (l.endsWith('.svg')) return 'image/svg+xml'
+  if (l.endsWith('.webp')) return 'image/webp'
+  if (l.endsWith('.jpg') || l.endsWith('.jpeg')) return 'image/jpeg'
+  if (l.endsWith('.gif')) return 'image/gif'
+  return 'image/png'
+}
+
+/** Manifest PWA: mesma logo que /api/settings (coluna Setting.logo). GET /manifest.json também usa isto (antes do static). */
+async function handlePwaManifest(req, res) {
   try {
     const main = await settingGet('main')
     const v = main?.value || {}
-    const siteName = v.siteName || '35m'
+    const siteName = (typeof v.siteName === 'string' && v.siteName.trim()) || (typeof v.pageTitle === 'string' && v.pageTitle.trim()) || '35m'
     const shortName = siteName.length > 12 ? siteName.slice(0, 11) + '…' : siteName
-    const logo = main?.logo || '/assets/logo-35m.svg'
+    const savedLogo = (main?.logo && String(main.logo).trim()) || ''
+    const logo = savedLogo || '/assets/logo-35m.svg'
+    const mime = pwaManifestIconMime(logo)
     const manifest = {
       name: siteName,
       short_name: shortName,
@@ -3525,21 +3536,36 @@ app.get('/api/manifest', async (req, res) => {
       background_color: '#0f0f14',
       display: 'standalone',
       orientation: 'portrait',
+      scope: '/',
       start_url: '/',
       icons: [
-        { src: logo, sizes: 'any', type: logo.endsWith('.svg') ? 'image/svg+xml' : 'image/png', purpose: 'any' },
-        { src: logo, sizes: '192x192', type: logo.endsWith('.svg') ? 'image/svg+xml' : 'image/png', purpose: 'any maskable' }
+        { src: logo, sizes: 'any', type: mime, purpose: 'any' },
+        { src: logo, sizes: '512x512', type: mime, purpose: 'any maskable' }
       ]
     }
-    res.setHeader('Content-Type', 'application/manifest+json')
-    res.setHeader('Cache-Control', 'public, max-age=300')
+    res.setHeader('Content-Type', 'application/manifest+json; charset=utf-8')
+    res.setHeader('Cache-Control', 'public, max-age=120')
     return res.json(manifest)
   } catch (e) {
-    const fallback = { name: '35m', short_name: '35m', theme_color: '#4D087B', background_color: '#0f0f14', display: 'standalone', start_url: '/', icons: [{ src: '/assets/logo-35m.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any maskable' }] }
-    res.setHeader('Content-Type', 'application/manifest+json')
+    console.error('manifest:', e)
+    const fallback = {
+      name: '35m',
+      short_name: '35m',
+      theme_color: '#4D087B',
+      background_color: '#0f0f14',
+      display: 'standalone',
+      scope: '/',
+      start_url: '/',
+      icons: [{ src: '/assets/logo-35m.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any maskable' }]
+    }
+    res.setHeader('Content-Type', 'application/manifest+json; charset=utf-8')
+    res.setHeader('Cache-Control', 'public, max-age=60')
     return res.json(fallback)
   }
-})
+}
+
+app.get('/api/manifest', handlePwaManifest)
+app.get('/manifest.json', handlePwaManifest)
 
 // Upload banner de carregamento (tela de loading)
 app.post('/api/upload/loading-banner', upload.single('file'), adminAuthMiddleware, async (req, res) => {

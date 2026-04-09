@@ -1,23 +1,7 @@
 {
-  "theme_color": "black",
-  "background_color": "black",
+  "name": "35m",
+  "short_name": "35m",
   "display": "standalone",
-  "prefer_related_applications": false,
-  "related_applications": [],
-  "name": "35m.com",
-  "short_name": "35m.com",
-  "scope": "/",
   "start_url": "/",
-  "icons": [
-    {
-      "sizes": "any",
-      "src": "https://upload-us.i-j-2-k.com/s5/app-icon/1222508/LOGO.jpg",
-      "type": "image/png"
-    },
-    {
-      "sizes": "512x512",
-      "src": "https://upload-us.i-j-2-k.com/s5/app-icon/1222508/LOGO.jpg",
-      "type": "image/png"
-    }
-  ]
+  "icons": []
 }

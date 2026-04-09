@@ -11,6 +11,8 @@
           :autoplay="{ delay: 4000, disableOnInteraction: false }"
           :pagination="{ clickable: true }"
           :space-between="20"
+          :touch-start-prevent-default="false"
+          :threshold="8"
           class="banner-swiper"
         >
           <SwiperSlide v-for="(banner, i) in displayBanners" :key="i">

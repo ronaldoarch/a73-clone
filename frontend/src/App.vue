@@ -1,8 +1,14 @@
 <template>
   <div class="app-shell" :data-theme="currentTheme">
     <PwaInstallBanner />
-    <AppHeader />
-    <div class="page-content">
+    <AppHeader v-if="route.name !== 'Menu'" />
+    <div
+      class="page-content"
+      :class="{
+        'page-content--brand-purple': route.name === 'Home',
+        'page-content--menu': route.name === 'Menu'
+      }"
+    >
       <router-view v-slot="{ Component }">
         <transition name="fade" mode="out-in">
           <component :is="Component" />
@@ -10,21 +16,12 @@
       </router-view>
     </div>
     <TabBar v-if="showTabBar" />
-    <FloatingRefreshButton v-if="showFloat" />
-    <BackToTop v-if="showFloat" />
     <DrawerMenu v-model="drawerOpen" />
     <AnnouncementModal :announcements="announcements" />
 
-    <MysteryMineWidget v-if="showFloat" />
-
-    <a
-      v-if="showFloat"
-      class="support-float"
-      href="javascript:void(0)"
-      @click="openSupport"
-    >
-      <img src="/assets/ui/support.png" alt="Suporte" />
-    </a>
+    <MysteryMineFloat v-if="showFloat" />
+    <PromoCarouselFloat v-if="showFloat" />
+    <SupportFloat v-if="showFloat" />
   </div>
 </template>
 
@@ -33,35 +30,58 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import AppHeader from './components/AppHeader.vue'
 import TabBar from './components/TabBar.vue'
-import FloatingRefreshButton from './components/FloatingRefreshButton.vue'
-import BackToTop from './components/BackToTop.vue'
 import DrawerMenu from './components/DrawerMenu.vue'
 import AnnouncementModal from './components/AnnouncementModal.vue'
 import PwaInstallBanner from './components/PwaInstallBanner.vue'
-import MysteryMineWidget from './components/MysteryMineWidget.vue'
+import MysteryMineFloat from './components/MysteryMineFloat.vue'
+import PromoCarouselFloat from './components/PromoCarouselFloat.vue'
+import SupportFloat from './components/SupportFloat.vue'
 import { useSystemStore } from './stores/system'
 import { useAuthStore } from './stores/auth'
 import { useUserStore } from './stores/user'
+import { isValidAppUiTheme } from './constants/appThemeCatalog'
 
 const route = useRoute()
+const authStore = useAuthStore()
 const drawerOpen = ref(false)
-const currentTheme = ref(localStorage.getItem('app_theme') || 'amber-purple')
+const systemStore = useSystemStore()
+
+/** Tema: admin pode fixar em Branding (appUiTheme em /api/settings); senão segue skin do tenant. */
+const currentTheme = computed(() => {
+  const fixed = systemStore.settings?.appUiTheme
+  if (fixed && isValidAppUiTheme(fixed)) return fixed
+  return systemStore.themeConfig?.theme || 'amber-purple'
+})
 
 const hiddenTabRoutes = ['Login', 'Register', 'Launch', 'GameAction']
-const hiddenFloatRoutes = ['Launch', 'GameAction']
 
 const showTabBar = computed(() => !hiddenTabRoutes.includes(route.name))
-const showFloat = computed(() => !hiddenFloatRoutes.includes(route.name))
+/** Flutuantes (mina, carrossel promo, suporte) só na página inicial */
+const showFloat = computed(() => route.name === 'Home')
 
-watch(currentTheme, (val) => {
-  localStorage.setItem('app_theme', val)
-  document.documentElement.setAttribute('data-theme', val)
-})
+watch(
+  currentTheme,
+  (val) => {
+    document.documentElement.setAttribute('data-theme', val)
+    try {
+      localStorage.setItem('app_theme', val)
+    } catch (_) {}
+  },
+  { immediate: true }
+)
+
+watch(
+  () => route.query,
+  () => {
+    authStore.setParentId(route)
+  },
+  { deep: true, immediate: true }
+)
 
 const announcements = ref([])
 
 onMounted(async () => {
-  document.documentElement.setAttribute('data-theme', currentTheme.value)
+  document.getElementById('app')?.classList.remove('app-full-bleed')
 
   try {
     const system = useSystemStore()
@@ -74,9 +94,9 @@ onMounted(async () => {
   }
 
   try {
-    const auth = useAuthStore()
+    authStore.setParentId(route)
     const userStore = useUserStore()
-    if (auth.isLoggedIn) {
+    if (authStore.isLoggedIn) {
       userStore.fetchDetails().catch(() => {})
       userStore.fetchAssets().catch(() => {})
     }
@@ -85,9 +105,6 @@ onMounted(async () => {
   }
 })
 
-function openSupport() {
-  window.open('https://t.me/a73support', '_blank')
-}
 </script>
 
 <style scoped>
@@ -99,7 +116,18 @@ function openSupport() {
 }
 
 .page-content {
-  padding-bottom: 4.5rem;
+  padding-bottom: 5.15rem;
+}
+
+/* Home: fundo do scroll = roxo escuro (#200943); topo roxo vivo fica no herói dentro da HomePage */
+.page-content.page-content--brand-purple {
+  background: var(--color-home-lower-bg, #200943);
+}
+
+/* Menu: fundo roxo profundo contínuo com a tela (toolbar fica dentro da página) */
+.page-content.page-content--menu {
+  background: #2b004d;
+  padding-top: 0;
 }
 
 .fade-enter-active,
@@ -111,24 +139,4 @@ function openSupport() {
   opacity: 0;
 }
 
-.support-float {
-  position: fixed;
-  bottom: 5.5rem;
-  right: .75rem;
-  width: 3rem;
-  height: 3rem;
-  z-index: 9998;
-  filter: drop-shadow(0 2px 8px rgba(0,0,0,0.4));
-  transition: transform .2s ease;
-}
-
-.support-float:active {
-  transform: scale(0.9);
-}
-
-.support-float img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-}
 </style>

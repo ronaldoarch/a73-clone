@@ -60,6 +60,7 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import { setPendingNovosRouletteWelcome } from '../utils/novosRouletteWelcome'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -98,6 +99,7 @@ async function handleRegister() {
   const result = await auth.register(phone, password.value, confirmPassword.value)
   submitting.value = false
   if (result.success) {
+    setPendingNovosRouletteWelcome()
     router.push('/main/inicio')
   } else {
     error.value = result.error || 'Falha no registro'

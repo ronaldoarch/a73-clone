@@ -13,6 +13,11 @@
       --bg-sidebar: #0d1117;
       --accent: #00d4aa;
       --accent-hover: #00f5c4;
+      /* Derivados do destaque (atualizados em JS ao mudar cor em tempo real) */
+      --accent-fade-04: rgba(0, 212, 170, 0.04);
+      --accent-fade-08: rgba(0, 212, 170, 0.08);
+      --accent-fade-12: rgba(0, 212, 170, 0.12);
+      --accent-fade-20: rgba(0, 212, 170, 0.2);
       --danger: #ef4444;
       --warning: #f59e0b;
       --success: #10b981;
@@ -23,10 +28,14 @@
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg-dark); color: var(--text); min-height: 100vh; display: flex; }
     .sidebar { width: 260px; background: var(--bg-sidebar); border-right: 1px solid var(--border); padding: 1rem 0; position: fixed; height: 100vh; overflow-y: auto; }
-    .logo { padding: 0 1.5rem 1.5rem; border-bottom: 1px solid var(--border); margin-bottom: 1rem; font-size: 1.5rem; font-weight: 700; color: var(--accent); }
+    .logo { padding: 0 1.5rem 1.5rem; border-bottom: 1px solid var(--border); margin-bottom: 1rem; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 0.35rem; }
+    .logo__img { display: none; max-height: 44px; max-width: 200px; width: auto; object-fit: contain; }
+    .logo__img.is-visible { display: block; }
+    .logo__title { font-size: 1.5rem; font-weight: 700; color: var(--accent); }
+    .logo__title.is-hidden { display: none; }
     .nav-item { display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem 1.5rem; color: var(--text-muted); cursor: pointer; transition: all 0.2s; border-left: 3px solid transparent; }
-    .nav-item:hover { background: rgba(0,212,170,0.08); color: var(--text); }
-    .nav-item.active { background: rgba(0,212,170,0.12); color: var(--accent); border-left-color: var(--accent); }
+    .nav-item:hover { background: var(--accent-fade-08); color: var(--text); }
+    .nav-item.active { background: var(--accent-fade-12); color: var(--accent); border-left-color: var(--accent); }
     .nav-item svg { width: 20px; height: 20px; opacity: 0.8; flex-shrink: 0; }
     .nav-sep { height: 1px; background: var(--border); margin: 0.5rem 1.5rem; }
     .main { flex: 1; margin-left: 260px; padding: 1.5rem; min-height: 100vh; }
@@ -57,12 +66,12 @@
     table { width: 100%; border-collapse: collapse; }
     th, td { padding: 0.75rem 1.25rem; text-align: left; border-bottom: 1px solid var(--border); }
     th { background: rgba(0,0,0,0.2); font-weight: 600; font-size: 0.85rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
-    tr:hover { background: rgba(0,212,170,0.04); }
+    tr:hover { background: var(--accent-fade-04); }
     .badge { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 500; }
     .badge-success { background: rgba(16,185,129,0.2); color: var(--success); }
     .badge-warning { background: rgba(245,158,11,0.2); color: var(--warning); }
     .badge-danger { background: rgba(239,68,68,0.2); color: var(--danger); }
-    .badge-info { background: rgba(0,212,170,0.2); color: var(--accent); }
+    .badge-info { background: var(--accent-fade-20); color: var(--accent); }
     .section { display: none; }
     .section.active { display: block; }
     .search-box { padding: 0.5rem 1rem; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-dark); color: var(--text); width: 100%; max-width: 300px; }
@@ -80,6 +89,15 @@
     @keyframes toastIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
     .row-hidden { display: none !important; }
     #themeOverride { display: block; }
+    .modal-overlay { position: fixed; inset: 0; z-index: 5000; background: rgba(0,0,0,0.65); display: none; align-items: center; justify-content: center; padding: 1rem; }
+    .modal-overlay.open { display: flex; }
+    .modal-box { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; width: 100%; max-width: 520px; max-height: 90vh; overflow-y: auto; padding: 1.25rem 1.5rem; }
+    .modal-box h3 { margin-bottom: 1rem; font-size: 1.1rem; }
+    .modal-actions { display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 1.25rem; flex-wrap: wrap; }
+    .promo-thumb { width: 72px; height: 40px; object-fit: cover; border-radius: 6px; background: var(--bg-dark); vertical-align: middle; }
+    .link-cell { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.8rem; color: var(--text-muted); }
+    .quick-links { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.35rem; }
+    .quick-links button { font-size: 0.75rem; padding: 0.25rem 0.45rem; }
     .toggle-row { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; }
     .toggle-row label { margin-bottom: 0; color: var(--text); }
     @media (max-width: 768px) {
@@ -109,7 +127,10 @@
 
   <!-- Sidebar -->
   <aside class="sidebar">
-    <div class="logo">🎰 <span>A73 Admin</span></div>
+    <div class="logo" id="sidebarBrand">
+      <img id="adminSidebarLogo" class="logo__img" alt="" width="160" height="44" decoding="async" />
+      <div class="logo__title" id="adminSidebarTitle"><span aria-hidden="true">🎰</span> A73 Admin</div>
+    </div>
     <nav class="nav-item active" data-section="dashboard">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
       <span>Dashboard</span>
@@ -130,6 +151,10 @@
     <nav class="nav-item" data-section="promocoes">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
       <span>Promoções</span>
+    </nav>
+    <nav class="nav-item" data-section="misterioso">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+      <span>Baús misterioso</span>
     </nav>
     <nav class="nav-item" data-section="branding">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
@@ -234,13 +259,96 @@
         <h1>Promoções</h1>
         <div class="header-actions"><button class="btn btn-primary" id="btnAddPromo">+ Nova Promoção</button></div>
       </div>
+      <p style="color:var(--text-muted);font-size:0.88rem;margin-bottom:1rem;max-width:52rem">
+        Adicione <strong>banner</strong> (URL ou upload), <strong>título</strong>, <strong>descrição</strong> e um <strong>link</strong>:
+        rota interna (ex.: <code style="color:var(--accent)">/activity/LuckyWheel</code>) ou URL externa (ex.: <code>https://…</code>).
+      </p>
       <div class="card">
         <div class="card-header"><span class="card-title">Lista de Promoções</span></div>
         <div class="table-wrap">
-          <table><thead><tr><th>Título</th><th>Descrição</th><th>Ativa</th><th>Ações</th></tr></thead>
-          <tbody id="promosTableBody"><tr><td colspan="4" style="text-align:center;color:var(--text-muted)">Carregando...</td></tr></tbody></table>
+          <table><thead><tr><th>Banner</th><th>Título</th><th>Link</th><th>Ordem</th><th>Status</th><th>Ações</th></tr></thead>
+          <tbody id="promosTableBody"><tr><td colspan="6" style="text-align:center;color:var(--text-muted)">Carregando...</td></tr></tbody></table>
         </div>
       </div>
+    </section>
+
+    <div id="promoModal" class="modal-overlay" aria-hidden="true">
+      <div class="modal-box" role="dialog" aria-labelledby="promoModalTitle">
+        <h3 id="promoModalTitle">Promoção</h3>
+        <input type="hidden" id="promoEditIdx" value="-1">
+        <div class="form-group"><label>Título</label><input type="text" id="promoTitulo" class="search-box" placeholder="Nome da campanha" style="max-width:100%"></div>
+        <div class="form-group"><label>Descrição</label><textarea id="promoDescricao" class="search-box" rows="3" placeholder="Texto no card (opcional)" style="max-width:100%;resize:vertical"></textarea></div>
+        <div class="form-group"><label>URL do banner</label><input type="text" id="promoBannerUrl" class="search-box" placeholder="/uploads/... ou https://..." style="max-width:100%"></div>
+        <div class="form-group"><label>Upload de banner</label><input type="file" id="promoBannerFile" accept="image/*" class="search-box" style="max-width:100%"><button type="button" class="btn btn-outline" id="btnPromoUploadBanner" style="margin-top:0.5rem">Enviar imagem</button></div>
+        <div class="form-group"><label>Destino (rota ou URL)</label><input type="text" id="promoLink" class="search-box" placeholder="/activity/LuckyWheel ou https://..." style="max-width:100%">
+          <div class="quick-links">
+            <button type="button" class="btn btn-outline quick-fill-link" data-link="/activity/LuckyWheel">Roleta</button>
+            <button type="button" class="btn btn-outline quick-fill-link" data-link="/spread">Convidar</button>
+            <button type="button" class="btn btn-outline quick-fill-link" data-link="/main/deposito">Depósito</button>
+            <button type="button" class="btn btn-outline quick-fill-link" data-link="/activity/vip">VIP</button>
+            <button type="button" class="btn btn-outline quick-fill-link" data-link="/main/promo?tab=rebate">Cashback</button>
+            <button type="button" class="btn btn-outline quick-fill-link" data-link="/activity/MysteryReward">Prêmio misterioso</button>
+          </div>
+        </div>
+        <div class="toggle-row"><input type="checkbox" id="promoOpenNewTab" checked><label for="promoOpenNewTab">Links externos: abrir em nova aba</label></div>
+        <div class="form-row">
+          <div class="form-group"><label>Ordem</label><input type="number" id="promoOrdem" class="search-box" min="0" value="0" style="max-width:100%"></div>
+          <div class="form-group"><label>Status</label>
+            <select id="promoStatus" class="search-box" style="max-width:100%;cursor:pointer">
+              <option value="Em andamento">Em andamento</option>
+              <option value="Em breve">Em breve</option>
+              <option value="Encerrado">Encerrado</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-outline" id="btnPromoModalCancel">Cancelar</button>
+          <button type="button" class="btn btn-primary" id="btnPromoModalSave">Salvar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== Prêmio misterioso / baús ===== -->
+    <section id="misterioso" class="section">
+      <div class="header">
+        <h1>Prêmio misterioso (baús)</h1>
+        <div class="header-actions"><button type="button" class="btn btn-outline" id="btnReloadMisterioso">↻ Recarregar</button></div>
+      </div>
+      <p style="color:var(--text-muted);font-size:0.88rem;margin-bottom:1rem;max-width:52rem">
+        Configura a página <strong>Prêmio misterioso</strong> na app, a tabela de prémios por depósito e as <strong>5 caixas</strong> da trilha. A reclamação no fluxo de afiliado usa o depósito mínimo e as faixas abaixo.
+      </p>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-header"><span class="card-title">Página da atividade</span></div>
+          <div style="padding:1.25rem">
+            <div class="form-group"><label>Texto do prêmio principal (hero)</label><input type="text" id="mstHeadlinePrize" class="search-box" placeholder="R$ 8.888,00" style="max-width:100%"></div>
+            <div class="form-row">
+              <div class="form-group"><label>Depósito 2 dias mín. (R$)</label><input type="number" step="0.01" id="mstMinDep2d" class="search-box" style="max-width:100%"></div>
+              <div class="form-group"><label>Aposta válida mín. (R$)</label><input type="number" step="0.01" id="mstMinValidBet" class="search-box" style="max-width:100%"></div>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><span class="card-title">Afiliado — reclamar misterioso</span></div>
+          <div style="padding:1.25rem">
+            <div class="form-group"><label>Depósito mínimo para poder reclamar (R$)</label><input type="number" step="1" id="mstReclamarMinDep" class="search-box" style="max-width:100%"></div>
+          </div>
+        </div>
+      </div>
+      <div class="card" style="margin-top:1rem">
+        <div class="card-header"><span class="card-title">Tabela de faixas (8 linhas)</span></div>
+        <div class="table-wrap" style="padding:1rem">
+          <table>
+            <thead><tr><th>#</th><th>Depósito mín. (R$)</th><th>Prêmio mín. (R$)</th><th>Prêmio máx. (R$)</th></tr></thead>
+            <tbody id="mstTabBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="card" style="margin-top:1rem">
+        <div class="card-header"><span class="card-title">5 caixas na trilha</span></div>
+        <div style="padding:1.25rem" id="mstBoxesWrap"></div>
+      </div>
+      <button type="button" class="btn btn-primary" id="btnSaveMisterioso" style="margin-top:1rem;padding:0.75rem 2rem;font-size:1rem">Salvar baús</button>
     </section>
 
     <!-- ===== Branding ===== -->
@@ -274,7 +382,30 @@
               <button class="btn btn-primary" style="margin-top:0.5rem" id="btnUploadLoading">Enviar</button>
               <button class="btn btn-outline" style="margin-top:0.5rem;margin-left:0.5rem" id="btnClearLoading">Restaurar Padrão</button>
             </div>
+            <div class="form-group" style="margin-top:1.25rem;padding-top:1rem;border-top:1px solid var(--border)">
+              <label>Pré-visualização (URLs atuais em /api/settings)</label>
+              <div style="display:flex;flex-wrap:wrap;gap:1rem;align-items:flex-end;margin-top:0.5rem">
+                <div><span style="font-size:0.75rem;color:var(--text-muted)">Logo</span><br><img id="brandPrevLogo" alt="" style="max-height:52px;max-width:180px;object-fit:contain;background:#0d1117;border-radius:8px;padding:4px;display:none;margin-top:0.25rem"></div>
+                <div><span style="font-size:0.75rem;color:var(--text-muted)">Banner</span><br><img id="brandPrevBanner" alt="" style="max-height:64px;max-width:220px;object-fit:cover;border-radius:8px;display:none;margin-top:0.25rem"></div>
+                <div><span style="font-size:0.75rem;color:var(--text-muted)">Loading</span><br><img id="brandPrevLoading" alt="" style="max-height:64px;max-width:220px;object-fit:cover;border-radius:8px;display:none;margin-top:0.25rem"></div>
+              </div>
+              <p id="brandPrevHint" style="color:var(--text-muted);font-size:0.8rem;margin-top:0.5rem">Abra esta aba após enviar ficheiros para atualizar. Se a imagem não carregar, confirme que o backend serve <code style="font-size:0.85em">/uploads</code> na mesma origem.</p>
+            </div>
           </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:1.25rem;border-left:4px solid var(--accent)">
+        <div class="card-header"><span class="card-title">Aparência da aplicação (PWA)</span></div>
+        <div style="padding:1.25rem">
+          <p style="color:var(--text-muted);font-size:0.88rem;line-height:1.55;margin:0 0 1rem">Tema de cores em toda a app dos jogadores (mudança imediata após recarregarem a página ou voltarem à app). O painel admin tem cores separadas (menu <strong>Temas</strong>).</p>
+          <div class="form-group">
+            <label for="brandAppUiTheme">Tema</label>
+            <select id="brandAppUiTheme" class="search-box" style="max-width:100%;cursor:pointer">
+              <option value="">Seguir tema do site (skin)</option>
+            </select>
+          </div>
+          <p id="brandAppUiThemeNote" style="display:none;margin:0.75rem 0 0;font-size:0.82rem;color:var(--accent)">Tema fixo ativo para a app. Escolha «Seguir tema do site (skin)» para voltar ao padrão do operador.</p>
         </div>
       </div>
     </section>
@@ -399,6 +530,12 @@
     <!-- ===== Temas ===== -->
     <section id="themes" class="section">
       <div class="header"><h1>Temas e Cores</h1><button class="btn btn-outline" id="btnResetTheme">Restaurar padrão</button></div>
+      <div class="card" style="border-left:4px solid var(--warning)">
+        <div style="padding:1rem 1.25rem;font-size:0.88rem;color:var(--text-muted);line-height:1.55">
+          <p style="margin:0 0 0.65rem"><strong style="color:var(--text)">Tema da app (jogadores / PWA):</strong> configure em <strong>Branding</strong> → cartão <strong>Aparência da aplicação (PWA)</strong>. Esta página altera só as cores deste painel admin.</p>
+          <p style="margin:0"><strong style="color:var(--text)">Interface sumiu ou ficou escura?</strong> Se o «Fundo principal» está em preto (#000000), clique em <strong>Restaurar padrão</strong> ou clareie as cores <strong>Texto</strong> e <strong>Fundo sidebar</strong>.</p>
+        </div>
+      </div>
       <div class="card">
         <div class="card-header"><span class="card-title">Temas pré-definidos</span></div>
         <div style="padding:1.25rem;display:flex;flex-wrap:wrap;gap:0.75rem">
@@ -444,6 +581,64 @@
     const fmtMoney = v => 'R$ ' + Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
     const showToast = (msg, type = 'info') => { const el = document.createElement('div'); el.className = 'toast ' + type; el.textContent = msg; document.getElementById('toastContainer').appendChild(el); setTimeout(() => el.remove(), 3500); };
 
+    const APP_UI_THEMES = [
+      { id: 'amber-purple', label: 'Âmbar e roxo' },
+      { id: 'blue-default', label: 'Azul clássico' },
+      { id: 'green-default', label: 'Verde vivo' },
+      { id: 'green-dark', label: 'Verde escuro' },
+      { id: 'phantom-blue', label: 'Phantom blue' },
+      { id: 'neo-blue', label: 'Neo blue' },
+      { id: 'midnight-purple', label: 'Roxo meia-noite' },
+      { id: 'mystlight-blue', label: 'Azul claro' },
+      { id: 'goldshine-green', label: 'Verde dourado' },
+      { id: 'golden-emerald', label: 'Esmeralda' },
+      { id: 'deep-sea-teal', label: 'Azul-petróleo' },
+      { id: 'stellar-dusk', label: 'Crepúsculo' },
+      { id: 'prosperity-red', label: 'Vermelho prosperidade' },
+      { id: 'yellow-dark', label: 'Dourado escuro' },
+      { id: 'purple-light', label: 'Roxo claro' },
+      { id: 'forest-green', label: 'Verde floresta' },
+      { id: 'supreme-green', label: 'Verde supremo' },
+      { id: 'auroral-yellow', label: 'Amarelo aurora' },
+      { id: 'malt-green', label: 'Verde malte' }
+    ];
+    function ensureAppThemeSelectPopulated() {
+      const sel = document.getElementById('brandAppUiTheme');
+      if (!sel || sel.dataset.populated === '1') return;
+      APP_UI_THEMES.forEach((t) => {
+        const o = document.createElement('option');
+        o.value = t.id;
+        o.textContent = t.label;
+        sel.appendChild(o);
+      });
+      sel.dataset.populated = '1';
+    }
+    function updateBrandAppUiThemeNote() {
+      const sel = document.getElementById('brandAppUiTheme');
+      const note = document.getElementById('brandAppUiThemeNote');
+      if (!sel || !note) return;
+      note.style.display = sel.value ? 'block' : 'none';
+    }
+
+    async function refreshAdminSidebarLogo() {
+      const img = document.getElementById('adminSidebarLogo');
+      const title = document.getElementById('adminSidebarTitle');
+      if (!img || !title) return;
+      const showImg = () => { img.classList.add('is-visible'); title.classList.add('is-hidden'); };
+      const hideImg = () => { img.classList.remove('is-visible'); img.removeAttribute('src'); title.classList.remove('is-hidden'); };
+      try {
+        const d = await fetch('/api/settings').then((r) => r.json());
+        const url = (d.logo && String(d.logo).trim()) ? String(d.logo).trim() : '';
+        if (!url) { hideImg(); return; }
+        img.onload = showImg;
+        img.onerror = hideImg;
+        img.src = url;
+        if (img.complete && img.naturalWidth > 0) showImg();
+      } catch (e) {
+        hideImg();
+      }
+    }
+
     // ── Login ──
     const loginOverlay = document.getElementById('loginOverlay');
     if (adminToken) loginOverlay.style.display = 'none';
@@ -477,6 +672,7 @@
         if (sec === 'config') loadConfig();
         if (sec === 'branding') loadBranding();
         if (sec === 'promocoes') loadPromos();
+        if (sec === 'misterioso') loadMisterioso();
       });
     });
 
@@ -552,33 +748,254 @@
 
     // ── Promoções ──
     let promosData = [];
+    const promoModal = document.getElementById('promoModal');
+    const clearPromoForm = () => {
+      document.getElementById('promoEditIdx').value = '-1';
+      document.getElementById('promoTitulo').value = '';
+      document.getElementById('promoDescricao').value = '';
+      document.getElementById('promoBannerUrl').value = '';
+      document.getElementById('promoBannerFile').value = '';
+      document.getElementById('promoLink').value = '';
+      document.getElementById('promoOrdem').value = '0';
+      document.getElementById('promoStatus').value = 'Em andamento';
+      document.getElementById('promoOpenNewTab').checked = true;
+    };
+    const openPromoModal = (idx) => {
+      document.getElementById('promoModalTitle').textContent = idx >= 0 ? 'Editar promoção' : 'Nova promoção';
+      document.getElementById('promoEditIdx').value = idx;
+      if (idx >= 0 && promosData[idx]) {
+        const p = promosData[idx];
+        document.getElementById('promoTitulo').value = p.titulo || '';
+        document.getElementById('promoDescricao').value = p.descricao || '';
+        document.getElementById('promoBannerUrl').value = p.bannerUrl || '';
+        document.getElementById('promoLink').value = p.url || '';
+        document.getElementById('promoOrdem').value = String(p.ordem != null ? p.ordem : idx);
+        document.getElementById('promoStatus').value = p.status || 'Em andamento';
+        document.getElementById('promoOpenNewTab').checked = p.openInNewTab !== false;
+      } else {
+        clearPromoForm();
+        document.getElementById('promoOrdem').value = String(promosData.length);
+      }
+      promoModal.classList.add('open');
+      promoModal.setAttribute('aria-hidden', 'false');
+    };
+    const closePromoModal = () => {
+      promoModal.classList.remove('open');
+      promoModal.setAttribute('aria-hidden', 'true');
+    };
+    document.getElementById('btnPromoModalCancel').addEventListener('click', closePromoModal);
+    promoModal.addEventListener('click', (e) => { if (e.target === promoModal) closePromoModal(); });
+    document.querySelectorAll('.quick-fill-link').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const link = btn.getAttribute('data-link') || '';
+        if (link) document.getElementById('promoLink').value = link;
+      });
+    });
+    document.getElementById('btnPromoUploadBanner').addEventListener('click', async () => {
+      const f = document.getElementById('promoBannerFile').files[0];
+      if (!f) return showToast('Selecione uma imagem.', 'error');
+      try {
+        const r = await apiUpload('/api/upload/promo-banner', f, 'file');
+        if (r.url) {
+          document.getElementById('promoBannerUrl').value = r.url;
+          showToast('Banner enviado.', 'success');
+        } else showToast(r.error || 'Erro no upload.', 'error');
+      } catch (e) { showToast('Erro no upload.', 'error'); }
+    });
+    document.getElementById('btnPromoModalSave').addEventListener('click', async () => {
+      const idx = parseInt(document.getElementById('promoEditIdx').value, 10);
+      const titulo = document.getElementById('promoTitulo').value.trim();
+      if (!titulo) return showToast('Informe o título.', 'error');
+      const entry = {
+        id: idx >= 0 && promosData[idx] ? promosData[idx].id : ('p-' + Date.now()),
+        titulo,
+        descricao: document.getElementById('promoDescricao').value.trim(),
+        bannerUrl: document.getElementById('promoBannerUrl').value.trim(),
+        url: document.getElementById('promoLink').value.trim(),
+        status: document.getElementById('promoStatus').value || 'Em andamento',
+        ordem: parseInt(document.getElementById('promoOrdem').value, 10) || 0,
+        openInNewTab: document.getElementById('promoOpenNewTab').checked
+      };
+      const next = promosData.slice();
+      if (idx >= 0 && idx < next.length) next[idx] = entry;
+      else next.push(entry);
+      next.sort((a, b) => (a.ordem || 0) - (b.ordem || 0));
+      try {
+        await api('/api/admin/promocoes', { method: 'POST', body: JSON.stringify(next) });
+        showToast('Promoções salvas.', 'success');
+        closePromoModal();
+        loadPromos();
+      } catch (e) { showToast('Erro ao salvar.', 'error'); }
+    });
     const loadPromos = async () => {
       try {
         promosData = await api('/api/admin/promocoes');
+        if (!Array.isArray(promosData)) promosData = [];
+        promosData.sort((a, b) => (Number(a.ordem) || 0) - (Number(b.ordem) || 0));
         const tb = document.getElementById('promosTableBody');
         let rows = '';
         promosData.forEach((p, i) => {
-          rows += '<tr><td>' + (p.titulo || '(sem título)') + '</td><td>' + (p.descricao || '').slice(0, 60) + '</td><td><span class="badge ' + (p.ativa !== false ? 'badge-success">Sim' : 'badge-danger">Não') + '</span></td><td><button class="btn btn-outline btn-del-promo" data-idx="' + i + '" style="padding:0.2rem 0.5rem;font-size:0.8rem">Remover</button></td></tr>';
+          const bUrl = (p.bannerUrl || '').replace(/"/g, '&quot;');
+          const thumb = bUrl ? '<img class="promo-thumb" src="' + bUrl + '" alt="" loading="lazy" onerror="this.style.opacity=0.3">' : '—';
+          const st = (p.status || 'Em andamento');
+          const badgeClass = st === 'Encerrado' ? 'badge-danger' : st === 'Em breve' ? 'badge-warning' : 'badge-success';
+          const linkDisp = (p.url || '—').replace(/</g, '').replace(/"/g, '&quot;');
+          rows += '<tr><td>' + thumb + '</td><td>' + (p.titulo || '(sem título)') + '</td><td class="link-cell" title="' + linkDisp + '">' + linkDisp + '</td><td>' + (p.ordem != null ? p.ordem : i) + '</td><td><span class="badge ' + badgeClass + '">' + st + '</span></td><td><button type="button" class="btn btn-outline btn-edit-promo" data-idx="' + i + '" style="padding:0.2rem 0.5rem;font-size:0.8rem;margin-right:0.25rem">Editar</button><button type="button" class="btn btn-outline btn-del-promo" data-idx="' + i + '" style="padding:0.2rem 0.5rem;font-size:0.8rem">Remover</button></td></tr>';
         });
-        tb.innerHTML = rows || '<tr><td colspan="4" style="text-align:center;color:var(--text-muted)">Nenhuma promoção</td></tr>';
+        tb.innerHTML = rows || '<tr><td colspan="6" style="text-align:center;color:var(--text-muted)">Nenhuma promoção</td></tr>';
       } catch (e) { console.error('promos', e); }
     };
-    document.getElementById('btnAddPromo').addEventListener('click', () => {
-      const titulo = prompt('Título da promoção:');
-      if (!titulo) return;
-      const descricao = prompt('Descrição:') || '';
-      promosData.push({ id: 'p-' + Date.now(), titulo, descricao, ativa: true, bannerUrl: '', url: '' });
-      api('/api/admin/promocoes', { method: 'POST', body: JSON.stringify(promosData) })
-        .then(r => { showToast('Promoção criada.', 'success'); loadPromos(); })
-        .catch(() => showToast('Erro ao salvar.', 'error'));
-    });
+    document.getElementById('btnAddPromo').addEventListener('click', () => openPromoModal(-1));
+
+    // ── Prêmio misterioso / baús ──
+    function initMisteriosoFormDom() {
+      const tb = document.getElementById('mstTabBody');
+      if (tb && tb.dataset.inited !== '1') {
+        tb.dataset.inited = '1';
+        for (let i = 0; i < 8; i++) {
+          const tr = document.createElement('tr');
+          tr.innerHTML = '<td>' + (i + 1) + '</td><td><input type="number" step="0.01" id="mstTab' + i + '_minDep" class="search-box" style="width:100%;max-width:8rem"></td><td><input type="number" step="0.01" id="mstTab' + i + '_pmin" class="search-box" style="width:100%;max-width:8rem"></td><td><input type="number" step="0.01" id="mstTab' + i + '_pmax" class="search-box" style="width:100%;max-width:8rem"></td>';
+          tb.appendChild(tr);
+        }
+      }
+      const wrap = document.getElementById('mstBoxesWrap');
+      if (wrap && wrap.dataset.inited !== '1') {
+        wrap.dataset.inited = '1';
+        let html = '<div style="display:grid;gap:1rem">';
+        for (let bid = 1; bid <= 5; bid++) {
+          html += '<div style="border:1px solid var(--border);border-radius:8px;padding:1rem"><strong>Caixa ' + bid + '</strong><div class="form-row" style="margin-top:0.75rem"><div class="form-group"><label>Label (ex.: Dia 2)</label><input type="text" id="mstBox' + bid + '_dayLabel" class="search-box" style="max-width:100%"></div><div class="form-group"><label>Dia na trilha</label><input type="number" id="mstBox' + bid + '_minDay" class="search-box" style="max-width:100%"></div></div><div class="form-group"><label>Texto do prêmio</label><input type="text" id="mstBox' + bid + '_prize" class="search-box" style="max-width:100%"></div><div class="form-row" style="align-items:flex-end;gap:1rem"><div class="toggle-row"><input type="checkbox" id="mstBox' + bid + '_locked"><label for="mstBox' + bid + '_locked">Trancada (exige tier)</label></div><div class="form-group"><label>Nível VIP mín. (0–4)</label><input type="number" min="0" max="4" id="mstBox' + bid + '_req" class="search-box" style="max-width:6rem"></div></div></div>';
+        }
+        html += '</div>';
+        wrap.innerHTML = html;
+      }
+    }
+    function mstParseFloat(id, fallback) {
+      const el = document.getElementById(id);
+      if (!el) return fallback;
+      const v = parseFloat(el.value);
+      return Number.isFinite(v) ? v : fallback;
+    }
+    function mstParseInt(id, fallback) {
+      const el = document.getElementById(id);
+      if (!el) return fallback;
+      const v = parseInt(el.value, 10);
+      return Number.isFinite(v) ? v : fallback;
+    }
+    const loadMisterioso = async () => {
+      initMisteriosoFormDom();
+      try {
+        const d = await api('/api/admin/mystery-baus');
+        const elH = document.getElementById('mstHeadlinePrize');
+        const elR = document.getElementById('mstReclamarMinDep');
+        const el2 = document.getElementById('mstMinDep2d');
+        const elV = document.getElementById('mstMinValidBet');
+        if (elH) elH.value = d.headlinePrize || '';
+        if (elR) elR.value = d.reclamarMinDep != null ? d.reclamarMinDep : '';
+        if (el2) el2.value = d.minDeposit2dReais != null ? d.minDeposit2dReais : '';
+        if (elV) elV.value = d.minValidBetReais != null ? d.minValidBetReais : '';
+        const tab = Array.isArray(d.reclamarTabela) ? d.reclamarTabela : [];
+        for (let i = 0; i < 8; i++) {
+          const r = tab[i] || {};
+          const a = document.getElementById('mstTab' + i + '_minDep');
+          const b = document.getElementById('mstTab' + i + '_pmin');
+          const c = document.getElementById('mstTab' + i + '_pmax');
+          if (a) a.value = r.minDep != null ? r.minDep : '';
+          if (b) b.value = r.premioMin != null ? r.premioMin : '';
+          if (c) c.value = r.premioMax != null ? r.premioMax : '';
+        }
+        const boxes = Array.isArray(d.boxes) ? d.boxes : [];
+        for (let bid = 1; bid <= 5; bid++) {
+          const bx = boxes.find((x) => Number(x.id) === bid) || {};
+          const l = document.getElementById('mstBox' + bid + '_dayLabel');
+          const m = document.getElementById('mstBox' + bid + '_minDay');
+          const p = document.getElementById('mstBox' + bid + '_prize');
+          const lk = document.getElementById('mstBox' + bid + '_locked');
+          const rq = document.getElementById('mstBox' + bid + '_req');
+          if (l) l.value = bx.dayLabel || '';
+          if (m) m.value = bx.minDay != null ? bx.minDay : '';
+          if (p) p.value = bx.prize || '';
+          if (lk) lk.checked = !!bx.locked;
+          if (rq) rq.value = bx.requiredLevel != null ? bx.requiredLevel : 0;
+        }
+      } catch (e) {
+        console.error('misterioso', e);
+        showToast('Erro ao carregar baús. Verifique o login de admin.', 'error');
+      }
+    };
+    const saveMisterioso = async () => {
+      initMisteriosoFormDom();
+      const reclamarTabela = [];
+      for (let i = 0; i < 8; i++) {
+        reclamarTabela.push({
+          minDep: mstParseFloat('mstTab' + i + '_minDep', 0),
+          premioMin: mstParseFloat('mstTab' + i + '_pmin', 0),
+          premioMax: mstParseFloat('mstTab' + i + '_pmax', 0)
+        });
+      }
+      const boxes = [];
+      for (let id = 1; id <= 5; id++) {
+        const dayLabelEl = document.getElementById('mstBox' + id + '_dayLabel');
+        const prizeEl = document.getElementById('mstBox' + id + '_prize');
+        const lockedEl = document.getElementById('mstBox' + id + '_locked');
+        boxes.push({
+          id,
+          dayLabel: (dayLabelEl && dayLabelEl.value.trim()) || 'Dia',
+          minDay: mstParseInt('mstBox' + id + '_minDay', 0),
+          prize: (prizeEl && prizeEl.value.trim()) || 'R$ 0,00',
+          locked: !!(lockedEl && lockedEl.checked),
+          requiredLevel: mstParseInt('mstBox' + id + '_req', 0)
+        });
+      }
+      const body = {
+        reclamarMinDep: mstParseInt('mstReclamarMinDep', 30),
+        minDeposit2dReais: mstParseFloat('mstMinDep2d', 30),
+        minValidBetReais: mstParseFloat('mstMinValidBet', 1),
+        headlinePrize: (document.getElementById('mstHeadlinePrize') && document.getElementById('mstHeadlinePrize').value.trim()) || 'R$ 8.888,00',
+        reclamarTabela,
+        boxes
+      };
+      try {
+        await api('/api/admin/mystery-baus', { method: 'POST', body: JSON.stringify(body) });
+        showToast('Configuração dos baús salva.', 'success');
+      } catch (e) {
+        showToast(e.message || 'Erro ao salvar.', 'error');
+      }
+    };
+    document.getElementById('btnSaveMisterioso').addEventListener('click', saveMisterioso);
+    document.getElementById('btnReloadMisterioso').addEventListener('click', loadMisterioso);
 
     // ── Branding ──
     const loadBranding = async () => {
       try {
-        const d = await api('/api/settings');
+        ensureAppThemeSelectPopulated();
+        const [d, cfg] = await Promise.all([
+          api('/api/settings'),
+          api('/api/admin/config').catch(() => ({}))
+        ]);
         document.getElementById('brandSiteName').value = d.siteName || '';
         document.getElementById('brandPageTitle').value = d.pageTitle || '';
+        const selTheme = document.getElementById('brandAppUiTheme');
+        if (selTheme && cfg && typeof cfg === 'object') {
+          selTheme.value = (cfg.appUiTheme && String(cfg.appUiTheme).trim()) || '';
+          updateBrandAppUiThemeNote();
+        }
+        const setPrev = (imgId, url) => {
+          const el = document.getElementById(imgId);
+          if (!el) return;
+          const u = (url && String(url).trim()) ? String(url).trim() : '';
+          if (u) {
+            el.onerror = () => { el.style.display = 'none'; };
+            el.src = u;
+            el.style.display = 'inline-block';
+          } else {
+            el.removeAttribute('src');
+            el.style.display = 'none';
+          }
+        };
+        setPrev('brandPrevLogo', d.logo);
+        setPrev('brandPrevBanner', d.banner);
+        setPrev('brandPrevLoading', d.loadingBanner);
+        refreshAdminSidebarLogo();
       } catch (e) { console.error('branding', e); }
     };
     document.getElementById('btnSaveBranding').addEventListener('click', async () => {
@@ -589,18 +1006,42 @@
     });
     document.getElementById('btnUploadLogo').addEventListener('click', async () => {
       const f = document.getElementById('uploadLogo').files[0]; if (!f) return showToast('Selecione um arquivo.', 'error');
-      try { const r = await apiUpload('/api/upload/logo', f, 'file'); showToast(r.ok || r.url ? 'Logo enviado.' : (r.error || 'Erro'), r.ok || r.url ? 'success' : 'error'); } catch (e) { showToast('Erro.', 'error'); }
+      try {
+        const r = await apiUpload('/api/upload/logo', f, 'file');
+        showToast(r.ok || r.url ? 'Logo enviado.' : (r.error || 'Erro'), r.ok || r.url ? 'success' : 'error');
+        if (r.ok || r.url) loadBranding();
+      } catch (e) { showToast('Erro.', 'error'); }
     });
     document.getElementById('btnUploadBanner').addEventListener('click', async () => {
       const f = document.getElementById('uploadBanner').files[0]; if (!f) return showToast('Selecione um arquivo.', 'error');
-      try { const r = await apiUpload('/api/upload/banner', f, 'file'); showToast(r.ok || r.url ? 'Banner enviado.' : (r.error || 'Erro'), r.ok || r.url ? 'success' : 'error'); } catch (e) { showToast('Erro.', 'error'); }
+      try {
+        const r = await apiUpload('/api/upload/banner', f, 'file');
+        showToast(r.ok || r.url ? 'Banner enviado.' : (r.error || 'Erro'), r.ok || r.url ? 'success' : 'error');
+        if (r.ok || r.url) loadBranding();
+      } catch (e) { showToast('Erro.', 'error'); }
     });
     document.getElementById('btnUploadLoading').addEventListener('click', async () => {
       const f = document.getElementById('uploadLoadingBanner').files[0]; if (!f) return showToast('Selecione um arquivo.', 'error');
-      try { const r = await apiUpload('/api/upload/loading-banner', f, 'file'); showToast(r.ok ? 'Banner de loading enviado.' : (r.error || 'Erro'), r.ok ? 'success' : 'error'); } catch (e) { showToast('Erro.', 'error'); }
+      try {
+        const r = await apiUpload('/api/upload/loading-banner', f, 'file');
+        showToast(r.ok ? 'Banner de loading enviado.' : (r.error || 'Erro'), r.ok ? 'success' : 'error');
+        if (r.ok) loadBranding();
+      } catch (e) { showToast('Erro.', 'error'); }
     });
     document.getElementById('btnClearLoading').addEventListener('click', async () => {
-      try { const r = await api('/api/settings/loading-banner/clear', { method: 'POST' }); showToast(r.ok ? 'Loading banner restaurado.' : 'Erro', r.ok ? 'success' : 'error'); } catch (e) { showToast('Erro.', 'error'); }
+      try {
+        const r = await api('/api/settings/loading-banner/clear', { method: 'POST' });
+        showToast(r.ok ? 'Loading banner restaurado.' : 'Erro', r.ok ? 'success' : 'error');
+        if (r.ok) loadBranding();
+      } catch (e) { showToast('Erro.', 'error'); }
+    });
+    document.getElementById('brandAppUiTheme').addEventListener('change', async function () {
+      const v = this.value;
+      try {
+        const r = await api('/api/admin/config', { method: 'POST', body: JSON.stringify({ appUiTheme: v }) });
+        showToast(r.ok ? 'Tema da app salvo. Jogadores: atualizar a página ou voltar à app.' : (r.error || 'Erro'), r.ok ? 'success' : 'error');
+        updateBrandAppUiThemeNote();
+      } catch (e) { showToast('Erro.', 'error'); }
     });
 
     // ── Configurações ──
@@ -701,6 +1142,7 @@
           agent_token: document.getElementById('igwToken').value,
           agent_secret: document.getElementById('igwSecret').value,
           api_mode: document.getElementById('igwMode').value,
+          site_endpoint: document.getElementById('igwEndpoint').value,
           sandbox: document.getElementById('igwSandbox').checked,
           is_demo: document.getElementById('igwDemo').checked
         }) });
@@ -747,8 +1189,12 @@
         }
         return;
       }
+      if (btn.classList.contains('btn-edit-promo')) {
+        openPromoModal(parseInt(btn.dataset.idx, 10));
+        return;
+      }
       if (btn.classList.contains('btn-del-promo')) {
-        const idx = parseInt(btn.dataset.idx);
+        const idx = parseInt(btn.dataset.idx, 10);
         if (confirm('Remover esta promoção?')) {
           promosData.splice(idx, 1);
           api('/api/admin/promocoes', { method: 'POST', body: JSON.stringify(promosData) })
@@ -762,8 +1208,22 @@
     // ── Temas ──
     const THEME_DEFAULT = { accent:'#00d4aa', accentHover:'#00f5c4', bgDark:'#2d1b69', bgCard:'#121827', bgSidebar:'#0d1117', text:'#e2e8f0', textMuted:'#94a3b8', border:'#1e293b', success:'#10b981', danger:'#ef4444', warning:'#f59e0b' };
     const THEME_PRESETS = { default: THEME_DEFAULT, purple: { ...THEME_DEFAULT, accent:'#a855f7', accentHover:'#c084fc' }, blue: { ...THEME_DEFAULT, accent:'#3b82f6', accentHover:'#60a5fa' }, orange: { ...THEME_DEFAULT, accent:'#f97316', accentHover:'#fb923c' }, red: { ...THEME_DEFAULT, accent:'#ef4444', accentHover:'#f87171' }, cyan: { ...THEME_DEFAULT, accent:'#06b6d4', accentHover:'#22d3ee' } };
-    const hexToRgba = (hex, a) => { const m = hex.slice(1).match(/.{2}/g); if (!m) return `rgba(0,212,170,${a})`; return `rgba(${m.map(x=>parseInt(x,16)).join(',')},${a})`; };
-    const applyTheme = (t) => { const r = document.documentElement; Object.entries({ '--accent': t.accent, '--accent-hover': t.accentHover, '--bg-dark': t.bgDark, '--bg-card': t.bgCard, '--bg-sidebar': t.bgSidebar, '--text': t.text, '--text-muted': t.textMuted, '--border': t.border, '--success': t.success, '--danger': t.danger, '--warning': t.warning }).forEach(([k, v]) => r.style.setProperty(k, v)); };
+    const hexToRgb = (hex) => {
+      let h = String(hex || '').replace('#', '').trim();
+      if (h.length === 3) h = h.split('').map((c) => c + c).join('');
+      const m = h.match(/.{2}/g);
+      if (!m || m.length < 3) return [0, 212, 170];
+      return m.map((x) => parseInt(x, 16));
+    };
+    const hexToRgba = (hex, a) => { const [r, g, b] = hexToRgb(hex); return `rgba(${r},${g},${b},${a})`; };
+    const applyTheme = (t) => {
+      const r = document.documentElement;
+      Object.entries({ '--accent': t.accent, '--accent-hover': t.accentHover, '--bg-dark': t.bgDark, '--bg-card': t.bgCard, '--bg-sidebar': t.bgSidebar, '--text': t.text, '--text-muted': t.textMuted, '--border': t.border, '--success': t.success, '--danger': t.danger, '--warning': t.warning }).forEach(([k, v]) => r.style.setProperty(k, v));
+      r.style.setProperty('--accent-fade-04', hexToRgba(t.accent, 0.04));
+      r.style.setProperty('--accent-fade-08', hexToRgba(t.accent, 0.08));
+      r.style.setProperty('--accent-fade-12', hexToRgba(t.accent, 0.12));
+      r.style.setProperty('--accent-fade-20', hexToRgba(t.accent, 0.2));
+    };
     const setThemeInputs = (t) => { ['themeAccent','themeAccentHover','themeBgDark','themeBgCard','themeBgSidebar','themeText'].forEach((id, i) => { const keys = ['accent','accentHover','bgDark','bgCard','bgSidebar','text']; const el = document.getElementById(id), hex = document.getElementById(id+'Hex'); if (el && hex) { el.value = t[keys[i]]; hex.value = t[keys[i]]; } }); };
     const getThemeFromInputs = () => ({ accent: document.getElementById('themeAccent')?.value || THEME_DEFAULT.accent, accentHover: document.getElementById('themeAccentHover')?.value || THEME_DEFAULT.accentHover, bgDark: document.getElementById('themeBgDark')?.value || THEME_DEFAULT.bgDark, bgCard: document.getElementById('themeBgCard')?.value || THEME_DEFAULT.bgCard, bgSidebar: document.getElementById('themeBgSidebar')?.value || THEME_DEFAULT.bgSidebar, text: document.getElementById('themeText')?.value || THEME_DEFAULT.text, textMuted: THEME_DEFAULT.textMuted, border: THEME_DEFAULT.border, success: THEME_DEFAULT.success, danger: THEME_DEFAULT.danger, warning: THEME_DEFAULT.warning });
     const saveTheme = () => localStorage.setItem('adminTheme', JSON.stringify(getThemeFromInputs()));
@@ -779,7 +1239,7 @@
     document.getElementById('btnResetTheme')?.addEventListener('click', () => { setThemeInputs(THEME_DEFAULT); applyTheme(THEME_DEFAULT); saveTheme(); showToast('Tema restaurado.', 'success'); });
 
     // ── Init ──
-    const initAllData = () => { loadDashboard(); loadPlayers(); };
+    const initAllData = () => { loadDashboard(); loadPlayers(); refreshAdminSidebarLogo(); };
     if (adminToken) initAllData();
   </script>
 </body>

@@ -39,6 +39,39 @@ const loading = ref(true)
 const error = ref('')
 const gameUrl = ref('')
 
+/** URL de jogo vem da API iGameWin (dinâmica); aceita formatos comuns da resposta */
+function pickLaunchUrl(data) {
+  if (!data || typeof data !== 'object') return ''
+  const nested = data.data && typeof data.data === 'object' ? data.data : {}
+  const candidates = [
+    data.launch_url,
+    data.url,
+    data.game_url,
+    data.gameUrl,
+    nested.launch_url,
+    nested.url,
+    nested.game_url
+  ]
+  for (const u of candidates) {
+    if (typeof u === 'string' && /^https?:\/\//i.test(u.trim())) return u.trim()
+  }
+  return ''
+}
+
+function pickLaunchError(data) {
+  if (!data || typeof data !== 'object') return ''
+  const hint = typeof data.hint === 'string' ? data.hint : ''
+  const msg = data.msg || data.message || data.error
+  let errStr = typeof msg === 'string' ? msg : msg?.message || ''
+  if (/ERROR_GET_BALANCE_END_POINT/i.test(errStr) && !hint) {
+    errStr =
+      'Não foi possível validar o saldo com a API de jogos (endpoint seamless).\n' +
+      'Configure a URL pública do servidor (onde existe POST /gold_api) em API_PUBLIC_URL ou no Admin, e o mesmo endereço no painel iGameWin.'
+  }
+  if (errStr && hint) return `${errStr}\n${hint}`
+  return errStr || hint || ''
+}
+
 async function launchGame() {
   const gameCode = route.query.game
   const provider = route.query.provider
@@ -61,20 +94,23 @@ async function launchGame() {
       },
       body: JSON.stringify({
         game_code: gameCode,
-        provider_code: provider,
+        provider_code: provider || '',
         user_code: auth.isLoggedIn ? (auth.account || 'guest') : 'guest',
         lang: 'pt'
       })
     })
 
-    const data = await res.json()
+    const data = await res.json().catch(() => ({}))
+    const url = pickLaunchUrl(data)
 
-    if (data.launch_url || data.url || data.game_url) {
-      gameUrl.value = data.launch_url || data.url || data.game_url
-    } else if (data.error) {
-      error.value = data.error
+    if (url) {
+      gameUrl.value = url
     } else {
-      error.value = 'Não foi possível obter a URL do jogo'
+      const apiErr = pickLaunchError(data)
+      error.value =
+        apiErr ||
+        (data?.status === 0 ? 'API de jogos recusou o lançamento (verifique credenciais e provedor).' : '') ||
+        'Não foi possível obter a URL do jogo'
     }
   } catch (e) {
     error.value = 'Erro de conexão. Tente novamente.'
@@ -143,7 +179,7 @@ onMounted(launchGame)
 
 .error-icon { font-size: 40px; }
 .launch-error h3 { font-size: 18px; font-weight: 700; }
-.launch-error p { font-size: 13px; color: rgba(255,255,255,0.6); }
+.launch-error p { font-size: 13px; color: rgba(255,255,255,0.6); white-space: pre-line; }
 
 .retry-btn {
   padding: 10px 24px;

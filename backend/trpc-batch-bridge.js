@@ -288,19 +288,22 @@ async function resolveOne(procPath, input, ctx) {
       if (catalog?.providers?.length) {
         // Mapeia jogos de cada provedor — campos mínimos para renderizar
         const mapGame = (code, provIdx, g, gi) => {
-          const gameCode = g.game_code || g.code || g.id || ''
+          const gameCode = String(g.game_code || g.code || g.id || '').trim()
           const gameName = g.game_name || g.name || g.title || ''
           const img = g.banner || g.cover || g.picture || g.icon || ''
           return {
             id: gameCode,
             gameId: gameCode,
             code: gameCode,
+            game_code: gameCode,
+            gameCode,
             gameName,
             name: gameName,
             banner: img,
             imageUrl: img,
             platformId: provIdx + 1,
             providerCode: code,
+            platformCode: code,
             isHot: !!(g.isHot || g.hot),
             isNew: !!(g.isNew || g.new_game),
             sort: g.sort || gi,

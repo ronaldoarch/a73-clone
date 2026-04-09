@@ -4,8 +4,8 @@
       <div v-if="modelValue" class="drawer-overlay" @click.self="close">
         <div class="drawer-panel">
           <div class="drawer-header">
-            <div class="drawer-logo" @click="goHome">
-              <span class="logo-a">A</span><span class="logo-num">73</span><span class="logo-dot">.com</span>
+            <div class="drawer-logo-wrap">
+              <AppLogoMark @click="goHome" />
             </div>
             <button class="drawer-close" @click="close">
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -160,6 +160,7 @@
 import { computed, ref, onMounted, watch, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import LanguageSelector from './LanguageSelector.vue'
+import AppLogoMark from './AppLogoMark.vue'
 import { useAuthStore } from '../stores/auth'
 import { useUserStore } from '../stores/user'
 import { useNotificationStore } from '../stores/notification'
@@ -179,7 +180,7 @@ const userStore = useUserStore()
 const notifStore = useNotificationStore()
 const gamesStore = useGamesStore()
 const { isLoggedIn, user } = storeToRefs(auth)
-const { vipLevel } = storeToRefs(userStore)
+const { vipLevel, userDetails } = storeToRefs(userStore)
 const { unreadCount } = storeToRefs(notifStore)
 
 const showLanguageModal = ref(false)
@@ -198,6 +199,8 @@ function openSupport() {
 }
 
 const avatarUrl = computed(() => {
+  const saved = userDetails.value?.avatar
+  if (saved && (saved.startsWith('/') || saved.startsWith('http'))) return saved
   const idx = ((user.value?.id || 1) % 20) + 1
   const num = String(idx).padStart(2, '0')
   const gender = (user.value?.id || 0) % 2 === 0 ? 'male' : 'female'
@@ -249,7 +252,7 @@ const activityItems = computed(() => [
   { label: 'Agência', path: '/activity/Agency', color: actColors[4] },
   { label: 'Pacote', path: '/activity/RedPacket', color: actColors[5] },
   { label: 'Mistério', path: '/activity/MysteryReward', color: actColors[6] },
-  { label: 'Comissão', path: '/activity/CommissionReward', color: actColors[7] },
+  { label: 'Comissão', path: '/main/promo?tab=rebate', color: actColors[7] },
   { label: 'Indicação', path: '/activity/ReferralRewardsNew', color: actColors[8] },
   { label: 'Novo User', path: '/activity/NewUserExclusive', color: actColors[9] },
 ])
@@ -339,20 +342,7 @@ onMounted(() => {
   border-bottom: 1px solid var(--ep-color-border-default);
 }
 
-.drawer-logo { display: flex; align-items: baseline; cursor: pointer; }
-.logo-a {
-  font-family: var(--font-display); font-size: 1.375rem; font-weight: 800;
-  font-style: italic; color: var(--accent-color-yellow, #FFC41A);
-}
-.logo-num {
-  font-family: var(--font-display); font-size: 1.375rem; font-weight: 800;
-  font-style: italic; background: linear-gradient(180deg, #fde68a, #f59e0b);
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
-}
-.logo-dot {
-  font-family: var(--font-display); font-size: .625rem; font-weight: 600;
-  color: var(--accent-color-yellow, #FFC41A); font-style: italic;
-}
+.drawer-logo-wrap { display: flex; align-items: center; cursor: pointer; }
 .drawer-close { color: var(--ep-color-text-weakest); padding: .25rem; }
 
 .drawer-user { display: flex; align-items: center; gap: .75rem; padding: .75rem 1rem 1rem; }

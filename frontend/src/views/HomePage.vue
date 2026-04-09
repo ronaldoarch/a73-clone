@@ -1,26 +1,30 @@
 <template>
   <div class="home-page">
-    <!-- Banner Carousel (Swiper) -->
-    <div class="carousel-wrapper" v-if="displayBanners.length">
-      <Swiper
-        :modules="swiperModules"
-        :slides-per-view="1"
-        :loop="displayBanners.length > 1"
-        :autoplay="{ delay: 4000, disableOnInteraction: false }"
-        :pagination="{ clickable: true }"
-        :space-between="0"
-        class="banner-swiper"
-      >
-        <SwiperSlide v-for="(banner, i) in displayBanners" :key="i">
-          <div class="carousel-slide" @click="onBannerClick(banner)">
-            <img
-              :src="banner.img"
-              :alt="banner.title || ''"
-              @error="(e) => e.target.src = '/assets/banners/banner-bonus.svg'"
-            />
-          </div>
-        </SwiperSlide>
-      </Swiper>
+    <!-- Topo: mesmo roxo do header até o banner; transição no meio da faixa de hexágonos -->
+    <div v-if="displayBanners.length" class="home-hero-purple">
+      <div class="carousel-wrapper">
+        <Swiper
+          :modules="swiperModules"
+          :slides-per-view="carouselSlidesPerView"
+          :centered-slides="displayBanners.length > 1"
+          :loop="displayBanners.length > 1"
+          :autoplay="{ delay: 4000, disableOnInteraction: false }"
+          :pagination="{ clickable: true }"
+          :space-between="20"
+          class="banner-swiper"
+        >
+          <SwiperSlide v-for="(banner, i) in displayBanners" :key="i">
+            <div class="carousel-slide" @click="onBannerClick(banner)">
+              <img
+                class="banner-bg-img"
+                :src="banner.img"
+                :alt="banner.title || ''"
+                @error="(e) => e.target.src = '/assets/banners/banner-bonus.svg'"
+              />
+            </div>
+          </SwiperSlide>
+        </Swiper>
+      </div>
     </div>
 
     <!-- Category Icons - Hexagonal -->
@@ -33,20 +37,10 @@
         @click="onCategoryClick(cat)"
       >
         <div class="cat-hex-wrap">
-          <svg class="cat-hex-bg" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">
-            <defs>
-              <linearGradient :id="'hex-grad-' + cat.id" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stop-color="#FFE44D"/>
-                <stop offset="100%" stop-color="#D4960A"/>
-              </linearGradient>
-            </defs>
-            <polygon :fill="`url(#hex-grad-${cat.id})`" points="50,2 93,27 93,73 50,98 7,73 7,27" />
-            <polygon fill="rgba(255,255,255,.15)" points="50,8 87,30 87,70 50,92 13,70 13,30" />
-          </svg>
-          <span v-if="cat.isEmoji" class="cat-hex-emoji">{{ cat.abbrev }}</span>
-          <span v-else class="cat-hex-logo">{{ cat.abbrev }}</span>
-          <span class="cat-hex-name">{{ cat.label }}</span>
+          <div class="cat-hex-bg" aria-hidden="true"></div>
+          <span class="cat-hex-letters">{{ cat.letters }}</span>
         </div>
+        <span class="cat-hex-name">{{ cat.label }}</span>
       </div>
     </div>
 
@@ -70,14 +64,14 @@
     <div class="activity-banners">
       <div class="activity-row-2">
         <div class="activity-img-card" @click="$router.push('/spread')">
-          <img src="/assets/download/download.gif" alt="Convide amigos" />
+          <img class="activity-banner-img" src="/assets/download/download.gif" alt="Convide amigos" />
         </div>
         <div class="activity-img-card" @click="$router.push('/activity/vip')">
-          <img src="/assets/download/download-2.gif" alt="VIP" />
+          <img class="activity-banner-img" src="/assets/download/download-2.gif" alt="VIP" />
         </div>
       </div>
       <div class="activity-wide-card" @click="$router.push('/main/promo')">
-        <img src="/assets/download/download-1.gif" alt="Bônus Login" />
+        <img class="activity-banner-img" src="/assets/download/download-1.gif" alt="Bônus e promoções" />
       </div>
     </div>
 
@@ -102,6 +96,7 @@
       @view-all="$router.push(`/game/category/all/${provider.code}`)"
     />
 
+    <ProfitRanking />
 
     <!-- Footer -->
     <div class="home-footer">
@@ -128,6 +123,8 @@
     </div>
 
     <div class="bottom-spacer"></div>
+
+    <NewUserRoulettePopup v-model="showNovosRoulettePopup" />
   </div>
 </template>
 
@@ -141,37 +138,58 @@ import 'swiper/css'
 import 'swiper/css/pagination'
 import { useGamesStore } from '../stores/games'
 import { useSystemStore } from '../stores/system'
+import { LOCAL_HOME_BANNERS } from '../constants/homeBanners'
 import GameSection from '../components/GameSection.vue'
 import HotGamesScroll from '../components/HotGamesScroll.vue'
+import ProfitRanking from '../components/ProfitRanking.vue'
+import NewUserRoulettePopup from '../components/NewUserRoulettePopup.vue'
+import { useAuthStore } from '../stores/auth'
+import { fetchRoletaNovosStatus } from '../utils/roletaApi'
+import { PENDING_NOVOS_ROULETTE_WELCOME_KEY } from '../utils/novosRouletteWelcome'
 
 const swiperModules = [Autoplay, Pagination]
 
 const router = useRouter()
 const store = useGamesStore()
 const systemStore = useSystemStore()
+const authStore = useAuthStore()
+
+const showNovosRoulettePopup = ref(false)
+
+async function tryOpenNovosRouletteWelcome() {
+  if (!authStore.token) return
+  if (sessionStorage.getItem(PENDING_NOVOS_ROULETTE_WELCOME_KEY) !== '1') return
+  sessionStorage.removeItem(PENDING_NOVOS_ROULETTE_WELCOME_KEY)
+  try {
+    const st = await fetchRoletaNovosStatus(authStore.token)
+    if (st?.eligible) showNovosRoulettePopup.value = true
+  } catch {
+    /* evita bloquear a home */
+  }
+}
 const { providers, gamesByProvider, loading, hotGames, topProviders } = storeToRefs(store)
 const { fetchCatalog, getProviderGames } = store
 
 const activeCat = ref('hot')
 
-const fallbackBanners = [
-  { img: '/assets/banners/banner-cashback.svg', title: '5% Cashback', route: '/main/promo' },
-  { img: '/assets/banners/banner-vip.svg', title: 'VIP', route: '/activity/vip' },
-  { img: '/assets/banners/banner-bonus.svg', title: 'Bônus Primeiro Depósito', route: '/main/promo' },
-]
-
 const displayBanners = computed(() => {
   const apiList = systemStore.carouselList
   if (apiList?.length) {
-    return apiList.map(b => ({
+    const fromApi = apiList.map(b => ({
       img: b.imageUrl || b.img || b.banner || '',
       title: b.title || b.name || '',
       route: b.targetValue || b.url || '/main/promo',
       targetType: b.targetType || 'none'
     })).filter(b => b.img)
+    if (fromApi.length) return fromApi
   }
-  return fallbackBanners
+  return LOCAL_HOME_BANNERS
 })
+
+/** Próximo banner levemente visível (como no original), só com 2+ slides */
+const carouselSlidesPerView = computed(() =>
+  displayBanners.value.length > 1 ? 1.12 : 1
+)
 
 function onBannerClick(banner) {
   if (banner.route) router.push(banner.route)
@@ -202,27 +220,32 @@ const providerLogos = {
   'playtech': 'PT', 'pt': 'PT',
 }
 
+/** Sempre 2 caracteres dentro do hexágono (letras/números). */
+function providerTwoLetters(code, displayName) {
+  const c = (code || '').toLowerCase().trim()
+  const mapped = providerLogos[c]
+  const base = (mapped || displayName || code || '').toString().toUpperCase()
+  const compact = base.replace(/[^A-Z0-9]/g, '')
+  if (compact.length >= 2) return compact.slice(0, 2)
+  if (compact.length === 1) return (compact + compact).slice(0, 2)
+  return '??'
+}
+
 const displayCategories = computed(() => {
   const cats = [
     {
       id: 'hot',
       label: 'Popular',
-      hexColor: '#F5C84C',
-      abbrev: '🔥',
-      isEmoji: true
-    }
+      letters: 'PO',
+    },
   ]
-  const provs = providers.value.slice(0, 7)
+  const provs = providers.value.slice(0, 4)
   provs.forEach((p) => {
-    const code = (p.code || '').toLowerCase()
-    const name = (p.name || p.code || '').toUpperCase()
-    const abbrev = providerLogos[code] || name.slice(0, 2)
+    const rawName = (p.name || p.code || '').trim()
     cats.push({
       id: p.code,
-      label: name.length > 6 ? name.slice(0, 5) + '…' : name,
-      hexColor: '#F5C84C',
-      abbrev,
-      isEmoji: false
+      label: rawName || p.code,
+      letters: providerTwoLetters(p.code, rawName),
     })
   })
   return cats
@@ -247,24 +270,71 @@ onMounted(() => {
   fetchCatalog()
   systemStore.fetchMarquee()
   systemStore.fetchCarousel()
+  tryOpenNovosRouletteWelcome()
 })
 </script>
 
 <style scoped>
 .home-page {
-  padding: 0 .75rem;
-  background: var(--ep-color-background-fill-body-default);
+  display: flow-root;
+  padding: .5rem .75rem 0;
+  background: var(--color-home-lower-bg, #200943);
+  /* Cartões / faixa marquee levemente escurecidos sobre o roxo */
+  --ep-color-background-fill-surface-raised-L1: rgba(0, 0, 0, 0.22);
+  --ep-color-background-fill-surface-raised-L2: rgba(0, 0, 0, 0.3);
+  /* Carrossel: 2:1 (mais alto que 9:4); contain mantém a arte inteira. */
+  --home-carousel-aspect: 2 / 1;
+  --home-activity-tile-aspect: 3 / 1;
+  --home-activity-wide-aspect: 6 / 1;
+  --home-banner-radius: .75rem;
+  /* Meio vertical dos hexágonos = padding-top da faixa + metade da altura do hex (igual .cat-hex-wrap) */
+  --home-cat-pad-top: 0.65rem;
+  --home-cat-hex-h: 4.625rem;
+  --home-hex-split-y: calc(var(--home-cat-pad-top) + (var(--home-cat-hex-h) / 2));
+  /* Faixa de mistura em torno do meio do hex (degradê suave entre os dois roxos) */
+  --home-hex-blend-up: 1.75rem;
+  --home-hex-blend-down: 2.1rem;
+  --home-hex-blend-y0: max(0px, calc(var(--home-hex-split-y) - var(--home-hex-blend-up)));
+  --home-hex-blend-y1: calc(var(--home-hex-split-y) + var(--home-hex-blend-down));
+}
+
+/* Faixa superior roxa (banner) alinhada à largura útil + colada ao header */
+.home-hero-purple {
+  background: var(--color-brand-purple-original, #650C96);
+  margin: -0.5rem -0.75rem 0;
+  padding: 0.5rem 0.75rem 0.5rem;
 }
 
 /* ── Carousel (Swiper) ── */
 .carousel-wrapper {
-  position: relative; border-radius: .75rem; overflow: hidden; margin: .5rem 0;
+  position: relative;
+  margin: 0 0 .5rem;
+  padding: 0 .25rem;
 }
-.banner-swiper { width: 100%; aspect-ratio: 16 / 7; border-radius: .75rem; }
-.carousel-slide { width: 100%; height: 100%; cursor: pointer; }
-.carousel-slide img {
-  width: 100%; height: 100%; object-fit: cover; border-radius: .75rem;
-  background: linear-gradient(135deg, #2D1B69 0%, #4C1D95 50%, #1A0A3E 100%);
+.banner-swiper {
+  width: 100%;
+  aspect-ratio: var(--home-carousel-aspect);
+  border-radius: var(--home-banner-radius);
+  overflow: hidden;
+}
+.carousel-slide {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+  overflow: hidden;
+  border-radius: var(--home-banner-radius);
+  /* Mesmo roxo sólido da página — degradê #4a0a72 parecia “faixa escura” com contain */
+  background: var(--color-brand-purple-original, #650C96);
+}
+.banner-bg-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center center;
+  border-radius: var(--home-banner-radius);
 }
 .banner-swiper :deep(.swiper-pagination-bullet) {
   width: .375rem; height: .375rem; background: rgba(255,255,255,.4); opacity: 1;
@@ -273,15 +343,41 @@ onMounted(() => {
   width: 1rem; border-radius: .1875rem; background: #fff;
 }
 
-/* ── Category Icons ── */
+/* ── Category Icons (hex + nome; tamanho ajustável) ── */
 .category-icons {
-  display: flex; gap: .5rem; overflow-x: auto; padding: .75rem 0;
+  display: flex;
+  gap: .75rem;
+  overflow-x: auto;
+  padding: var(--home-cat-pad-top) 0 .85rem;
+  margin-left: -.75rem;
+  margin-right: -.75rem;
+  padding-left: .75rem;
+  padding-right: .75rem;
+  box-sizing: border-box;
+  /* Degradê vertical: roxo vivo → #200943, centrado no meio dos hexágonos */
+  background: linear-gradient(
+    180deg,
+    var(--color-brand-purple-original, #650C96) 0,
+    var(--color-brand-purple-original, #650C96) var(--home-hex-blend-y0),
+    var(--color-home-lower-bg, #200943) var(--home-hex-blend-y1),
+    var(--color-home-lower-bg, #200943) 100%
+  );
   -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
-.category-icons::-webkit-scrollbar { display: none; }
+.category-icons::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
 .cat-item {
-  display: flex; flex-direction: column; align-items: center;
-  flex-shrink: 0; cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex-shrink: 0;
+  max-width: 6.75rem;
+  cursor: pointer;
 }
 .cat-item:active .cat-hex-wrap { transform: scale(0.92); }
 .cat-item.active .cat-hex-wrap {
@@ -290,44 +386,84 @@ onMounted(() => {
 }
 
 .cat-hex-wrap {
-  width: 3.75rem; height: 3.75rem;
+  width: var(--home-cat-hex-h);
+  height: var(--home-cat-hex-h);
   position: relative;
-  display: flex; flex-direction: column;
-  align-items: center; justify-content: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
   transition: transform .2s ease, filter .2s ease;
 }
 .cat-hex-bg {
-  position: absolute; inset: 0; width: 100%; height: 100%;
-  filter: drop-shadow(0 2px 5px rgba(0,0,0,.35));
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  clip-path: polygon(50% 2%, 93% 27%, 93% 73%, 50% 98%, 7% 73%, 7% 27%);
+  background:
+    linear-gradient(
+      145deg,
+      rgba(255, 255, 255, 0.22) 0%,
+      rgba(255, 255, 255, 0) 42%
+    ),
+    linear-gradient(
+      128deg,
+      #3d2a06 0%,
+      #6b4810 14%,
+      #a67418 28%,
+      #e8c85a 44%,
+      #fff6d8 49%,
+      #d4a82a 54%,
+      #8a5c0e 72%,
+      #4a3208 100%
+    );
+  box-shadow: inset 0 0.08rem 0.12rem rgba(255, 255, 255, 0.35);
 }
-.cat-hex-emoji {
-  position: relative; z-index: 1;
-  font-size: 1.25rem;
-  line-height: 1;
+.cat-hex-bg.cat-hex-bg--image {
+  background: url('/assets/ui/cat-hex-gold.png') center / cover no-repeat;
+  box-shadow: inset 0 0.06rem 0.1rem rgba(255, 255, 255, 0.2);
 }
-.cat-hex-logo {
-  position: relative; z-index: 1;
-  font-size: .875rem; font-weight: 900;
+.cat-hex-letters {
+  position: relative;
+  z-index: 1;
+  font-size: 1.05rem;
+  font-weight: 900;
   color: #1a0a2e;
-  text-shadow: 0 1px 0 rgba(255,255,255,.3);
-  letter-spacing: .5px;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
+  letter-spacing: 0.02em;
   line-height: 1;
+  user-select: none;
 }
 .cat-hex-name {
-  position: relative; z-index: 1;
-  font-size: .5rem; font-weight: 800;
-  color: #fff; text-align: center;
-  line-height: 1; white-space: nowrap;
-  text-shadow: 0 1px 2px rgba(0,0,0,.3);
-  letter-spacing: .3px;
-  margin-top: .0625rem;
+  display: block;
+  width: 100%;
+  margin-top: 0.45rem;
+  padding: 0 0.15rem;
+  font-size: 0.8125rem;
+  font-weight: 800;
+  color: #fff;
+  text-align: center;
+  line-height: 1.15;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+  letter-spacing: 0.02em;
+  white-space: normal;
+  word-break: break-word;
+  hyphens: auto;
 }
 
 /* ── Marquee + Search ── */
 .marquee-search-row {
-  display: flex; align-items: center; gap: .5rem; padding: .5rem .625rem;
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  /* Menos padding em cima — números/texto ficam um pouco mais altos na faixa */
+  padding: .2rem .625rem .6rem;
   background: var(--ep-color-background-fill-surface-raised-L1);
-  border-radius: .5rem; margin: 0 0 .625rem; overflow: hidden;
+  border-radius: .5rem;
+  margin: 0 0 .625rem;
+  overflow: hidden;
   border: 1px solid var(--ep-color-border-default);
 }
 .marquee-dot {
@@ -335,11 +471,22 @@ onMounted(() => {
   background: var(--ep-accent-green, #17C964); flex-shrink: 0;
   animation: breathing 2s ease-in-out infinite;
 }
-.marquee-text-wrap { flex: 1; overflow: hidden; }
+.marquee-text-wrap {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  min-height: 1.25rem;
+}
 .marquee-text {
-  display: inline-block; white-space: nowrap;
+  display: inline-block;
+  white-space: nowrap;
   animation: scroll-horizontal 20s linear infinite;
-  font-size: .75rem; color: var(--ep-color-text-weaker);
+  font-size: .75rem;
+  color: var(--ep-color-text-weaker);
+  line-height: 1.15;
+  position: relative;
+  top: -0.25rem;
 }
 .marquee-text:hover { animation-play-state: paused; }
 .search-icon-btn {
@@ -353,27 +500,50 @@ onMounted(() => {
   color: var(--ep-color-text-inverse);
 }
 
-/* ── Activity Banners (image-based) ── */
-.activity-banners { margin: .375rem 0 .625rem; }
+/* ── Activity Banners: quadrados 2:1; faixa full-width 4:1 (altura ≈ metade da largura / 2, igual ao tile) ── */
+.activity-banners {
+  margin: .35rem 0 .5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+}
 .activity-row-2 {
-  display: grid; grid-template-columns: 1fr 1fr;
-  gap: .375rem; margin-bottom: .375rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: .375rem;
+  margin-bottom: .375rem;
+}
+.activity-img-card,
+.activity-wide-card {
+  position: relative;
+  min-width: 0;
+  border-radius: var(--home-banner-radius);
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform .15s ease;
+  background: rgba(0, 0, 0, 0.18);
 }
 .activity-img-card {
-  border-radius: .5rem; overflow: hidden; cursor: pointer;
-  transition: transform .15s ease; position: relative;
-}
-.activity-img-card:active { transform: scale(0.97); }
-.activity-img-card img {
-  width: 100%; height: 100%; object-fit: cover; display: block;
+  aspect-ratio: var(--home-activity-tile-aspect);
 }
 .activity-wide-card {
-  border-radius: .5rem; overflow: hidden; cursor: pointer;
-  transition: transform .15s ease;
+  width: 100%;
+  aspect-ratio: var(--home-activity-wide-aspect);
 }
-.activity-wide-card:active { transform: scale(0.97); }
-.activity-wide-card img {
-  width: 100%; height: auto; display: block;
+.activity-img-card:active,
+.activity-wide-card:active {
+  transform: scale(0.97);
+}
+.activity-banner-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  object-position: center center;
+  pointer-events: none;
 }
 
 /* ── Loading ── */

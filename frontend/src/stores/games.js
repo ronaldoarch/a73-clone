@@ -74,8 +74,11 @@ export const useGamesStore = defineStore('games', () => {
       if (!provMap[code]) provMap[code] = []
       provMap[code].push(game)
 
+      const gLogo = game.providerLogo || game.platformLogo || game.platformIcon || ''
       if (!provSet.has(code)) {
-        provSet.set(code, { code, name, logo: game.providerLogo || game.platformLogo || '' })
+        provSet.set(code, { code, name, logo: gLogo || '' })
+      } else if (gLogo && !provSet.get(code).logo) {
+        provSet.get(code).logo = gLogo
       }
 
       if (game.isHot || game.hot || game.isPopular) {

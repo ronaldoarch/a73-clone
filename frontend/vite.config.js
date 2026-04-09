@@ -9,7 +9,9 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': 'http://localhost:3000',
-      '/gold_api': 'http://localhost:3000'
+      '/gold_api': 'http://localhost:3000',
+      /* Logo/banner gravados em backend/uploads — sem isto o <img src="/uploads/..."> no :5173 dá 404 */
+      '/uploads': 'http://localhost:3000'
     }
   },
   build: {

@@ -2,6 +2,7 @@
 @import './themes.css';
 @import './animations.css';
 @import './fonts.css';
+@import './material-icons.css';
 @import './ionic-theme.css';
 
 /* ═══════════════════════════════════════════════
@@ -48,7 +49,7 @@ body {
 #app {
   min-height: 100%;
   width: 100%;
-  max-width: 480px;
+  max-width: var(--max-width, 480px);
   margin: 0 auto;
   position: relative;
   overflow-x: hidden;

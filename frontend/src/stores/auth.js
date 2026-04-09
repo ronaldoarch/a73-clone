@@ -180,8 +180,11 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   function setParentId(route) {
-    if (route?.query?.pid) {
-      parentId.value = String(route.query.pid)
+    const q = route?.query
+    if (!q) return
+    const raw = q.pid ?? q.invite ?? q.ref
+    if (raw !== undefined && raw !== null && String(raw).trim() !== '') {
+      parentId.value = String(raw).trim()
       localStorage.setItem('parentId', parentId.value)
     }
   }
@@ -190,7 +193,7 @@ export const useAuthStore = defineStore('auth', () => {
     if (!parentId.value) {
       parentId.value = localStorage.getItem('parentId') || ''
     }
-    return Number(parentId.value) || 0
+    return String(parentId.value).trim()
   }
 
   function setOldVerifyToken(t) {
@@ -320,7 +323,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function register(accountInput, passwordInput, confirmPasswordInput) {
     try {
-      const parentIdVal = await getParentId()
+      const pidInvite = await getParentId()
       const res = await fetch('/api/frontend/trpc/user.register', {
         method: 'POST',
         headers: {
@@ -334,7 +337,7 @@ export const useAuthStore = defineStore('auth', () => {
             phone: accountInput,
             password: passwordInput,
             confirmPassword: confirmPasswordInput,
-            pid: parentIdVal ? String(parentIdVal) : undefined
+            pid: pidInvite || undefined
           }
         })
       })

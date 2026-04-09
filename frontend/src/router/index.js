@@ -1,8 +1,8 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
 const routes = [
-  { path: '/', redirect: '/main/inicio' },
-  { path: '/main', redirect: '/main/inicio' },
+  { path: '/', redirect: (to) => ({ path: '/main/inicio', query: to.query }) },
+  { path: '/main', redirect: (to) => ({ path: '/main/inicio', query: to.query }) },
 
   // Main tabs
   { path: '/main/inicio', name: 'Home', component: () => import('../views/HomePage.vue') },
@@ -10,7 +10,12 @@ const routes = [
   { path: '/main/promo', name: 'Promo', component: () => import('../views/PromoPage.vue') },
   { path: '/main/perfil', name: 'Profile', component: () => import('../views/ProfilePage.vue') },
   { path: '/main/menu', name: 'Menu', component: () => import('../views/MenuPage.vue') },
-  { path: '/main/comissao', name: 'Commission', component: () => import('../views/CommissionPage.vue') },
+  { path: '/main/indique-amigos', name: 'InviteFriends', component: () => import('../views/InviteFriendsPage.vue') },
+  {
+    path: '/main/comissao',
+    name: 'Commission',
+    redirect: { path: '/main/promo', query: { tab: 'rebate' } }
+  },
   { path: '/main/entrar', name: 'HomeEntrar', component: () => import('../views/DepositPage.vue'), meta: { auth: true } },
   { path: '/main/withdraw', name: 'HomeWithdraw', component: () => import('../views/WithdrawPage.vue'), meta: { auth: true } },
 
@@ -86,6 +91,7 @@ const routes = [
   { path: '/activity/MemberAppreciation/:id?', name: 'MemberAppreciation', component: () => import('../views/activities/MemberAppreciationPage.vue') },
   { path: '/activity/MemberRewardMultiDay/:id?', name: 'MemberRewardMultiDay', component: () => import('../views/activities/MemberAppreciationPage.vue') },
   { path: '/activity/luckyBet/:id?', name: 'LuckyBet', component: () => import('../views/activities/LuckyBetPage.vue') },
+  { path: '/activity/mine', name: 'MysteryMine', component: () => import('../views/activities/MysteryMinePage.vue') },
   { path: '/activity/Rescue/:id?', name: 'Rescue', component: () => import('../views/activities/RescuePage.vue') },
   { path: '/activity/Assistance/:id?', name: 'Assistance', component: () => import('../views/activities/LuckyWheelPage.vue') },
   { path: '/activity/CommissionReward/:id?', name: 'CommissionReward', component: () => import('../views/activities/CommissionRewardPage.vue') },

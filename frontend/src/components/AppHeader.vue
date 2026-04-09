@@ -2,9 +2,7 @@
   <header class="app-header-wrap">
     <div class="header-toolbar">
       <div class="header-left">
-        <div class="logo" @click="$router.push('/main/inicio')">
-          <span class="logo-a">A</span><span class="logo-num">73</span><span class="logo-dot">.com</span>
-        </div>
+        <AppLogoMark @click="$router.push('/main/inicio')" />
       </div>
 
       <div class="header-right" v-if="!isLoggedIn">
@@ -21,16 +19,23 @@
       <div class="header-right logged-in" v-else>
         <div class="balance-bar">
           <div class="balance-info" @click="$router.push('/main/deposito')">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="#FFD700"><circle cx="12" cy="12" r="10" stroke="#D4A800" stroke-width="1.5"/><text x="12" y="16" text-anchor="middle" font-size="12" font-weight="bold" fill="#B8860B">$</text></svg>
-            <span class="balance-currency">BRL</span>
+            <img
+              class="balance-wallet-icon"
+              src="/assets/ui/balance-wallet-icon.png"
+              width="28"
+              height="28"
+              alt=""
+            />
             <span class="balance-value">{{ formattedBalance }}</span>
           </div>
-          <button class="deposit-btn" @click="$router.push('/main/deposito')">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
-          </button>
-          <button class="withdraw-btn" @click="$router.push('/main/withdraw')">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M7 10l5 5 5-5"/></svg>
-          </button>
+          <div class="balance-actions">
+            <button type="button" class="deposit-btn" @click="$router.push('/main/deposito')" aria-label="Depositar">
+              <img class="deposit-piggy-icon" src="/assets/deposit-38-rfCJB114.svg" width="22" height="22" alt="" />
+            </button>
+            <button type="button" class="withdraw-btn" @click="$router.push('/main/withdraw')" aria-label="Sacar">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M7 10l5 5 5-5"/></svg>
+            </button>
+          </div>
         </div>
         <button class="notif-btn" @click="$router.push('/notification')">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -46,6 +51,7 @@
 
 <script setup>
 import { computed } from 'vue'
+import AppLogoMark from './AppLogoMark.vue'
 import { useAuthStore } from '../stores/auth'
 import { useUserStore } from '../stores/user'
 import { useNotificationStore } from '../stores/notification'
@@ -61,16 +67,16 @@ const { unreadCount } = storeToRefs(notifStore)
 
 const totalUnread = computed(() => (unreadCount.value || 0) + (mailCount.value || 0))
 
-const formattedBalance = computed(() => {
-  return (balance.value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-})
+const formattedBalance = computed(() =>
+  (Number(balance.value) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+)
 </script>
 
 <style scoped>
 .app-header-wrap {
   position: sticky;
   top: 0;
-  background: var(--ep-color-background-fill-top-nav-secondary, var(--header-dynamic-bg, #140E38));
+  background: var(--color-brand-purple-original, #650C96);
   color: var(--ep-color-text-default, #fff);
   flex-shrink: 0;
   z-index: 100;
@@ -84,27 +90,6 @@ const formattedBalance = computed(() => {
 }
 
 .header-left { display: flex; align-items: center; gap: .5rem; }
-.logo { cursor: pointer; display: flex; align-items: baseline; }
-.logo-a {
-  font-family: var(--font-display); font-size: 1.625rem; font-weight: 900;
-  font-style: italic;
-  background: linear-gradient(180deg, #FF6B6B, #E53E3E, #C53030);
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
-  filter: drop-shadow(0 1px 2px rgba(229,62,62,.3));
-}
-.logo-num {
-  font-family: var(--font-display); font-size: 1.625rem; font-weight: 900;
-  font-style: italic;
-  background: linear-gradient(180deg, #FFD700, #F5C84C, #E8B230);
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
-  filter: drop-shadow(0 1px 2px rgba(245,200,76,.3));
-}
-.logo-dot {
-  font-family: var(--font-display); font-size: .75rem; font-weight: 700;
-  font-style: italic; margin-left: 1px;
-  background: linear-gradient(180deg, #FFD700, #E8B230);
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
-}
 
 .header-right { display: flex; align-items: center; gap: .5rem; }
 
@@ -138,44 +123,89 @@ const formattedBalance = computed(() => {
 .rb-rs { font-size: .5rem; font-weight: 800; color: #fff; }
 .rb-val { font-size: .5625rem; font-weight: 800; color: #FFE44D; }
 
-/* Logged-in balance bar */
+/* Saldo sem caixa ao redor — direto no roxo do header */
 .balance-bar {
-  display: flex; align-items: center;
-  background: var(--ep-color-background-fill-surface-raised-L2);
-  border-radius: var(--ep-border-radius-l, .5rem);
-  border: 1px solid var(--ep-color-border-default);
-  overflow: hidden;
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+  min-height: 2rem;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  /* Alinha melhor com o logo (evita sensação de texto “baixo” na toolbar) */
+  transform: translateY(-4px);
 }
 .balance-info {
-  display: flex; align-items: center; gap: .25rem;
-  padding: .3125rem .5rem; cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.25rem 0.35rem 0.25rem 0;
+  cursor: pointer;
+  flex: 1;
+  min-width: 0;
 }
-.balance-currency {
-  font-size: .5625rem; font-weight: 700;
-  color: var(--ep-color-text-weakest);
+.balance-wallet-icon {
+  width: 1.75rem;
+  height: 1.75rem;
+  object-fit: contain;
+  flex-shrink: 0;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.35));
 }
 .balance-value {
-  font-size: var(--ep-font-size-s, .8125rem);
-  font-weight: var(--ep-font-weight-bold, 700);
-  color: var(--ep-color-text-default);
-  font-family: var(--font-mono, 'Share Tech Mono', monospace);
+  font-size: 0.875rem;
+  font-weight: 800;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+  white-space: nowrap;
 }
 
-.deposit-btn, .withdraw-btn {
-  display: flex; align-items: center; justify-content: center;
-  width: 1.75rem; height: 1.75rem; flex-shrink: 0;
-  transition: background .15s;
+.balance-actions {
+  display: flex;
+  align-items: stretch;
+  flex-shrink: 0;
+}
+
+.deposit-btn,
+.withdraw-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s, opacity 0.15s;
 }
 .deposit-btn {
-  background: var(--ep-accent-green, #17C964); color: #fff;
+  align-self: center;
+  margin: 0.2rem 0.15rem 0.2rem 0.1rem;
+  min-width: 2.25rem;
+  padding: 0 0.35rem;
+  border-radius: 0.45rem;
+  background: rgba(120, 55, 170, 0.55);
+  border: 1.5px solid rgba(255, 213, 79, 0.95);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
 }
-.deposit-btn:active { background: #15a355; }
+.deposit-piggy-icon {
+  display: block;
+  width: 1.375rem;
+  height: 1.375rem;
+  object-fit: contain;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.25));
+}
+.deposit-btn:active {
+  opacity: 0.88;
+  background: rgba(140, 75, 190, 0.65);
+}
 .withdraw-btn {
-  background: var(--ep-color-background-fill-surface-raised-L2);
-  color: var(--ep-color-text-weak);
-  border-left: 1px solid var(--ep-color-border-default);
+  min-width: 1.85rem;
+  padding: 0 0.25rem;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.9);
 }
-.withdraw-btn:active { background: rgba(255,255,255,0.08); }
+.withdraw-btn:active {
+  opacity: 0.75;
+}
 
 .notif-btn { position: relative; color: var(--ep-color-text-default); padding: .25rem; }
 .notif-badge {

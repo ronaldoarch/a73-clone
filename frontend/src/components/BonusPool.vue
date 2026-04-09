@@ -54,7 +54,57 @@ onBeforeUnmount(() => { stop() })
   position: relative;
   border-radius: .75rem;
   overflow: hidden;
-  background: linear-gradient(135deg, #1a0533, #2d1065);
+  border: none;
+  box-shadow: none;
+  background: linear-gradient(
+    135deg,
+    var(--color-home-lower-bg, #200943),
+    #2d1065
+  );
+}
+
+/*
+ * Vinhetas nos quatro lados (#200943), no mesmo espírito do rodapé: só perto das bordas,
+ * interior quase intacto para não “lavar” o JACKPOT.
+ */
+.bonus-pool-banner::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  border-radius: inherit;
+  background-image:
+    linear-gradient(
+      to bottom,
+      var(--color-home-lower-bg, #200943) 0%,
+      rgba(32, 9, 67, 0.35) 7%,
+      rgba(32, 9, 67, 0.1) 13%,
+      transparent 20%
+    ),
+    linear-gradient(
+      to right,
+      var(--color-home-lower-bg, #200943) 0%,
+      rgba(32, 9, 67, 0.32) 6%,
+      rgba(32, 9, 67, 0.08) 12%,
+      transparent 17%
+    ),
+    linear-gradient(
+      to left,
+      var(--color-home-lower-bg, #200943) 0%,
+      rgba(32, 9, 67, 0.32) 6%,
+      rgba(32, 9, 67, 0.08) 12%,
+      transparent 17%
+    ),
+    linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent 72%,
+      rgba(32, 9, 67, 0.2) 78%,
+      rgba(32, 9, 67, 0.55) 84%,
+      var(--color-home-lower-bg, #200943) 90%,
+      var(--color-home-lower-bg, #200943) 100%
+    );
 }
 
 .bp-bg {
@@ -76,7 +126,7 @@ onBeforeUnmount(() => { stop() })
 
 .bp-value-bar {
   position: absolute;
-  bottom: 10%;
+  bottom: 26%;
   left: 50%;
   transform: translateX(-50%);
   display: flex;

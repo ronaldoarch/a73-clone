@@ -24,6 +24,93 @@ const prisma = new PrismaClient()
 setPrisma(prisma)
 setCyberPrisma(prisma)
 
+/** Temas CSS da PWA (frontend themes.css) — mesmo conjunto que appThemeCatalog.js */
+const APP_UI_THEME_IDS = new Set([
+  'amber-purple', 'blue-default', 'green-default', 'green-dark', 'phantom-blue', 'neo-blue',
+  'midnight-purple', 'mystlight-blue', 'goldshine-green', 'golden-emerald', 'deep-sea-teal',
+  'stellar-dusk', 'prosperity-red', 'yellow-dark', 'purple-light', 'forest-green',
+  'supreme-green', 'auroral-yellow', 'malt-green'
+])
+
+const DEFAULT_MYSTERY_BAUS = Object.freeze({
+  reclamarMinDep: 30,
+  reclamarTabela: [
+    { minDep: 30, premioMin: 0.3, premioMax: 88 }, { minDep: 70, premioMin: 0.7, premioMax: 188 },
+    { minDep: 150, premioMin: 1, premioMax: 388 }, { minDep: 300, premioMin: 3, premioMax: 688 },
+    { minDep: 600, premioMin: 7, premioMax: 888 }, { minDep: 1000, premioMin: 10, premioMax: 1888 },
+    { minDep: 2000, premioMin: 24, premioMax: 2888 }, { minDep: 5000, premioMin: 61, premioMax: 8888 }
+  ],
+  minDeposit2dReais: 30,
+  minValidBetReais: 1,
+  headlinePrize: 'R$ 8.888,00',
+  boxes: [
+    { id: 1, dayLabel: 'Dia 2', minDay: 2, prize: 'R$ 2,00', locked: false, requiredLevel: 0 },
+    { id: 2, dayLabel: 'Dia 3', minDay: 3, prize: 'R$ 5,00', locked: false, requiredLevel: 0 },
+    { id: 3, dayLabel: 'Dia 7', minDay: 7, prize: 'R$ 8,00', locked: false, requiredLevel: 0 },
+    { id: 4, dayLabel: 'Dia 15', minDay: 15, prize: 'R$ 15,00', locked: false, requiredLevel: 0 },
+    { id: 5, dayLabel: 'Dia 30', minDay: 30, prize: 'R$ 50,00', locked: true, requiredLevel: 3 }
+  ]
+})
+
+function normalizeMysteryBausRow(r) {
+  const minDep = Math.max(0, parseFloat(r?.minDep) || 0)
+  const premioMin = Math.max(0, parseFloat(r?.premioMin) || 0)
+  const premioMax = Math.max(premioMin, parseFloat(r?.premioMax) || 0)
+  return { minDep, premioMin, premioMax }
+}
+
+function normalizeMysteryBaus(stored) {
+  const o = (stored && typeof stored === 'object') ? stored : {}
+  let reclamarTabela = Array.isArray(o.reclamarTabela)
+    ? o.reclamarTabela.map(normalizeMysteryBausRow).filter((x) => x.minDep > 0)
+    : []
+  if (!reclamarTabela.length) reclamarTabela = [...DEFAULT_MYSTERY_BAUS.reclamarTabela]
+  reclamarTabela.sort((a, b) => a.minDep - b.minDep)
+
+  let boxes = Array.isArray(o.boxes) ? o.boxes.map((b) => ({
+    id: Math.max(1, parseInt(b.id, 10) || 1),
+    dayLabel: String(b.dayLabel || '').trim() || 'Dia',
+    minDay: Math.max(0, parseInt(b.minDay, 10) || 0),
+    prize: String(b.prize || '').trim() || 'R$ 0,00',
+    locked: !!b.locked,
+    requiredLevel: Math.max(0, parseInt(b.requiredLevel, 10) || 0)
+  })) : []
+  if (boxes.length < 5) {
+    const byId = new Map(boxes.map((b) => [b.id, b]))
+    boxes = DEFAULT_MYSTERY_BAUS.boxes.map((def) => {
+      const x = byId.get(def.id)
+      return x ? { ...def, ...x, id: def.id } : { ...def }
+    })
+  } else {
+    boxes = boxes.slice(0, 5)
+  }
+
+  return {
+    reclamarMinDep: Math.max(1, parseInt(o.reclamarMinDep, 10) || DEFAULT_MYSTERY_BAUS.reclamarMinDep),
+    reclamarTabela,
+    minDeposit2dReais: (() => {
+      const x = parseFloat(o.minDeposit2dReais)
+      return Number.isFinite(x) ? Math.max(0, x) : DEFAULT_MYSTERY_BAUS.minDeposit2dReais
+    })(),
+    minValidBetReais: (() => {
+      const x = parseFloat(o.minValidBetReais)
+      return Number.isFinite(x) ? Math.max(0, x) : DEFAULT_MYSTERY_BAUS.minValidBetReais
+    })(),
+    headlinePrize: String(o.headlinePrize || '').trim() || DEFAULT_MYSTERY_BAUS.headlinePrize,
+    boxes
+  }
+}
+
+async function getMysteryBaus() {
+  try {
+    const s = await settingGet('misterioso')
+    const v = (s?.value && typeof s.value === 'object') ? s.value : {}
+    return normalizeMysteryBaus(v)
+  } catch {
+    return normalizeMysteryBaus({})
+  }
+}
+
 // SQLite stores Setting.value as String, so we need JSON serialization helpers
 const settingGet = async (id) => {
   const s = await prisma.setting.findUnique({ where: { id } })
@@ -489,6 +576,8 @@ async function getAppConfig() {
     if (!['gatebox', 'cyber', 'none'].includes(paymentProvider)) paymentProvider = 'gatebox'
     const gateboxEnabled = v.gateboxEnabled !== false
     const cyberEnabled = v.cyberEnabled !== false
+    let appUiTheme = String(v.appUiTheme || '').trim()
+    if (!APP_UI_THEME_IDS.has(appUiTheme)) appUiTheme = ''
     const base = {
       depositoMin: v.depositoMin ?? 10,
       saqueMin: v.saqueMin ?? 20,
@@ -496,13 +585,15 @@ async function getAppConfig() {
       roletaMinWithdraw: v.roletaMinWithdraw ?? 100,
       roletaBonusDays: v.roletaBonusDays ?? 3,
       roletaDailySpins: v.roletaDailySpins ?? 1,
+      roletaBonusRolloverTimes: v.roletaBonusRolloverTimes ?? 0,
       bonusPrimeiroDep: v.bonusPrimeiroDep ?? 0,
       bonusPrimeiroDepPercent: v.bonusPrimeiroDepPercent ?? 0,
       roletaSegments,
       whatsappUrl: v.whatsappUrl || '',
       paymentProvider,
       gateboxEnabled,
-      cyberEnabled
+      cyberEnabled,
+      appUiTheme
     }
     base.activePixProvider = getActivePixProvider(base)
     base.pixEnabled = base.activePixProvider !== 'none'
@@ -510,7 +601,7 @@ async function getAppConfig() {
     _appConfigCacheAt = Date.now()
     return _appConfigCache
   } catch (e) {
-    const fallback = { depositoMin: 10, saqueMin: 20, saqueMax: 40000, roletaMinWithdraw: 100, roletaBonusDays: 3, roletaDailySpins: 1, bonusPrimeiroDep: 0, bonusPrimeiroDepPercent: 0, roletaSegments: DEFAULT_ROLETA_SEGMENTS, paymentProvider: 'gatebox', gateboxEnabled: true, cyberEnabled: true }
+    const fallback = { depositoMin: 10, saqueMin: 20, saqueMax: 40000, roletaMinWithdraw: 100, roletaBonusDays: 3, roletaDailySpins: 1, roletaBonusRolloverTimes: 0, bonusPrimeiroDep: 0, bonusPrimeiroDepPercent: 0, roletaSegments: DEFAULT_ROLETA_SEGMENTS, paymentProvider: 'gatebox', gateboxEnabled: true, cyberEnabled: true, appUiTheme: '' }
     fallback.activePixProvider = getActivePixProvider(fallback)
     fallback.pixEnabled = fallback.activePixProvider !== 'none'
     return fallback
@@ -804,8 +895,13 @@ async function handleTrpcUserRegister(req, res) {
     }
     let indicatorId = null
     if (pid) {
-      const indicador = await prisma.afiliadoData.findUnique({ where: { pid }, include: { user: true } })
+      const pidStr = String(pid).trim()
+      const indicador = await prisma.afiliadoData.findUnique({ where: { pid: pidStr }, include: { user: true } })
       if (indicador) indicatorId = indicador.userId
+      else {
+        const byUserId = await prisma.user.findUnique({ where: { id: pidStr } })
+        if (byUserId) indicatorId = byUserId.id
+      }
     }
     const hash = await bcrypt.hash(password, 10)
     const user = await prisma.user.create({
@@ -918,8 +1014,8 @@ app.post('/api/upload/logo', uploadLogoHandler, adminAuthMiddleware, async (req,
   }
 })
 
-// Upload banner
-app.post('/api/upload/banner', upload.single('file'), async (req, res) => {
+// Upload banner (requer admin — mesmo limite de tamanho que a logo)
+app.post('/api/upload/banner', uploadLogoHandler, adminAuthMiddleware, async (req, res) => {
   try {
     if (!req.file) {
       return res.json({ ok: false, error: 'Nenhum arquivo enviado' })
@@ -1351,21 +1447,19 @@ app.post('/api/afiliado/receber-comissao', authMiddleware, async (req, res) => {
   }
 })
 
-// POST reclamar Misterioso - prêmio baseado em depositoMisterioso (tabela alinhada ao frontend)
-const TABELA_MISTERIOSO = [
-  { minDep: 30, premioMin: 0.3, premioMax: 88 }, { minDep: 70, premioMin: 0.7, premioMax: 188 },
-  { minDep: 150, premioMin: 1, premioMax: 388 }, { minDep: 300, premioMin: 3, premioMax: 688 },
-  { minDep: 600, premioMin: 7, premioMax: 888 }, { minDep: 1000, premioMin: 10, premioMax: 1888 },
-  { minDep: 2000, premioMin: 24, premioMax: 2888 }, { minDep: 5000, premioMin: 61, premioMax: 8888 },
-]
+// POST reclamar Misterioso - prêmio baseado em depositoMisterioso (tabela configurável no admin)
 app.post('/api/afiliado/reclamar-misterioso', authMiddleware, async (req, res) => {
   try {
+    const mb = await getMysteryBaus()
     const user = await prisma.user.findUnique({ where: { id: req.userId } })
     let af = await ensureAfiliado(req.userId, user?.account || '')
     af = await checkMisteriosoReset(af, user)
     if (af.misteriosoReclamado) return res.json({ error: { message: 'Já reclamado' } })
-    if (af.depositoMisterioso < 30) return res.json({ error: { message: 'Depósito mínimo R$ 30,00' } })
-    const faixa = [...TABELA_MISTERIOSO].reverse().find(t => af.depositoMisterioso >= t.minDep)
+    const minR = mb.reclamarMinDep
+    if (af.depositoMisterioso < minR) {
+      return res.json({ error: { message: `Depósito mínimo R$ ${minR.toFixed(2).replace('.', ',')}` } })
+    }
+    const faixa = [...mb.reclamarTabela].reverse().find(t => af.depositoMisterioso >= t.minDep)
     const min = faixa ? faixa.premioMin : 0.3
     const max = faixa ? faixa.premioMax : 88
     const premio = Math.round((min + Math.random() * (max - min)) * 100) / 100
@@ -1558,6 +1652,7 @@ async function getIgamewinConfig() {
         sandbox: v.sandbox ?? true,
         is_demo: v.is_demo ?? true,
         api_mode: v.api_mode || 'seamless', // 'seamless' | 'transfer'
+        site_endpoint: String(v.site_endpoint || v.public_api_url || '').replace(/\/$/, '')
       }
     }
   } catch (e) { /* ignore */ }
@@ -1703,24 +1798,39 @@ app.post('/api/games/seamless', handleSeamless)
 app.get('/api/settings/igamewin', adminAuthMiddleware, async (req, res) => {
   try {
     const cfg = await getIgamewinConfig()
-    const base = cfg || { agent_code: '', agent_token: '', agent_secret: '', sandbox: true, is_demo: true, api_mode: 'seamless' }
-    base.site_endpoint = process.env.API_PUBLIC_URL || process.env.BACKEND_PUBLIC_URL || ''
+    const base = cfg || { agent_code: '', agent_token: '', agent_secret: '', sandbox: true, is_demo: true, api_mode: 'seamless', site_endpoint: '' }
+    const envBase = (process.env.API_PUBLIC_URL || process.env.BACKEND_PUBLIC_URL || '').replace(/\/$/, '')
+    base.site_endpoint = (cfg?.site_endpoint || envBase || '').replace(/\/$/, '')
     return res.json(base)
   } catch (e) {
-    return res.json({ agent_code: '', agent_token: '', agent_secret: '', sandbox: true, is_demo: true, api_mode: 'seamless', site_endpoint: process.env.API_PUBLIC_URL || process.env.BACKEND_PUBLIC_URL || '' })
+    const envBase = (process.env.API_PUBLIC_URL || process.env.BACKEND_PUBLIC_URL || '').replace(/\/$/, '')
+    return res.json({ agent_code: '', agent_token: '', agent_secret: '', sandbox: true, is_demo: true, api_mode: 'seamless', site_endpoint: envBase })
   }
 })
 
 app.post('/api/settings/igamewin', adminAuthMiddleware, async (req, res) => {
   try {
-    const { agent_code, agent_token, agent_secret, sandbox, is_demo, api_mode } = req.body || {}
+    const body = req.body?.json || req.body || {}
+    const { agent_code, agent_token, agent_secret, sandbox, is_demo, api_mode, site_endpoint } = body
     const existing = await getIgamewinConfig()
     // Se agent_secret/agent_token vazios, mantém o existente (evita apagar ao salvar só outros campos)
     const finalSecret = (agent_secret != null && String(agent_secret).trim() !== '') ? String(agent_secret).trim() : (existing?.agent_secret || '')
     const finalToken = (agent_token != null && String(agent_token).trim() !== '') ? String(agent_token).trim() : (existing?.agent_token || '')
     const finalCode = agent_code != null ? String(agent_code).trim() : (existing?.agent_code || '')
     const mode = (api_mode === 'transfer' || api_mode === 'seamless') ? api_mode : (existing?.api_mode || 'seamless')
-    await settingUpsert('igamewin', { agent_code: finalCode, agent_token: finalToken, agent_secret: finalSecret, sandbox: sandbox ?? true, is_demo: is_demo ?? true, api_mode: mode })
+    const finalSite =
+      site_endpoint != null
+        ? String(site_endpoint).trim().replace(/\/$/, '')
+        : (existing?.site_endpoint || '')
+    await settingUpsert('igamewin', {
+      agent_code: finalCode,
+      agent_token: finalToken,
+      agent_secret: finalSecret,
+      sandbox: sandbox ?? true,
+      is_demo: is_demo ?? true,
+      api_mode: mode,
+      site_endpoint: finalSite
+    })
     catalogCache = null
     catalogCacheTime = 0
     refreshCatalogBackground().catch(e => console.warn('[igamewin] refresh após salvar:', e.message))
@@ -1737,6 +1847,13 @@ let catalogCache = null
 let catalogCacheTime = 0
 const CATALOG_TTL = 10 * 60 * 1000 // 10 min
 
+/**
+ * iGameWin — lista de provedores (usada em /api/igamewin/catalog e refresh em background).
+ * POST {IGAMEWIN_URL}
+ * Body: { method: "provider_list", agent_code, agent_token }
+ * Sucesso: { status: 1, msg: "SUCCESS", providers: [{ code, name, status }] } — status 1 aberto, 0 manutenção
+ * Falha:   { status: 0, msg: "INTERNAL_ERROR" | ... }
+ */
 async function fetchIgamewin(body) {
   const stored = await getIgamewinConfig()
   const b = { ...body }
@@ -1790,6 +1907,17 @@ async function getHomeProviders() {
   } catch (e) {}
   return []
 }
+
+/** Resposta bruta do provider_list (debug / integração). Credenciais vêm do settings igamewin ou env. */
+app.get('/api/igamewin/provider-list', async (req, res) => {
+  try {
+    const out = await fetchIgamewin({ method: 'provider_list' })
+    return res.json(out)
+  } catch (e) {
+    console.error('igamewin provider-list:', e)
+    return res.status(500).json({ status: 0, msg: e.message || 'INTERNAL_ERROR' })
+  }
+})
 
 app.get('/api/igamewin/catalog', async (req, res) => {
   try {
@@ -1877,6 +2005,21 @@ app.post('/api/settings/home-providers', async (req, res) => {
   }
 })
 
+/** Base pública HTTPS do backend (sem /gold_api) — iGameWin seamless chama POST {base}/gold_api */
+function inferPublicBaseFromReq(req) {
+  try {
+    const xfHost = req.get('x-forwarded-host')
+    const hostRaw = (xfHost || req.get('host') || req.headers?.host || '').split(',')[0].trim()
+    if (!hostRaw || /localhost|127\.0\.0\.1|0\.0\.0\.0/i.test(hostRaw)) return ''
+    const xfProto = req.get('x-forwarded-proto')
+    let proto = (xfProto || req.protocol || 'https').split(',')[0].trim().replace(/:+$/, '')
+    if (proto !== 'http' && proto !== 'https') proto = 'https'
+    return `${proto}://${hostRaw}`.replace(/\/$/, '')
+  } catch {
+    return ''
+  }
+}
+
 // Launch game: cria usuário (user_create com is_demo) antes de game_launch - evita "Login Error"
 // Modo transfer: user_deposit antes de game_launch (transfere saldo para iGameWin)
 app.post('/api/igamewin/launch-game', async (req, res) => {
@@ -1951,11 +2094,17 @@ app.post('/api/igamewin/launch-game', async (req, res) => {
     }
 
     // 3. game_launch (modo transfer: return_url para devolver saldo ao fechar)
-    const apiBase = process.env.API_PUBLIC_URL || process.env.BACKEND_PUBLIC_URL || ''
+    const envBase = (process.env.API_PUBLIC_URL || process.env.BACKEND_PUBLIC_URL || '').replace(/\/$/, '')
+    const storedBase = (stored?.site_endpoint || '').replace(/\/$/, '')
+    const inferredBase = inferPublicBaseFromReq(req)
+    const apiBase = (envBase || storedBase || inferredBase || '').replace(/\/$/, '')
+    if (apiMode === 'seamless' && !apiBase) {
+      console.warn('igamewin launch-game: sem URL pública (API_PUBLIC_URL / site_endpoint / host público). Seamless tende a falhar com ERROR_GET_BALANCE_END_POINT.')
+    }
     const returnUrl = apiMode === 'transfer' && apiBase
       ? `${apiBase.replace(/\/$/, '')}/api/igamewin/game-return?user_code=${encodeURIComponent(userCode)}`
       : undefined
-    // site_url: URL base para gold_api (sem /gold_api) - alguns jogos PG Soft precisam disso na launch
+    // site_url: URL base para gold_api (sem /gold_api) - obrigatório para seamless no painel iGameWin
     const siteUrl = apiBase ? apiBase.replace(/\/$/, '').replace(/\/gold_api\/?$/, '') : undefined
     const launchBody = {
       method: 'game_launch',
@@ -1976,6 +2125,14 @@ app.post('/api/igamewin/launch-game', async (req, res) => {
     })
     const launchData = await launchRes.json()
     console.log('igamewin game_launch RESPONSE:', { status: launchData.status, msg: launchData.msg, launch_url: launchData.launch_url ? launchData.launch_url.slice(0, 100) + '...' : null })
+    if (launchData.status !== 1 && /BALANCE_END|GET_BALANCE_END/i.test(String(launchData.msg || ''))) {
+      launchData.hint = [
+        'O iGameWin não alcançou o endpoint de saldo (modo seamless).',
+        '• Defina a URL pública do backend (https://...) em API_PUBLIC_URL ou BACKEND_PUBLIC_URL, ou salve site_endpoint no Admin (API iGameWin).',
+        '• No painel iGameWin, o Site End Point deve ser essa mesma base; as chamadas vão para POST {base}/gold_api',
+        '• Em localhost o seamless não funciona: use api_mode transfer ou um túnel (ngrok) apontando para este servidor.'
+      ].join('\n')
+    }
     if (launchData.status !== 1) {
       console.warn('igamewin launch-game:', launchData.msg || launchData.status)
     } else if (launchData.launch_url) {
@@ -2179,9 +2336,99 @@ app.get('/api/roleta/config', async (req, res) => {
   res.set('Cache-Control', 'no-store, no-cache, must-revalidate')
   try {
     const cfg = await getAppConfig()
-    return res.json({ segments: cfg.roletaSegments || DEFAULT_ROLETA_SEGMENTS })
+    return res.json({
+      segments: cfg.roletaSegments || DEFAULT_ROLETA_SEGMENTS,
+      dailySpins: Number(cfg.roletaDailySpins) || 1,
+      bonusDays: Number(cfg.roletaBonusDays) || 3,
+      minWithdraw: Number(cfg.roletaMinWithdraw) || 100,
+      bonusRolloverTimes: Number(cfg.roletaBonusRolloverTimes) || 0
+    })
   } catch (e) {
-    return res.json({ segments: DEFAULT_ROLETA_SEGMENTS })
+    return res.json({
+      segments: DEFAULT_ROLETA_SEGMENTS,
+      dailySpins: 1,
+      bonusDays: 3,
+      minWithdraw: 100,
+      bonusRolloverTimes: 0
+    })
+  }
+})
+
+function maskRoletaLiveFeedId(account, userId) {
+  const a = String(account || '').replace(/\s/g, '')
+  if (a.length >= 4) return a.slice(0, 2) + '**' + a.slice(-2)
+  const s = String(userId || '')
+  let h = 0
+  for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0
+  const n = Math.abs(h) % 10000
+  const pad = String(10000 + n).slice(-4)
+  return `${pad.slice(0, 2)}**${pad.slice(-2)}`
+}
+
+/** Ganhos recentes na roleta (todos os usuários) — feed público para a UI, sem expor conta completa. */
+app.get('/api/roleta/recent-wins', async (req, res) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate')
+  try {
+    const raw = parseInt(req.query.limit, 10)
+    const take = Number.isFinite(raw) ? Math.min(50, Math.max(5, raw)) : 20
+    const logs = await prisma.roletaBonusLog.findMany({
+      where: { valor: { gt: 0 } },
+      orderBy: { createdAt: 'desc' },
+      take
+    })
+    const userIds = [...new Set(logs.map((l) => l.userId))]
+    const users = userIds.length
+      ? await prisma.user.findMany({
+          where: { id: { in: userIds } },
+          select: { id: true, account: true }
+        })
+      : []
+    const byId = Object.fromEntries(users.map((u) => [u.id, u]))
+    return res.json({
+      wins: logs.map((l) => {
+        const u = byId[l.userId]
+        return {
+          id: l.id,
+          userMask: maskRoletaLiveFeedId(u?.account, l.userId),
+          descricao: l.descricao || 'Ganhou na roleta',
+          bonus: '+' + Number(l.valor).toFixed(2).replace('.', ',') + ' R$',
+          createdAt: l.createdAt instanceof Date ? l.createdAt.toISOString() : l.createdAt
+        }
+      })
+    })
+  } catch (e) {
+    console.error('roleta recent-wins:', e)
+    return res.status(500).json({ wins: [], error: e.message })
+  }
+})
+
+/** Indicados diretos (cadastraram com o pid do afiliado → User.indicatorId = você). */
+app.get('/api/roleta/my-referrals', authMiddleware, async (req, res) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate')
+  try {
+    const raw = parseInt(req.query.limit, 10)
+    const take = Number.isFinite(raw) ? Math.min(100, Math.max(5, raw)) : 50
+    const where = { indicatorId: req.userId }
+    const [list, total] = await Promise.all([
+      prisma.user.findMany({
+        where,
+        select: { id: true, account: true, createdAt: true },
+        orderBy: { createdAt: 'desc' },
+        take
+      }),
+      prisma.user.count({ where })
+    ])
+    return res.json({
+      total,
+      referrals: list.map((u) => ({
+        id: u.id,
+        accountMask: maskRoletaLiveFeedId(u.account, u.id),
+        registeredAt: u.createdAt instanceof Date ? u.createdAt.toISOString() : u.createdAt
+      }))
+    })
+  } catch (e) {
+    console.error('roleta my-referrals:', e)
+    return res.status(500).json({ referrals: [], total: 0, error: e.message })
   }
 })
 
@@ -2286,9 +2533,10 @@ app.get('/api/roleta', authMiddleware, async (req, res) => {
       minWithdraw,
       bonusCollected: canCollect,
       report: logs.map(l => ({
-        id: maskAccount(user?.account),
+        id: l.id,
         descricao: l.descricao,
-        bonus: '+' + l.valor.toFixed(2).replace('.', ',') + ' R$'
+        bonus: '+' + l.valor.toFixed(2).replace('.', ',') + ' R$',
+        createdAt: l.createdAt
       }))
     })
   } catch (e) {
@@ -2695,7 +2943,7 @@ app.get('/api/admin/config', adminAuthMiddleware, async (req, res) => {
     const cfg = await getAppConfig()
     return res.json(cfg)
   } catch (e) {
-    const fb = { depositoMin: 10, saqueMin: 20, saqueMax: 40000, roletaMinWithdraw: 100, roletaBonusDays: 3, roletaDailySpins: 1, bonusPrimeiroDep: 0, bonusPrimeiroDepPercent: 0, roletaSegments: DEFAULT_ROLETA_SEGMENTS, paymentProvider: 'gatebox', gateboxEnabled: true, cyberEnabled: true }
+    const fb = { depositoMin: 10, saqueMin: 20, saqueMax: 40000, roletaMinWithdraw: 100, roletaBonusDays: 3, roletaDailySpins: 1, bonusPrimeiroDep: 0, bonusPrimeiroDepPercent: 0, roletaSegments: DEFAULT_ROLETA_SEGMENTS, paymentProvider: 'gatebox', gateboxEnabled: true, cyberEnabled: true, appUiTheme: '' }
     fb.activePixProvider = getActivePixProvider(fb)
     fb.pixEnabled = fb.activePixProvider !== 'none'
     return res.json(fb)
@@ -2761,16 +3009,45 @@ app.post('/api/admin/config', adminAuthMiddleware, async (req, res) => {
     else if (paymentProvider === 'gatebox' && !gateboxEnabled) paymentProvider = cyberEnabled ? 'cyber' : 'none'
     else if (paymentProvider === 'cyber' && !cyberEnabled) paymentProvider = gateboxEnabled ? 'gatebox' : 'none'
 
+    let appUiTheme = prev.appUiTheme != null ? String(prev.appUiTheme).trim() : ''
+    if (!APP_UI_THEME_IDS.has(appUiTheme)) appUiTheme = ''
+    if (body.appUiTheme !== undefined && body.appUiTheme !== null) {
+      const raw = String(body.appUiTheme).trim()
+      appUiTheme = APP_UI_THEME_IDS.has(raw) ? raw : ''
+    }
+
     const value = {
       depositoMin, saqueMin, saqueMax, roletaMinWithdraw, roletaBonusDays, roletaDailySpins,
       bonusPrimeiroDep, bonusPrimeiroDepPercent, roletaSegments, whatsappUrl,
-      paymentProvider, gateboxEnabled, cyberEnabled
+      paymentProvider, gateboxEnabled, cyberEnabled,
+      appUiTheme
     }
     await settingUpsert('config', value)
     invalidateAppConfigCache()
     return res.json({ ok: true })
   } catch (e) {
     console.error('admin config save:', e)
+    return res.status(500).json({ ok: false, error: e.message })
+  }
+})
+
+app.get('/api/admin/mystery-baus', adminAuthMiddleware, async (req, res) => {
+  try {
+    return res.json(await getMysteryBaus())
+  } catch (e) {
+    console.error('admin mystery-baus get:', e)
+    return res.status(500).json({ error: e.message })
+  }
+})
+
+app.post('/api/admin/mystery-baus', adminAuthMiddleware, async (req, res) => {
+  try {
+    const body = req.body?.json || req.body || {}
+    const merged = normalizeMysteryBaus(body)
+    await settingUpsert('misterioso', merged)
+    return res.json({ ok: true, ...merged })
+  } catch (e) {
+    console.error('admin mystery-baus save:', e)
     return res.status(500).json({ ok: false, error: e.message })
   }
 })
@@ -2952,16 +3229,19 @@ app.post('/api/admin/usuarios/:id/add-bonus', adminAuthMiddleware, async (req, r
 // GET settings (logo, banner, siteName, pageTitle, depositoMin, saqueMin, saqueMax, pixEnabled) - público
 app.get('/api/settings', async (req, res) => {
   try {
-    const [main, appCfg] = await Promise.all([
+    const [main, appCfg, mb] = await Promise.all([
       settingGet('main'),
-      getAppConfig()
+      getAppConfig(),
+      getMysteryBaus()
     ])
     const v = main?.value || {}
     const defaultLogo = '/s5/app-icon/1222508/LOGO.jpg'
+    const savedLogo = (main?.logo && String(main.logo).trim()) || ''
     return res.json({
-      logo: main?.logo || defaultLogo,
+      /* vazio até enviar logo no Admin — o app mostra o texto A73.com */
+      logo: savedLogo,
       banner: main?.banner || '/s5/1770954153806/9999.jpg',
-      loadingBanner: v.loadingBanner || main?.logo || defaultLogo,
+      loadingBanner: v.loadingBanner || savedLogo || defaultLogo,
       siteName: v.siteName || '35m',
       pageTitle: v.pageTitle || '35m',
       depositoMin: appCfg.depositoMin ?? 10,
@@ -2969,10 +3249,20 @@ app.get('/api/settings', async (req, res) => {
       saqueMax: appCfg.saqueMax ?? 40000,
       whatsappUrl: appCfg.whatsappUrl || '',
       pixEnabled: appCfg.pixEnabled !== false,
-      activePixProvider: appCfg.activePixProvider || 'gatebox'
+      activePixProvider: appCfg.activePixProvider || 'gatebox',
+      appUiTheme: appCfg.appUiTheme || '',
+      mysteryBaus: {
+        reclamarMinDep: mb.reclamarMinDep,
+        reclamarTabela: mb.reclamarTabela,
+        minDeposit2dReais: mb.minDeposit2dReais,
+        minValidBetReais: mb.minValidBetReais,
+        headlinePrize: mb.headlinePrize,
+        boxes: mb.boxes
+      }
     })
   } catch (e) {
-    return res.json({ logo: '/s5/app-icon/1222508/LOGO.jpg', banner: '/s5/1770954153806/9999.jpg', loadingBanner: '/s5/app-icon/1222508/LOGO.jpg', siteName: '35m', pageTitle: '35m', depositoMin: 10, saqueMin: 20, saqueMax: 40000, whatsappUrl: '', pixEnabled: true, activePixProvider: 'gatebox' })
+    const fbMb = normalizeMysteryBaus({})
+    return res.json({ logo: '', banner: '/s5/1770954153806/9999.jpg', loadingBanner: '/s5/app-icon/1222508/LOGO.jpg', siteName: '35m', pageTitle: '35m', depositoMin: 10, saqueMin: 20, saqueMax: 40000, whatsappUrl: '', pixEnabled: true, activePixProvider: 'gatebox', appUiTheme: '', mysteryBaus: { reclamarMinDep: fbMb.reclamarMinDep, reclamarTabela: fbMb.reclamarTabela, minDeposit2dReais: fbMb.minDeposit2dReais, minValidBetReais: fbMb.minValidBetReais, headlinePrize: fbMb.headlinePrize, boxes: fbMb.boxes } })
   }
 })
 
@@ -3090,7 +3380,9 @@ app.post('/api/admin/promocoes', adminAuthMiddleware, async (req, res) => {
       bannerUrl: String(p.bannerUrl || p.banner || '').trim(),
       url: String(p.url || p.link || '').trim(),
       status: String(p.status || 'Em andamento').trim(),
-      ordem: Number(p.ordem) || i
+      ordem: Number(p.ordem) || i,
+      /** Links http(s): se false, abre na mesma aba (só no cliente) */
+      openInNewTab: p.openInNewTab === false ? false : true
     })).sort((a, b) => a.ordem - b.ordem)
     await settingUpsert('promocoes', valid)
     return res.json({ ok: true, promocoes: valid })
@@ -3303,6 +3595,12 @@ function patchGamesScript() {
 const vueFrontendDir = path.join(__dirname, '..', 'frontend', 'dist')
 const serveVueFrontend = process.env.USE_NEW_FRONTEND !== '0' && fs.existsSync(vueFrontendDir)
 if (serveVueFrontend) {
+  const siteBaixadoForAdmin = process.env.SITE_BAIXADO_DIR || path.join(__dirname, '..', 'site_baixado')
+  const adminPanelStatic = path.join(siteBaixadoForAdmin, 'admin')
+  if (fs.existsSync(path.join(adminPanelStatic, 'index.html'))) {
+    app.use('/admin', express.static(adminPanelStatic, { index: ['index.html'], maxAge: '1h' }))
+    console.log('[server] Painel admin: /admin/')
+  }
   console.log('[server] Servindo novo frontend Vue.js de:', vueFrontendDir)
   app.use(express.static(vueFrontendDir, { index: false, maxAge: '1h' }))
   const vueIndexPath = path.join(vueFrontendDir, 'index.html')
@@ -3822,6 +4120,8 @@ async function main() {
     console.log(`A73 Backend running on port ${PORT}`)
     if (serveVueFrontend) {
       console.log(`Novo frontend Vue.js: http://localhost:${PORT}/`)
+      const _adm = path.join(process.env.SITE_BAIXADO_DIR || path.join(__dirname, '..', 'site_baixado'), 'admin', 'index.html')
+      if (fs.existsSync(_adm)) console.log(`Painel admin: http://localhost:${PORT}/admin/`)
     } else if (serveSiteBaixado) {
       console.log(`Site estático (site_baixado): http://localhost:${PORT}/`)
     }

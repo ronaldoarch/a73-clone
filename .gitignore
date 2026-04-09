@@ -1,7 +1,11 @@
 node_modules/
 dist/
+# SQLite local  nunca versionar base de dados
+backend/prisma/*.db
 .env
 *.log
 uploads/
 site_baixado.tar.gz
 ._site_baixado
+# Captura / artefacto local na raiz
+home-profit-section.png

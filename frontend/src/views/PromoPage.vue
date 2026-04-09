@@ -5,9 +5,10 @@
       <button
         v-for="tab in tabs"
         :key="tab.id"
+        type="button"
         class="promo-tab"
-        :class="{ active: activeTab === tab.id }"
-        @click="activeTab = tab.id"
+        :class="{ active: isTabSelected(tab.id) }"
+        @click="selectPromoTab(tab)"
       >
         {{ tab.label }}
         <span v-if="tab.badge" class="tab-badge">{{ tab.badge }}</span>
@@ -141,47 +142,6 @@
       </div>
     </template>
 
-    <!-- VIP Tab -->
-    <template v-if="activeTab === 'vip'">
-      <div class="section-card">
-        <div class="vip-header">
-          <span class="vip-level">VIP {{ vipLevel }}</span>
-          <span class="vip-next" v-if="vipLevel < 10">Próximo: VIP {{ vipLevel + 1 }}</span>
-        </div>
-        <div class="vip-progress-bar">
-          <div class="vip-progress-fill" :style="{ width: vipProgress + '%' }"></div>
-        </div>
-        <p class="vip-info-text">Deposite e aposte mais para subir de nível VIP e desbloquear bônus exclusivos.</p>
-        <button class="promo-btn full" @click="$router.push('/activity/vip')">Ver detalhes VIP</button>
-      </div>
-    </template>
-
-    <!-- Redeem Tab -->
-    <template v-if="activeTab === 'redeem'">
-      <div class="section-card">
-        <div class="redeem-banner">
-          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#FFD700" stroke-width="2"><path d="M21 5H3a2 2 0 00-2 2v10a2 2 0 002 2h18a2 2 0 002-2V7a2 2 0 00-2-2z"/><path d="M16 2l-4 3-4-3"/><line x1="12" y1="10" x2="12" y2="17"/></svg>
-        </div>
-        <h3 class="section-title mb">Resgatar Código</h3>
-        <div class="redeem-form">
-          <input
-            v-model="redeemCode"
-            class="redeem-input"
-            placeholder="Digite o código promocional"
-            maxlength="12"
-            minlength="5"
-          />
-          <button class="claim-btn" :disabled="redeemCode.length < 5" @click="submitRedeem">
-            Resgatar
-          </button>
-        </div>
-        <p v-if="redeemMsg" class="redeem-msg" :class="redeemSuccess ? 'green' : 'red'">{{ redeemMsg }}</p>
-        <div class="redeem-desc" v-if="redeemDesc">
-          <p>{{ redeemDesc }}</p>
-        </div>
-      </div>
-    </template>
-
     <!-- Claim History Tab -->
     <template v-if="activeTab === 'history'">
       <!-- Date Filter -->
@@ -215,34 +175,49 @@
         <p>Nenhum registro de recompensa.</p>
       </div>
     </template>
+
+    <!-- Pendente: bônus a coletar (lista virá da API) -->
+    <template v-if="activeTab === 'pending'">
+      <div class="pending-toolbar">
+        <span class="pending-bonus-label">Bônus:</span>
+        <span class="pending-bonus-val">{{ currency }} {{ fmt(pendingBonusCents) }}</span>
+      </div>
+      <div class="pending-table-head">
+        <span>Tempo</span>
+        <span>Nome do Evento</span>
+        <span>Evento de Recompensa</span>
+        <span>Fonte</span>
+      </div>
+      <div class="empty-state pending-empty">
+        <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="var(--ep-color-text-weakest)" stroke-width="1" opacity=".4"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        <p>Sem Registros</p>
+      </div>
+      <button type="button" class="pending-collect-all" :disabled="pendingBonusCents <= 0" @click="claimAllPending">
+        Coletar Tudo
+      </button>
+    </template>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { useSystemStore } from '../stores/system'
-import { useAuthStore } from '../stores/auth'
-import { trpcQuery } from '../utils/api'
+import { trpcQuery, trpcMutation } from '../utils/api'
 
 const router = useRouter()
+const route = useRoute()
 const systemStore = useSystemStore()
-const authStore = useAuthStore()
 
 const activeTab = ref('activities')
 const sideValue = ref('all')
 const isLoading = ref(true)
 const promos = ref([])
-const redeemCode = ref('')
-const redeemMsg = ref('')
-const redeemDesc = ref('')
-const redeemSuccess = ref(false)
 const rebateAvailable = ref(0)
 const rebateTomorrow = ref(0)
 const rebateType = ref('all')
 const rebateList = ref([])
-const vipLevel = ref(0)
-const vipProgress = ref(0)
+const pendingBonusCents = ref(0)
 const claimRecords = ref([])
 const historyDateFilter = ref('30')
 const historyTypeFilter = ref('all')
@@ -250,11 +225,12 @@ const historyTypeFilter = ref('all')
 const currency = computed(() => systemStore.currency || 'R$')
 
 const tabs = computed(() => [
-  { id: 'activities', label: 'Atividades' },
-  { id: 'rebate', label: 'Cashback' },
+  { id: 'activities', label: 'Eventos' },
+  { id: 'rebate', label: 'Rebate' },
   { id: 'vip', label: 'VIP' },
-  { id: 'redeem', label: 'Resgatar' },
-  { id: 'history', label: 'Histórico' }
+  { id: 'redeem', label: 'Código de Resgate' },
+  { id: 'history', label: 'Histórico' },
+  { id: 'pending', label: 'Pendente' }
 ])
 
 const categoryIcons = {
@@ -344,20 +320,54 @@ function fmt(val) {
   return num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
+/** Destino do card: rota SPA ou URL externa (admin /api/promocoes). */
+function parsePromoDestination(rawUrl) {
+  const u = String(rawUrl || '').trim()
+  if (!u) return { href: null, isExternal: false }
+  const lower = u.toLowerCase()
+  if (lower.startsWith('javascript:') || lower.startsWith('data:')) return { href: null, isExternal: false }
+  if (/^https?:\/\//i.test(u)) return { href: u, isExternal: true }
+  if (u.startsWith('//')) return { href: `https:${u}`, isExternal: true }
+  const path = u.startsWith('/') ? u : `/${u}`
+  return { href: path, isExternal: false }
+}
+
 function mapPromo(item, index) {
   const type = item.type || item.category || 'Custom'
-  const desc = item.previewText || item.description || ''
+  const desc =
+    item.previewText || item.description || item.descricao || ''
+  const title = item.name || item.title || item.titulo || 'Promoção'
+  const commissionRoute = '/main/promo?tab=rebate'
+  const adminUrl = item.url || item.link || ''
+  const dest = parsePromoDestination(adminUrl)
+
+  let route = null
+  let linkHref = null
+  let linkIsExternal = false
+
+  if (dest.href) {
+    linkHref = dest.href
+    linkIsExternal = dest.isExternal
+  } else if (type === 'CommissionReward') {
+    route = commissionRoute
+  } else if (item.type) {
+    route = `/activity/${item.type}/${item.id}`
+  }
+
   return {
     id: item.id || index,
     badge: typeLabels[type] || type,
-    title: item.name || item.title || 'Promoção',
+    title,
     description: desc,
-    descLines: desc ? desc.split('\n') : [],
+    descLines: desc ? desc.split(/\r?\n/) : [],
     bonus: '',
     bannerUrl: item.bannerBackground || item.bannerUrl || '',
     logoUrl: item.bannerLogo || '',
     bg: gradients[index % gradients.length],
-    route: item.type ? `/activity/${item.type}/${item.id}` : null,
+    route,
+    linkHref,
+    linkIsExternal,
+    openInNewTab: item.openInNewTab !== false,
     rawType: type,
     category: type,
     hasRedPoint: false
@@ -365,22 +375,43 @@ function mapPromo(item, index) {
 }
 
 function onPromoClick(promo) {
+  if (promo.linkHref) {
+    if (promo.linkIsExternal) {
+      if (promo.openInNewTab !== false) {
+        window.open(promo.linkHref, '_blank', 'noopener,noreferrer')
+      } else {
+        window.location.href = promo.linkHref
+      }
+    } else {
+      router.push(promo.linkHref)
+    }
+    return
+  }
   if (promo.route) router.push(promo.route)
 }
 
 async function fetchPromos() {
   isLoading.value = true
   try {
-    const data = await trpcQuery('activity.listPublic', null, { cache: true, cacheTTL: 120000 })
-    if (data?.list?.length) { promos.value = data.list.map(mapPromo); return }
-  } catch {}
-  try {
-    const res = await fetch('/api/promocoes')
-    const list = await res.json()
-    if (Array.isArray(list) && list.length) { promos.value = list.map(mapPromo); return }
-  } catch {}
-  promos.value = fallbackPromos
-  isLoading.value = false
+    try {
+      const data = await trpcQuery('activity.listPublic', null, { cache: true, cacheTTL: 120000 })
+      if (data?.list?.length) {
+        promos.value = data.list.map(mapPromo)
+        return
+      }
+    } catch { /* usa API local */ }
+    try {
+      const res = await fetch('/api/promocoes')
+      const list = await res.json()
+      if (Array.isArray(list) && list.length) {
+        promos.value = list.map(mapPromo)
+        return
+      }
+    } catch { /* fallback */ }
+    promos.value = fallbackPromos
+  } finally {
+    isLoading.value = false
+  }
 }
 
 async function claimRebate() {
@@ -397,45 +428,76 @@ async function fetchRebateData() {
     const data = await trpcQuery('activity.rebateInfo', null, { cache: true, cacheTTL: 60000 })
     if (data) {
       rebateAvailable.value = data.availableAmount || 0
-      rebateList.value = (data.gameRebateList || []).map(r => ({
-        gameType: r.gameType || r.name || '',
-        rate: r.rebateRate || r.rate || 0,
-        validBet: r.validBetAmount || 0,
-        upgrade: r.upgradeAmount || 0,
-        rebateAmount: r.rebateAmount || 0
-      }))
+      rebateTomorrow.value = data.tomorrowAmount || data.nextDayAmount || 0
+      rebateList.value = (data.gameRebateList || []).map((r, i) => {
+        const rateRaw = r.rebateRate ?? r.rate ?? 0
+        const rebateRate = rateRaw > 1 ? rateRaw / 100 : Number(rateRaw) || 0
+        return {
+          platformId: r.platformId ?? r.id ?? i,
+          platformName: r.platformName || r.name || r.gameType || 'Provedor',
+          logo: r.logo || r.logoUrl || '',
+          gameType: r.gameType || r.gameTypeName || '',
+          rebateRate,
+          validBet: r.validBetAmount || r.validBet || 0,
+          upgrade: r.upgradeAmount || r.upgrade || 0,
+          availableRebate: r.availableRebateAmount || r.availableRebate || r.rebateAmount || 0
+        }
+      })
     }
   } catch {}
 }
 
-async function fetchVipData() {
-  try {
-    const data = await trpcQuery('vip.userInfo', null, { cache: true, cacheTTL: 60000 })
-    if (data) {
-      vipLevel.value = data.curVipLevel || 0
-      vipProgress.value = data.totalRechargeAmount
-        ? Math.min(100, (data.totalRechargeAmount / (data.nextLevelRecharge || 1)) * 100)
-        : 0
-    }
-  } catch {}
+const validPromoTabs = ['activities', 'rebate', 'vip', 'redeem', 'history', 'pending']
+
+function applyTabFromQuery() {
+  const q = route.query.tab
+  if (typeof q !== 'string') return
+  if (q === 'vip') {
+    router.replace({ path: '/activity/vip' })
+    return
+  }
+  if (q === 'redeem') {
+    router.replace({ path: '/Redeem' })
+    return
+  }
+  if (validPromoTabs.includes(q)) {
+    activeTab.value = q
+  }
 }
 
-async function submitRedeem() {
-  if (redeemCode.value.length < 5) return
-  redeemMsg.value = ''
+function selectPromoTab(tab) {
+  if (tab.id === 'vip') {
+    router.push('/activity/vip')
+    return
+  }
+  if (tab.id === 'redeem') {
+    router.push('/Redeem')
+    return
+  }
+  activeTab.value = tab.id
+}
+
+function isTabSelected(id) {
+  return activeTab.value === id
+}
+
+async function fetchPendingBonus() {
   try {
-    const data = await trpcQuery('activity.redeemCode', { code: redeemCode.value })
-    if (data?.success) {
-      redeemMsg.value = 'Código resgatado com sucesso!'
-      redeemSuccess.value = true
-      redeemCode.value = ''
-    } else {
-      redeemMsg.value = data?.message || 'Código inválido ou expirado.'
-      redeemSuccess.value = false
-    }
+    const data = await trpcQuery('user.pendingRewardTotal', null, { cache: true, cacheTTL: 30000 })
+    if (data != null) pendingBonusCents.value = Number(data.totalAmount || data.amount || 0)
   } catch {
-    redeemMsg.value = 'Erro ao resgatar. Tente novamente.'
-    redeemSuccess.value = false
+    pendingBonusCents.value = 0
+  }
+}
+
+async function claimAllPending() {
+  if (pendingBonusCents.value <= 0) return
+  try {
+    await trpcMutation('user.claimAllPendingRewards', {})
+    pendingBonusCents.value = 0
+    await fetchPendingBonus()
+  } catch {
+    /* endpoint pode não existir ainda */
   }
 }
 
@@ -455,12 +517,18 @@ async function fetchClaimHistory() {
 
 watch(activeTab, (tab) => {
   if (tab === 'history' && !claimRecords.value.length) fetchClaimHistory()
+  if (tab === 'pending') fetchPendingBonus()
 })
 
+watch(
+  () => route.query.tab,
+  () => applyTabFromQuery()
+)
+
 onMounted(async () => {
+  applyTabFromQuery()
   await fetchPromos()
   fetchRebateData()
-  fetchVipData()
   isLoading.value = false
 })
 </script>
@@ -696,4 +764,56 @@ onMounted(async () => {
 .record-amount { font-size: .875rem; font-weight: 700; }
 .record-amount.green { color: var(--ep-accent-green, #17C964); }
 .record-bottom { display: flex; justify-content: space-between; font-size: .6875rem; color: var(--ep-color-text-weakest); }
+
+/* ── Pendente ── */
+.pending-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.35rem;
+  margin-bottom: 0.65rem;
+}
+.pending-bonus-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--ep-color-text-weak);
+}
+.pending-bonus-val {
+  font-size: 0.875rem;
+  font-weight: 800;
+  color: #fb923c;
+}
+.pending-table-head {
+  display: grid;
+  grid-template-columns: 0.9fr 1.1fr 1fr 0.7fr;
+  gap: 0.25rem;
+  padding: 0.5rem 0.35rem;
+  font-size: 0.58rem;
+  font-weight: 700;
+  color: var(--ep-color-text-weakest);
+  background: var(--ep-color-background-fill-surface-raised-L1);
+  border-radius: 0.35rem;
+  border: 1px solid var(--ep-color-border-default);
+  margin-bottom: 0.5rem;
+}
+.pending-empty {
+  padding: 2rem 1rem;
+}
+.pending-collect-all {
+  width: 100%;
+  margin-top: 1rem;
+  padding: 0.85rem 1rem;
+  border: none;
+  border-radius: 0.5rem;
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: #fff;
+  background: linear-gradient(180deg, #9aad3f 0%, #6b7a2e 100%);
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+}
+.pending-collect-all:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
 </style>

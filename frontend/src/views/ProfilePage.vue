@@ -50,11 +50,11 @@
             <div></div>
           </div>
           <div class="avatar-gender">
-            <button :class="{ active: avatarGender === 1 }" @click="avatarGender = 1">
+            <button :class="{ active: avatarGender === 1 }" @click="setAvatarGender(1)">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="10" cy="8" r="5"/><path d="M15 3l6 0M21 3v6"/></svg>
               Masculino
             </button>
-            <button :class="{ active: avatarGender === 0 }" @click="avatarGender = 0">
+            <button :class="{ active: avatarGender === 0 }" @click="setAvatarGender(0)">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="5"/><path d="M12 13v8M9 18h6"/></svg>
               Feminino
             </button>
@@ -62,12 +62,17 @@
           <div class="avatar-grid">
             <div
               v-for="i in 12"
-              :key="i"
+              :key="`${avatarGender}-${i}`"
               class="avatar-option"
               :class="{ selected: selectedAvatar === `${avatarGender}_${i}` }"
               @click="selectedAvatar = `${avatarGender}_${i}`"
             >
-              <div class="avatar-preview">{{ avatarGender === 1 ? '♂' : '♀' }}{{ i }}</div>
+              <img
+                class="avatar-thumb"
+                :src="avatarThumbUrl(i)"
+                :alt="`Avatar ${i}`"
+                loading="lazy"
+              />
             </div>
           </div>
           <button class="avatar-confirm-btn" @click="confirmAvatar">Confirmar</button>
@@ -158,13 +163,14 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import { useUserStore } from '../stores/user'
 import { useSystemStore } from '../stores/system'
 import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
 import { trpcQuery } from '../utils/api'
+import { getAvatarImagePath, parseAvatarSelectionUrl } from '../utils/avatarPaths'
 
 const auth = useAuthStore()
 const userStore = useUserStore()
@@ -186,7 +192,43 @@ const selectedAvatar = ref('')
 
 const userAvatar = computed(() => userDetails.value?.avatar || '')
 
+function avatarThumbUrl(slotIndex) {
+  return getAvatarImagePath(avatarGender.value === 1, slotIndex)
+}
+
+function setAvatarGender(g) {
+  const m = selectedAvatar.value.match(/^(\d+)_(\d+)$/)
+  const idx = m ? Number(m[2]) : 1
+  avatarGender.value = g
+  selectedAvatar.value = `${g}_${Number.isFinite(idx) ? idx : 1}`
+}
+
+function syncAvatarSelectionFromProfile() {
+  const parsed = parseAvatarSelectionUrl(userDetails.value?.avatar || '')
+  if (parsed) {
+    avatarGender.value = parsed.gender
+    selectedAvatar.value = `${parsed.gender}_${parsed.index}`
+  } else {
+    selectedAvatar.value = `${avatarGender.value}_1`
+  }
+}
+
+watch(showAvatarModal, (open) => {
+  if (open) syncAvatarSelectionFromProfile()
+})
+
 function confirmAvatar() {
+  if (!selectedAvatar.value) {
+    syncAvatarSelectionFromProfile()
+  }
+  const m = selectedAvatar.value.match(/^(\d+)_(\d+)$/)
+  const g = m ? Number(m[1]) : avatarGender.value
+  const idx = m ? Number(m[2]) : 1
+  const url = getAvatarImagePath(g === 1, idx)
+  const d = userDetails.value
+  if (d) {
+    userStore.setUser({ ...d, avatar: url })
+  }
   showAvatarModal.value = false
 }
 
@@ -315,12 +357,14 @@ onMounted(async () => {
 /* Avatar Modal */
 .modal-overlay {
   position: fixed; inset: 0; z-index: 9999;
-  background: rgba(0,0,0,.6); display: flex; align-items: flex-end; justify-content: center;
+  background: rgba(0,0,0,.6); display: flex; align-items: center; justify-content: center;
+  padding: .75rem;
 }
 .avatar-modal {
   background: var(--ep-color-background-fill-surface-raised-L1);
-  border-radius: 1rem 1rem 0 0; padding: 1.25rem;
-  width: 100%; max-width: 28rem;
+  border-radius: var(--ep-border-radius-xl, 1rem); padding: 1.25rem;
+  width: 100%; max-width: var(--max-width, 480px);
+  box-sizing: border-box;
 }
 .modal-header {
   display: flex; align-items: center; justify-content: space-between;
@@ -354,9 +398,9 @@ onMounted(async () => {
   background: var(--ep-color-background-fill-surface-lowered);
   display: flex; align-items: center; justify-content: center;
 }
-.avatar-option.selected { border-color: var(--ep-color-text-selected); }
-.avatar-preview {
-  font-size: 1.25rem; font-weight: 700; color: var(--ep-color-text-weakest);
+.avatar-option.selected { border-color: var(--ep-color-text-selected); box-shadow: 0 0 0 1px var(--ep-color-text-selected); }
+.avatar-thumb {
+  width: 100%; height: 100%; object-fit: cover; display: block;
 }
 .avatar-confirm-btn {
   width: 100%; padding: .75rem; border-radius: var(--ep-border-radius-l, .5rem);

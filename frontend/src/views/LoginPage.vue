@@ -60,6 +60,8 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import { fetchRoletaNovosStatus } from '../utils/roletaApi'
+import { PENDING_NOVOS_ROULETTE_WELCOME_KEY } from '../utils/novosRouletteWelcome'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -85,6 +87,12 @@ async function handleLogin() {
   const result = await auth.login(phone, password.value)
   submitting.value = false
   if (result.success) {
+    try {
+      const st = await fetchRoletaNovosStatus(auth.token)
+      if (st?.eligible) sessionStorage.setItem(PENDING_NOVOS_ROULETTE_WELCOME_KEY, '1')
+    } catch {
+      /* ignore */
+    }
     router.push('/main/inicio')
   } else {
     error.value = result.error || 'Falha no login'

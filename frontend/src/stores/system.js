@@ -1,5 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+
+let settingsVisibilityListenerAttached = false
 import { trpcQuery } from '../utils/api'
 import { detectOS, detectBrowser, detectDeviceType, detectPlatformType } from '../utils/platform'
 import { PlatformType, BrowserType, OSType } from '../utils/constants'
@@ -29,6 +31,11 @@ export const useSystemStore = defineStore('system', () => {
   const siteName = computed(() => tenantInfo.value?.siteName ?? 'A73')
   const tenantName = computed(() => tenantInfo.value?.name ?? siteName.value)
   const siteLogo = computed(() => tenantInfo.value?.siteLogo ?? '')
+  /** Logo enviada pelo Admin (/api/upload/logo); se vazia, o header usa o texto A73.com */
+  const brandingLogoUrl = computed(() => {
+    const u = settings.value?.logo
+    return typeof u === 'string' && u.trim() !== '' ? u.trim() : ''
+  })
   const appIcon = computed(() => tenantInfo.value?.appIcon ?? '')
   const currency = computed(() => tenantInfo.value?.currencySymbol ?? 'R$')
   const currencySuffix = computed(() => tenantInfo.value?.currencySuffix ?? '')
@@ -114,7 +121,7 @@ export const useSystemStore = defineStore('system', () => {
       homeType,
       skinKey
     }
-    document.documentElement.setAttribute('data-theme', skinDef.theme || 'amber-purple')
+    /* data-theme: apenas App.vue (app-shell + documentElement) respeita override do utilizador */
 
     let metaThemeColor = document.querySelector('meta[name="theme-color"]')
     if (!metaThemeColor) {
@@ -143,8 +150,20 @@ export const useSystemStore = defineStore('system', () => {
       if (domain.status === 'fulfilled' && domain.value) domainInfo.value = domain.value
     } catch (e) {
       console.warn('[SystemStore] init failed:', e.message)
+    }
+    try {
+      await fetchSettings()
+    } catch (e) {
+      console.warn('[SystemStore] fetchSettings:', e?.message)
     } finally {
       initialized.value = true
+      if (!settingsVisibilityListenerAttached && typeof document !== 'undefined') {
+        settingsVisibilityListenerAttached = true
+        document.addEventListener('visibilitychange', () => {
+          if (document.hidden) return
+          fetchSettings()
+        })
+      }
     }
   }
 
@@ -207,7 +226,7 @@ export const useSystemStore = defineStore('system', () => {
     tenantInfo, channelInfo, domainInfo, settings, carouselList, marqueeContent, announcements, initialized,
     themeConfig,
     os, browser, deviceType, deviceId, deviceModel, appInfo, modalType, inAppBrowser,
-    siteName, tenantName, siteLogo, appIcon, currency, currencySuffix, region, languages, defaultLanguage,
+    siteName, tenantName, siteLogo, brandingLogoUrl, appIcon, currency, currencySuffix, region, languages, defaultLanguage,
     skinBackground, tenantId, channelId,
     isIOS, isAndroid, isPwa, isApk, isPC, isNative, isIOSH5, isAndroidH5, isIOSApp, isPwaVisible,
     init, fetchCarousel, fetchMarquee, fetchAnnouncements, fetchSettings,

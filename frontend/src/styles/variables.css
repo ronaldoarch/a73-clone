@@ -89,14 +89,19 @@
   --ep-color-text-navigation-selected: #18AAFF;
   --ep-color-text-default-secondary: rgba(213,224,245,.6);
 
+  /* Marca / header + faixa de banners (original A73) */
+  --color-brand-purple-original: #650C96;
+  /* Home: área abaixo do meio dos hexágonos (corpo escuro) */
+  --color-home-lower-bg: #200943;
+
   /* Background Colors */
   --ep-color-background-fill-body-default: #0F0B2E;
   --ep-color-background-fill-surface-raised-L1: #1A1245;
   --ep-color-background-fill-surface-raised-L2: #1F164D;
   --ep-color-background-fill-surface-lowered: #140E38;
   --ep-color-background-fill-tips: #6B21A8;
-  --ep-color-background-fill-top-nav-primary: #140E38;
-  --ep-color-background-fill-top-nav-secondary: #1A1245;
+  --ep-color-background-fill-top-nav-primary: var(--color-brand-purple-original);
+  --ep-color-background-fill-top-nav-secondary: var(--color-brand-purple-original);
   --ep-color-background-fill-foot-bar: #1A1245;
   --ep-color-background-fill-active-primary: #18AAFF;
   --ep-color-background-fill-active-disabled: rgba(24,170,255,.4);
@@ -468,6 +473,6 @@
   --color-activity-footer-rule: rgba(213,224,245,.6);
 
   /* Header/Footer Dynamic */
-  --header-dynamic-bg: #140E38;
+  --header-dynamic-bg: var(--color-brand-purple-original);
   --footer-dynamic-bg: #1A1245;
 }

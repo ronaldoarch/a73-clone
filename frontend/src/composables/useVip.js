@@ -13,6 +13,50 @@ const PageType = Object.freeze({
   LEVEL: 'LEVEL'
 })
 
+const VIP_FALLBACK_PAGE_FLAGS = Object.freeze({
+  promotionStatus: true,
+  dailyStatus: true,
+  weeklyStatus: true,
+  monthlyStatus: true,
+  retentionStatus: true,
+  vipUserReceiveList: [],
+  auditMultiple: 0
+})
+
+/** Níveis demo (0…n-1) em centavos onde a API costuma falhar ou não enviar vipLevelDatas. */
+function buildFallbackVipLevelDatas(count = 30) {
+  const rows = []
+  for (let i = 0; i < count; i++) {
+    const tier = i + 1
+    rows.push({
+      level: i,
+      promotionRecharge: tier * 50_000,
+      promotionBet: tier * 100_000,
+      promotionReward: tier * 1_000,
+      dailyBet: tier * 10_000,
+      dailyReward: tier * 100,
+      weeklyBet: tier * 50_000,
+      weeklyReward: tier * 500,
+      monthlyBet: tier * 200_000,
+      monthlyReward: tier * 2_000,
+      retentionRecharge: tier * 25_000,
+      retentionBet: tier * 50_000
+    })
+  }
+  return rows
+}
+
+function normalizeVipConfig(raw) {
+  const base =
+    raw && typeof raw === 'object'
+      ? { ...VIP_FALLBACK_PAGE_FLAGS, ...raw }
+      : { ...VIP_FALLBACK_PAGE_FLAGS }
+  if (!Array.isArray(base.vipLevelDatas) || base.vipLevelDatas.length === 0) {
+    base.vipLevelDatas = buildFallbackVipLevelDatas()
+  }
+  return base
+}
+
 export function useVip() {
   const router = useRouter()
   const route = useRoute()
@@ -146,27 +190,49 @@ export function useVip() {
         trpcQuery('vip.config')
       ])
 
+      const resolvedConfig =
+        vipConfig.status === 'fulfilled' && vipConfig.value != null
+          ? normalizeVipConfig(vipConfig.value)
+          : normalizeVipConfig(null)
+
+      vipLevelDatas.value = resolvedConfig
+      vipReceiveList.value = resolvedConfig.vipUserReceiveList || []
+      claimBtnIsEnable.value = !!vipReceiveList.value.length
+      auditMultiple.value = resolvedConfig.auditMultiple || 0
+
+      pageStatus.PROMOTION = !!resolvedConfig.promotionStatus
+      pageStatus.DAILY = !!resolvedConfig.dailyStatus
+      pageStatus.WEEKLY = !!resolvedConfig.weeklyStatus
+      pageStatus.MONTHLY = !!resolvedConfig.monthlyStatus
+      pageStatus.LEVEL = !!resolvedConfig.retentionStatus
+
+      const levels = vipLevelDatas.value?.vipLevelDatas || []
       if (userVipData.status === 'fulfilled' && userVipData.value) {
-        vipStore.calculateVipProgress(userVipData.value)
-        Object.assign(vipLevelInfo, {
-          curVipLevel: userVipData.value.curVipLevel || 0,
-          nextVipLevel: (userVipData.value.curVipLevel || 0) + 1,
-          curRechargeAmount: centsToAmount(userVipData.value.totalRechargeAmount || 0),
-          curBetAmount: centsToAmount(userVipData.value.totalValidBetAmount || 0)
+        const val = userVipData.value
+        const cur =
+          val.curVipLevel ??
+          val.currentVipLevel?.level ??
+          0
+        const nextRow = levels.find((l) => l.level === cur + 1) || null
+        const progress = vipStore.calculateVipProgress({
+          currentVipLevel: { level: cur },
+          nextVipLevel: nextRow,
+          totalRechargeAmount: Number(val.totalRechargeAmount || 0),
+          totalValidBetAmount: Number(val.totalValidBetAmount || 0),
+          vipLevelCount: levels.length || val.vipLevelCount || 30
         })
-      }
-
-      if (vipConfig.status === 'fulfilled' && vipConfig.value) {
-        vipLevelDatas.value = vipConfig.value
-        vipReceiveList.value = vipConfig.value.vipUserReceiveList || []
-        claimBtnIsEnable.value = !!vipReceiveList.value.length
-        auditMultiple.value = vipConfig.value.auditMultiple || 0
-
-        pageStatus.PROMOTION = !!vipConfig.value.promotionStatus
-        pageStatus.DAILY = !!vipConfig.value.dailyStatus
-        pageStatus.WEEKLY = !!vipConfig.value.weeklyStatus
-        pageStatus.MONTHLY = !!vipConfig.value.monthlyStatus
-        pageStatus.LEVEL = !!vipConfig.value.retentionStatus
+        Object.assign(vipLevelInfo, progress)
+      } else {
+        const cur = 0
+        const nextRow = levels.find((l) => l.level === cur + 1) || null
+        const progress = vipStore.calculateVipProgress({
+          currentVipLevel: { level: cur },
+          nextVipLevel: nextRow,
+          totalRechargeAmount: 0,
+          totalValidBetAmount: 0,
+          vipLevelCount: levels.length || 30
+        })
+        Object.assign(vipLevelInfo, progress)
       }
     } catch (e) {
       console.warn('[useVip] loadVipData failed:', e.message)

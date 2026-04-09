@@ -7,7 +7,8 @@
 
       <div class="bar-icon">
         <img
-          :src="bannerIconSrc"
+          :key="displayIconSrc"
+          :src="displayIconSrc"
           alt=""
           decoding="async"
           @error="onBannerIconError"
@@ -34,35 +35,36 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
+import { ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useSystemStore } from '../stores/system'
 
-/** Mesma ordem que o header: logo do Admin → tenant → ícone app → arte genérica */
+/** Mesma ordem que o header: logo do Admin (settings.logo) → tenant → ícone app → arte genérica */
 const FALLBACK_ICON = '/assets/download/download-4.png'
 const system = useSystemStore()
-const { brandingLogoUrl, siteLogo, appIcon } = storeToRefs(system)
+const { settings, tenantInfo } = storeToRefs(system)
 
-const preferredIcon = computed(() => {
-  const a = (brandingLogoUrl.value || '').trim()
-  const b = (siteLogo.value || '').trim()
-  const c = (appIcon.value || '').trim()
-  return a || b || c || ''
-})
+function resolveBannerIconFromStore() {
+  const logo = typeof settings.value?.logo === 'string' ? settings.value.logo.trim() : ''
+  const site = typeof tenantInfo.value?.siteLogo === 'string' ? tenantInfo.value.siteLogo.trim() : ''
+  const icon = typeof tenantInfo.value?.appIcon === 'string' ? tenantInfo.value.appIcon.trim() : ''
+  return logo || site || icon || FALLBACK_ICON
+}
 
-const bannerIconSrc = ref(FALLBACK_ICON)
+/** Ref + watch em settings/tenant: mais fiável que depender só de computed do store no Pinia */
+const displayIconSrc = ref(FALLBACK_ICON)
 
 watch(
-  preferredIcon,
-  (u) => {
-    bannerIconSrc.value = u || FALLBACK_ICON
+  [settings, tenantInfo],
+  () => {
+    displayIconSrc.value = resolveBannerIconFromStore()
   },
-  { immediate: true }
+  { deep: true, immediate: true }
 )
 
 function onBannerIconError() {
-  if (bannerIconSrc.value !== FALLBACK_ICON) {
-    bannerIconSrc.value = FALLBACK_ICON
+  if (displayIconSrc.value !== FALLBACK_ICON) {
+    displayIconSrc.value = FALLBACK_ICON
   }
 }
 
@@ -123,6 +125,8 @@ onMounted(() => {
     if (daysSince < 3) return
   }
   showBanner.value = true
+  /* Garante logo do admin mesmo se o banner montar antes do init do App terminar */
+  system.fetchSettings().catch(() => {})
 })
 
 onBeforeUnmount(() => {

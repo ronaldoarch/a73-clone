@@ -6,7 +6,12 @@
       </button>
 
       <div class="bar-icon">
-        <img src="/assets/download/download-4.png" alt="App" />
+        <img
+          :src="bannerIconSrc"
+          alt=""
+          decoding="async"
+          @error="onBannerIconError"
+        />
       </div>
 
       <div class="bar-text">
@@ -29,7 +34,37 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
+import { storeToRefs } from 'pinia'
+import { useSystemStore } from '../stores/system'
+
+/** Mesma ordem que o header: logo do Admin → tenant → ícone app → arte genérica */
+const FALLBACK_ICON = '/assets/download/download-4.png'
+const system = useSystemStore()
+const { brandingLogoUrl, siteLogo, appIcon } = storeToRefs(system)
+
+const preferredIcon = computed(() => {
+  const a = (brandingLogoUrl.value || '').trim()
+  const b = (siteLogo.value || '').trim()
+  const c = (appIcon.value || '').trim()
+  return a || b || c || ''
+})
+
+const bannerIconSrc = ref(FALLBACK_ICON)
+
+watch(
+  preferredIcon,
+  (u) => {
+    bannerIconSrc.value = u || FALLBACK_ICON
+  },
+  { immediate: true }
+)
+
+function onBannerIconError() {
+  if (bannerIconSrc.value !== FALLBACK_ICON) {
+    bannerIconSrc.value = FALLBACK_ICON
+  }
+}
 
 const showBanner = ref(false)
 const installing = ref(false)
@@ -137,11 +172,16 @@ onBeforeUnmount(() => {
   flex-shrink: 0;
   box-shadow: 0 2px 8px rgba(0, 0, 0, .4);
   border: 1.5px solid rgba(255, 255, 255, .1);
+  background: rgba(0, 0, 0, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .bar-icon img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
+  object-position: center;
   display: block;
 }
 

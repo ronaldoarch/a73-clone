@@ -23,6 +23,20 @@ RUN npm ci --omit=dev
 COPY backend/prisma ./prisma/
 RUN npx prisma generate
 
+# ── 2b. Vue (Vite) → /frontend/dist ────────────────────────────
+# server.js só serve o PWA novo se existir ../frontend/dist relativo a /app (= /frontend/dist).
+# Sem este passo, produção fica só no site_baixado (clone antigo).
+WORKDIR /build/frontend
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
+COPY frontend/ ./
+RUN npm run build \
+  && mkdir -p /frontend \
+  && rm -rf /frontend/dist \
+  && mv dist /frontend/dist
+
+WORKDIR /app
+
 # ── 3. Código do backend ─────────────────────────────────────
 COPY backend/ ./
 

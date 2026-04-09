@@ -1,0 +1,11 @@
+**/node_modules
+frontend/dist
+.git
+.gitignore
+backend/uploads
+uploads
+*.log
+site_baixado.tar.gz
+home-profit-section.png
+**/.env
+**/.env.*

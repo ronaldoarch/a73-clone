@@ -1,25 +1,38 @@
 #!/bin/sh
 set -e
 
-echo "[entrypoint] Aplicando migrações Prisma (MySQL)..."
-ok=0
+SCHEMA=./prisma/schema.prisma
+RECOVER=./prisma/mysql-recover-p3009.sql
+
+recover_p3009() {
+  echo "[entrypoint] P3009: a limpar tabelas e _prisma_migrations (só use com base vazia ou descartável)."
+  npx prisma db execute --file "$RECOVER" --schema "$SCHEMA"
+}
+
 i=1
+recovered=0
 while [ "$i" -le 30 ]; do
-  if npx prisma migrate deploy; then
+  set +e
+  npx prisma migrate deploy > /tmp/md.log 2>&1
+  code=$?
+  set -e
+  cat /tmp/md.log
+
+  if [ "$code" -eq 0 ]; then
     echo "[entrypoint] Migrações aplicadas com sucesso."
-    ok=1
-    break
+    exec node server.js
   fi
+
+  if grep -q P3009 /tmp/md.log && [ "$recovered" -eq 0 ]; then
+    recovered=1
+    recover_p3009
+    continue
+  fi
+
   echo "[entrypoint] migrate deploy falhou (tentativa $i/30). A aguardar a base de dados..."
   sleep 2
   i=$((i + 1))
 done
 
-if [ "$ok" -ne 1 ]; then
-  echo "[entrypoint] FATAL: prisma migrate deploy falhou após 30 tentativas. O servidor não vai arrancar."
-  echo "[entrypoint] Corrija DATABASE_URL, execute o SQL de recuperação (prisma/mysql-recover-p3009.sql) se precisar, e redeploy."
-  exit 1
-fi
-
-echo "[entrypoint] Iniciando servidor..."
-exec node server.js
+echo "[entrypoint] FATAL: prisma migrate deploy falhou após 30 tentativas."
+exit 1

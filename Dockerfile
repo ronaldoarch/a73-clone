@@ -11,7 +11,11 @@ RUN apt-get update && \
 
 WORKDIR /app
 
+# Prisma valida DATABASE_URL ao carregar o schema (generate não liga à BD, mas a env tem de existir)
+ENV DATABASE_URL="file:./prisma/.docker-build.db"
+
 # ── 1. Instalar dependências do backend ─────────────────────
+# prisma em dependencies: npm ci --omit=dev inclui CLI (generate + migrate deploy no entrypoint)
 COPY backend/package*.json ./
 RUN npm ci --omit=dev
 

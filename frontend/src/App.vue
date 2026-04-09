@@ -15,7 +15,10 @@
         </transition>
       </router-view>
     </div>
-    <TabBar v-if="showTabBar" />
+    <!-- TabBar é position:fixed; o wrapper evita que o flex reserve altura e estrague o scroll no mobile -->
+    <div class="tab-bar-anchor" aria-hidden="true">
+      <TabBar v-if="showTabBar" />
+    </div>
     <DrawerMenu v-model="drawerOpen" />
     <AnnouncementModal :announcements="announcements" />
 
@@ -143,10 +146,21 @@ onMounted(async () => {
 
 <style scoped>
 .app-shell {
-  min-height: 100vh;
-  min-height: 100dvh;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
   background: var(--ep-color-background-fill-body-default, #0F0B2E);
   color: var(--ep-color-text-default, #fff);
+}
+
+.tab-bar-anchor {
+  flex: none;
+  height: 0;
+  width: 100%;
+  overflow: visible;
+  position: relative;
 }
 
 .page-content {

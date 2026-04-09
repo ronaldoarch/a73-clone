@@ -31,9 +31,12 @@ body {
   width: 100%;
   max-width: 100%;
   min-height: 100%;
+  min-height: 100dvh;
+  min-height: -webkit-fill-available;
   text-rendering: optimizeLegibility;
-  overflow-x: hidden;
-  overflow-y: auto;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
   touch-action: manipulation;
   -webkit-user-drag: none;
   overscroll-behavior-y: none;
@@ -47,12 +50,16 @@ body {
 }
 
 #app {
-  min-height: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
   width: 100%;
   max-width: var(--max-width, 480px);
   margin: 0 auto;
   position: relative;
-  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   background: var(--ep-color-background-fill-body-default, var(--color-screen-bg));
 }
 

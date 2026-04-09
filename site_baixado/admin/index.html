@@ -38,7 +38,7 @@
     .nav-item.active { background: var(--accent-fade-12); color: var(--accent); border-left-color: var(--accent); }
     .nav-item svg { width: 20px; height: 20px; opacity: 0.8; flex-shrink: 0; }
     .nav-sep { height: 1px; background: var(--border); margin: 0.5rem 1.5rem; }
-    .main { flex: 1; margin-left: 260px; padding: 1.5rem; min-height: 100vh; }
+    .main { flex: 1; margin-left: 260px; padding: 1.5rem; min-height: 100vh; background: var(--bg-dark); position: relative; z-index: 0; }
     .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid var(--border); }
     .header h1 { font-size: 1.5rem; font-weight: 600; }
     .header-actions { display: flex; gap: 0.5rem; align-items: center; }
@@ -73,7 +73,7 @@
     .badge-danger { background: rgba(239,68,68,0.2); color: var(--danger); }
     .badge-info { background: var(--accent-fade-20); color: var(--accent); }
     .section { display: none; }
-    .section.active { display: block; }
+    .section.active { display: block; position: relative; z-index: 1; color: var(--text); }
     .search-box { padding: 0.5rem 1rem; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-dark); color: var(--text); width: 100%; max-width: 300px; }
     .search-box:focus { outline: none; border-color: var(--accent); }
     .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
@@ -89,8 +89,8 @@
     @keyframes toastIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
     .row-hidden { display: none !important; }
     #themeOverride { display: block; }
-    .modal-overlay { position: fixed; inset: 0; z-index: 5000; background: rgba(0,0,0,0.65); display: none; align-items: center; justify-content: center; padding: 1rem; }
-    .modal-overlay.open { display: flex; }
+    .modal-overlay { position: fixed; inset: 0; z-index: 8000; background: rgba(0,0,0,0.65); display: none !important; align-items: center; justify-content: center; padding: 1rem; }
+    .modal-overlay.open { display: flex !important; }
     .modal-box { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; width: 100%; max-width: 520px; max-height: 90vh; overflow-y: auto; padding: 1.25rem 1.5rem; }
     .modal-box h3 { margin-bottom: 1rem; font-size: 1.1rem; }
     .modal-actions { display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 1.25rem; flex-wrap: wrap; }
@@ -282,42 +282,6 @@
         </div>
       </div>
     </section>
-
-    <div id="promoModal" class="modal-overlay" aria-hidden="true">
-      <div class="modal-box" role="dialog" aria-labelledby="promoModalTitle">
-        <h3 id="promoModalTitle">Promoção</h3>
-        <input type="hidden" id="promoEditIdx" value="-1">
-        <div class="form-group"><label>Título</label><input type="text" id="promoTitulo" class="search-box" placeholder="Nome da campanha" style="max-width:100%"></div>
-        <div class="form-group"><label>Descrição</label><textarea id="promoDescricao" class="search-box" rows="3" placeholder="Texto no card (opcional)" style="max-width:100%;resize:vertical"></textarea></div>
-        <div class="form-group"><label>URL do banner</label><input type="text" id="promoBannerUrl" class="search-box" placeholder="/uploads/... ou https://..." style="max-width:100%"></div>
-        <div class="form-group"><label>Upload de banner</label><input type="file" id="promoBannerFile" accept="image/*" class="search-box" style="max-width:100%"><button type="button" class="btn btn-outline" id="btnPromoUploadBanner" style="margin-top:0.5rem">Enviar imagem</button></div>
-        <div class="form-group"><label>Destino (rota ou URL)</label><input type="text" id="promoLink" class="search-box" placeholder="/activity/LuckyWheel ou https://..." style="max-width:100%">
-          <div class="quick-links">
-            <button type="button" class="btn btn-outline quick-fill-link" data-link="/activity/LuckyWheel">Roleta</button>
-            <button type="button" class="btn btn-outline quick-fill-link" data-link="/spread">Convidar</button>
-            <button type="button" class="btn btn-outline quick-fill-link" data-link="/main/deposito">Depósito</button>
-            <button type="button" class="btn btn-outline quick-fill-link" data-link="/activity/vip">VIP</button>
-            <button type="button" class="btn btn-outline quick-fill-link" data-link="/main/promo?tab=rebate">Cashback</button>
-            <button type="button" class="btn btn-outline quick-fill-link" data-link="/activity/MysteryReward">Prêmio misterioso</button>
-          </div>
-        </div>
-        <div class="toggle-row"><input type="checkbox" id="promoOpenNewTab" checked><label for="promoOpenNewTab">Links externos: abrir em nova aba</label></div>
-        <div class="form-row">
-          <div class="form-group"><label>Ordem</label><input type="number" id="promoOrdem" class="search-box" min="0" value="0" style="max-width:100%"></div>
-          <div class="form-group"><label>Status</label>
-            <select id="promoStatus" class="search-box" style="max-width:100%;cursor:pointer">
-              <option value="Em andamento">Em andamento</option>
-              <option value="Em breve">Em breve</option>
-              <option value="Encerrado">Encerrado</option>
-            </select>
-          </div>
-        </div>
-        <div class="modal-actions">
-          <button type="button" class="btn btn-outline" id="btnPromoModalCancel">Cancelar</button>
-          <button type="button" class="btn btn-primary" id="btnPromoModalSave">Salvar</button>
-        </div>
-      </div>
-    </div>
 
     <!-- ===== Site / Home (CMS) ===== -->
     <section id="site-home" class="section">
@@ -646,6 +610,43 @@
     </section>
   </main>
 
+  <!-- Modal fora do <main>: evita sobrepor / quebrar o layout das outras secções (ex.: Baús misterioso) -->
+  <div id="promoModal" class="modal-overlay" aria-hidden="true">
+    <div class="modal-box" role="dialog" aria-labelledby="promoModalTitle">
+      <h3 id="promoModalTitle">Promoção</h3>
+      <input type="hidden" id="promoEditIdx" value="-1">
+      <div class="form-group"><label>Título</label><input type="text" id="promoTitulo" class="search-box" placeholder="Nome da campanha" style="max-width:100%"></div>
+      <div class="form-group"><label>Descrição</label><textarea id="promoDescricao" class="search-box" rows="3" placeholder="Texto no card (opcional)" style="max-width:100%;resize:vertical"></textarea></div>
+      <div class="form-group"><label>URL do banner</label><input type="text" id="promoBannerUrl" class="search-box" placeholder="/uploads/... ou https://..." style="max-width:100%"></div>
+      <div class="form-group"><label>Upload de banner</label><input type="file" id="promoBannerFile" accept="image/*" class="search-box" style="max-width:100%"><button type="button" class="btn btn-outline" id="btnPromoUploadBanner" style="margin-top:0.5rem">Enviar imagem</button></div>
+      <div class="form-group"><label>Destino (rota ou URL)</label><input type="text" id="promoLink" class="search-box" placeholder="/activity/LuckyWheel ou https://..." style="max-width:100%">
+        <div class="quick-links">
+          <button type="button" class="btn btn-outline quick-fill-link" data-link="/activity/LuckyWheel">Roleta</button>
+          <button type="button" class="btn btn-outline quick-fill-link" data-link="/spread">Convidar</button>
+          <button type="button" class="btn btn-outline quick-fill-link" data-link="/main/deposito">Depósito</button>
+          <button type="button" class="btn btn-outline quick-fill-link" data-link="/activity/vip">VIP</button>
+          <button type="button" class="btn btn-outline quick-fill-link" data-link="/main/promo?tab=rebate">Cashback</button>
+          <button type="button" class="btn btn-outline quick-fill-link" data-link="/activity/MysteryReward">Prêmio misterioso</button>
+        </div>
+      </div>
+      <div class="toggle-row"><input type="checkbox" id="promoOpenNewTab" checked><label for="promoOpenNewTab">Links externos: abrir em nova aba</label></div>
+      <div class="form-row">
+        <div class="form-group"><label>Ordem</label><input type="number" id="promoOrdem" class="search-box" min="0" value="0" style="max-width:100%"></div>
+        <div class="form-group"><label>Status</label>
+          <select id="promoStatus" class="search-box" style="max-width:100%;cursor:pointer">
+            <option value="Em andamento">Em andamento</option>
+            <option value="Em breve">Em breve</option>
+            <option value="Encerrado">Encerrado</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-outline" id="btnPromoModalCancel">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="btnPromoModalSave">Salvar</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     // ── API ──
     let adminToken = localStorage.getItem('adminToken') || '';
@@ -753,8 +754,14 @@
         document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
         document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
         el.classList.add('active');
-        const sec = el.dataset.section;
-        document.getElementById(sec).classList.add('active');
+        const sec = (el.dataset.section || '').trim();
+        const panel = sec ? document.getElementById(sec) : null;
+        if (!panel) {
+          console.error('Secção não encontrada:', sec);
+          showToast('Erro: painel «' + (sec || '?') + '» não encontrado. Faça Ctrl+F5 para recarregar.', 'error');
+          return;
+        }
+        panel.classList.add('active');
         if (sec === 'deposits') loadDeposits();
         if (sec === 'withdrawals') loadWithdrawals();
         if (sec === 'gateways') loadGateways();
@@ -879,7 +886,7 @@
       promoModal.setAttribute('aria-hidden', 'true');
     };
     document.getElementById('btnPromoModalCancel').addEventListener('click', closePromoModal);
-    promoModal.addEventListener('click', (e) => { if (e.target === promoModal) closePromoModal(); });
+    if (promoModal) promoModal.addEventListener('click', (e) => { if (e.target === promoModal) closePromoModal(); });
     document.querySelectorAll('.quick-fill-link').forEach((btn) => {
       btn.addEventListener('click', () => {
         const link = btn.getAttribute('data-link') || '';
@@ -977,7 +984,12 @@
       return Number.isFinite(v) ? v : fallback;
     }
     const loadMisterioso = async () => {
-      initMisteriosoFormDom();
+      try {
+        initMisteriosoFormDom();
+      } catch (e) {
+        console.error('initMisteriosoFormDom', e);
+        showToast('Erro ao montar o formulário dos baús.', 'error');
+      }
       try {
         const d = await api('/api/admin/mystery-baus');
         const elH = document.getElementById('mstHeadlinePrize');

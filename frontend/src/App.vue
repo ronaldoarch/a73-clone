@@ -80,15 +80,49 @@ watch(
 
 const announcements = ref([])
 
+function mergeAnnouncementsForModal() {
+  const system = useSystemStore()
+  const base = [...(system.announcements || [])]
+  const p = system.settings?.sitePopup
+  if (p && p.enabled && (p.title || p.content || p.imageUrl)) {
+    const aud = p.audience || 'all'
+    const logged = authStore.isLoggedIn
+    const ok = aud === 'all' || (aud === 'guest' && !logged) || (aud === 'auth' && logged)
+    if (ok) {
+      const k = p.dismissKey || 'default'
+      let dismissed = false
+      try {
+        dismissed = localStorage.getItem('site_popup_dismiss_' + k) === '1'
+      } catch (_) {}
+      if (!dismissed) {
+        base.unshift({
+          id: 'cms-popup',
+          title: p.title || 'Aviso',
+          content: p.content || '',
+          type: p.imageUrl ? 'img' : undefined,
+          imageUrl: p.imageUrl || undefined,
+          cmsDismissKey: k
+        })
+      }
+    }
+  }
+  announcements.value = base
+}
+
+watch(
+  () => [systemStore.settings, systemStore.announcements, authStore.isLoggedIn],
+  () => mergeAnnouncementsForModal(),
+  { deep: true }
+)
+
 onMounted(async () => {
   document.getElementById('app')?.classList.remove('app-full-bleed')
 
   try {
     const system = useSystemStore()
     await system.init()
-    system.fetchAnnouncements().then(() => {
-      if (system.announcements?.length) announcements.value = system.announcements
-    }).catch(() => {})
+    mergeAnnouncementsForModal()
+    system.fetchAnnouncements().then(() => mergeAnnouncementsForModal()).catch(() => {})
   } catch (e) {
     console.warn('[App] System init error:', e.message)
   }

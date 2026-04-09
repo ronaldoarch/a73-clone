@@ -192,7 +192,13 @@ const carouselSlidesPerView = computed(() =>
 )
 
 function onBannerClick(banner) {
-  if (banner.route) router.push(banner.route)
+  const r = banner.route
+  if (!r) return
+  if (/^https?:\/\//i.test(r)) {
+    window.open(r, '_blank', 'noopener,noreferrer')
+    return
+  }
+  router.push(r)
 }
 
 const marqueeText = computed(() => {

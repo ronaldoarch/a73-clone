@@ -50,7 +50,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 
 const props = defineProps({
   announcements: { type: Array, default: () => [] }
@@ -73,6 +73,12 @@ function dismiss() {
     const today = new Date().toDateString()
     localStorage.setItem('announcement_hidden_date', today)
   }
+  const cur = current.value
+  if (cur?.cmsDismissKey) {
+    try {
+      localStorage.setItem('site_popup_dismiss_' + String(cur.cmsDismissKey), '1')
+    } catch (_) {}
+  }
   visible.value = false
   emit('close')
 }
@@ -90,6 +96,15 @@ onMounted(() => {
     setTimeout(show, 1500)
   }
 })
+
+watch(
+  () => props.announcements,
+  (list) => {
+    if (!list?.length || visible.value) return
+    setTimeout(show, 1200)
+  },
+  { deep: true }
+)
 
 defineExpose({ show })
 </script>

@@ -83,9 +83,10 @@
 
 <script setup>
 import { ref } from 'vue'
-import { trpcMutation } from '../utils/api'
+import { useAuthStore } from '../stores/auth'
 import { toastError } from '../utils/toast'
 
+const authStore = useAuthStore()
 const code = ref('')
 const loading = ref(false)
 const message = ref('')
@@ -102,15 +103,36 @@ const socialLinks = [
 async function handleRedeem() {
   const c = code.value.trim()
   if (!c || loading.value) return
+  if (!authStore.token) {
+    message.value = 'Faça login para resgatar o código.'
+    isSuccess.value = false
+    toastError('Faça login para resgatar.')
+    return
+  }
   loading.value = true
   message.value = ''
   try {
-    const data = await trpcMutation('redeem.use', { code: c })
-    message.value = data?.message || 'Código resgatado com sucesso!'
+    const res = await fetch('/api/coupon/redeem', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer ' + authStore.token
+      },
+      body: JSON.stringify({ code: c })
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok || !data.ok) {
+      const msg = data.error || data.message || 'Código inválido ou expirado.'
+      message.value = msg
+      isSuccess.value = false
+      toastError(msg)
+      return
+    }
+    message.value = data.message || 'Código resgatado com sucesso!'
     isSuccess.value = true
     code.value = ''
   } catch (e) {
-    const msg = e?.message || 'Código inválido ou expirado.'
+    const msg = e?.message || 'Erro de rede. Tente novamente.'
     message.value = msg
     isSuccess.value = false
     toastError(msg)

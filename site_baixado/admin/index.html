@@ -152,6 +152,14 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
       <span>Promoções</span>
     </nav>
+    <nav class="nav-item" data-section="site-home">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
+      <span>Site / Home</span>
+    </nav>
+    <nav class="nav-item" data-section="cupons">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+      <span>Cupons</span>
+    </nav>
     <nav class="nav-item" data-section="misterioso">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
       <span>Baús misterioso</span>
@@ -189,6 +197,9 @@
         <div class="kpi-card"><div class="kpi-label">Jogadores Cadastrados</div><div class="kpi-value" id="kpiUsers">—</div><div class="kpi-trend">Total</div></div>
         <div class="kpi-card"><div class="kpi-label">Depósitos Hoje</div><div class="kpi-value green" id="kpiDepHoje">—</div><div class="kpi-trend">Hoje</div></div>
         <div class="kpi-card"><div class="kpi-label">Saques Pendentes</div><div class="kpi-value warning" id="kpiSaquesPend">—</div><div class="kpi-trend">Aguardando</div></div>
+        <div class="kpi-card"><div class="kpi-label">Depósitos aprovados (PIX)</div><div class="kpi-value green" id="kpiDepAprov">—</div><div class="kpi-trend">Status concluído</div></div>
+        <div class="kpi-card"><div class="kpi-label">Saques pagos</div><div class="kpi-value" id="kpiWdPago">—</div><div class="kpi-trend">Status concluído</div></div>
+        <div class="kpi-card"><div class="kpi-label">Fluxo líquido (aprox.)</div><div class="kpi-value accent" id="kpiCashNet">—</div><div class="kpi-trend">Aprovado − pago</div></div>
       </div>
       <div class="card">
         <div class="card-header"><span class="card-title">Atividade Recente</span></div>
@@ -307,6 +318,75 @@
         </div>
       </div>
     </div>
+
+    <!-- ===== Site / Home (CMS) ===== -->
+    <section id="site-home" class="section">
+      <div class="header"><h1>Site / Home</h1><button class="btn btn-outline" id="btnReloadCms">↻ Recarregar</button></div>
+      <p style="color:var(--text-muted);font-size:0.88rem;margin-bottom:1rem;max-width:52rem">
+        <strong>Carrossel:</strong> JSON com slides <code>imageUrl</code>, <code>link</code> (rota ou https://), <code>title</code>, <code>order</code>.
+        Opcional <code>startsAt</code> / <code>endsAt</code> (ISO). <strong>Popup:</strong> modal na app; mude <strong>Chave dismiss</strong> para voltar a mostrar a quem já fechou.
+        <strong>Marquee:</strong> texto da faixa na home (substitui marquee remoto se preenchido).
+      </p>
+      <div class="card">
+        <div class="card-header"><span class="card-title">Carrossel (JSON)</span></div>
+        <div style="padding:1.25rem">
+          <textarea id="cmsCarouselJson" class="search-box" style="max-width:100%;width:100%;min-height:180px;font-family:monospace;font-size:12px" placeholder='[{"imageUrl":"/uploads/banner.png","link":"/main/promo","title":"Bônus","order":0}]'></textarea>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">Popup na app</span></div>
+        <div style="padding:1.25rem">
+          <div class="toggle-row"><input type="checkbox" id="cmsPopupEnabled"><label for="cmsPopupEnabled">Ativar popup</label></div>
+          <div class="form-group"><label>Título</label><input type="text" id="cmsPopupTitle" class="search-box" style="max-width:100%"></div>
+          <div class="form-group"><label>Texto (HTML permitido)</label><textarea id="cmsPopupContent" class="search-box" rows="4" style="max-width:100%"></textarea></div>
+          <div class="form-group"><label>URL imagem (opcional)</label><input type="text" id="cmsPopupImg" class="search-box" style="max-width:100%" placeholder="/uploads/..."></div>
+          <div class="form-row">
+            <div class="form-group"><label>Chave dismiss</label><input type="text" id="cmsPopupKey" class="search-box" style="max-width:100%" placeholder="campanha-abril"></div>
+            <div class="form-group"><label>Público</label>
+              <select id="cmsPopupAud" class="search-box" style="max-width:100%;cursor:pointer">
+                <option value="all">Todos</option>
+                <option value="guest">Só visitantes (sem login)</option>
+                <option value="auth">Só logados</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">Marquee (faixa na home)</span></div>
+        <div style="padding:1.25rem">
+          <input type="text" id="cmsMarquee" class="search-box" style="max-width:100%" placeholder="Texto único; vazio = marquee remoto">
+        </div>
+      </div>
+      <button class="btn btn-primary" id="btnSaveCms" style="margin-top:0.5rem">Salvar Site / Home</button>
+    </section>
+
+    <!-- ===== Cupons ===== -->
+    <section id="cupons" class="section">
+      <div class="header"><h1>Cupons de bônus</h1></div>
+      <p style="color:var(--text-muted);font-size:0.88rem;margin-bottom:1rem">Códigos em maiúsculas; cada jogador resgata uma vez na página <strong>Código de resgate</strong> (login obrigatório).</p>
+      <div class="card">
+        <div class="card-header"><span class="card-title">Novo cupom</span></div>
+        <div style="padding:1.25rem" class="form-row">
+          <div class="form-group"><label>Código</label><input type="text" id="cpCode" class="search-box" style="max-width:100%" placeholder="BONUS10"></div>
+          <div class="form-group"><label>Valor (R$)</label><input type="number" step="0.01" id="cpAmount" class="search-box" style="max-width:100%"></div>
+          <div class="form-group"><label>Máx. usos</label><input type="number" id="cpMax" class="search-box" style="max-width:100%" value="100"></div>
+          <div class="form-group"><label>Rollover extra (R$)</label><input type="number" step="0.01" id="cpRoll" class="search-box" style="max-width:100%" value="0"></div>
+        </div>
+        <div style="padding:0 1.25rem 1.25rem" class="form-row">
+          <div class="form-group"><label>Expira em (opcional)</label><input type="datetime-local" id="cpExp" class="search-box" style="max-width:100%"></div>
+          <div class="form-group"><label>Descrição interna</label><input type="text" id="cpDesc" class="search-box" style="max-width:100%"></div>
+        </div>
+        <div style="padding:0 1.25rem 1.25rem"><button class="btn btn-primary" id="btnCpCreate">Criar cupom</button></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">Cupons cadastrados</span><button class="btn btn-outline" id="btnCpReload">↻</button></div>
+        <div class="table-wrap">
+          <table><thead><tr><th>Código</th><th>Valor</th><th>Usos</th><th>Ativo</th><th>Expira</th><th>Ações</th></tr></thead>
+          <tbody id="cuponsTableBody"><tr><td colspan="6" style="text-align:center;color:var(--text-muted)">Carregando...</td></tr></tbody>
+        </div>
+      </div>
+    </section>
 
     <!-- ===== Prêmio misterioso / baús ===== -->
     <section id="misterioso" class="section">
@@ -522,6 +602,11 @@
           </div>
           <div class="toggle-row"><input type="checkbox" id="igwSandbox"><label for="igwSandbox">Sandbox (ambiente de teste)</label></div>
           <div class="toggle-row"><input type="checkbox" id="igwDemo"><label for="igwDemo">Modo Demo (catálogo fallback se API falhar)</label></div>
+          <div class="form-group" style="margin-top:1rem">
+            <label>Provedores na home (códigos, um por linha ou vírgula)</label>
+            <textarea id="igwHomeProviders" class="search-box" style="max-width:100%;width:100%;min-height:100px;font-family:monospace;font-size:12px" placeholder="PGSOFT&#10;PRAGMATIC"></textarea>
+            <p style="font-size:0.8rem;color:var(--text-muted);margin-top:0.35rem">Ordem dos blocos de jogos na página inicial. Requer login de admin para salvar.</p>
+          </div>
           <button class="btn btn-primary" id="btnSaveIgamewin">Salvar</button>
         </div>
       </div>
@@ -672,6 +757,8 @@
         if (sec === 'config') loadConfig();
         if (sec === 'branding') loadBranding();
         if (sec === 'promocoes') loadPromos();
+        if (sec === 'site-home') loadSiteHome();
+        if (sec === 'cupons') loadCupons();
         if (sec === 'misterioso') loadMisterioso();
       });
     });
@@ -684,6 +771,9 @@
         document.getElementById('kpiUsers').textContent = d.usersCount ?? 0;
         document.getElementById('kpiDepHoje').textContent = fmtMoney(d.depositsToday);
         document.getElementById('kpiSaquesPend').textContent = fmtMoney(d.withdrawalsPending);
+        const elA = document.getElementById('kpiDepAprov'); if (elA) elA.textContent = fmtMoney(d.depositsApprovedTotal ?? 0);
+        const elW = document.getElementById('kpiWdPago'); if (elW) elW.textContent = fmtMoney(d.withdrawalsPaidTotal ?? 0);
+        const elN = document.getElementById('kpiCashNet'); if (elN) elN.textContent = fmtMoney(d.cashFlowNet ?? 0);
         const tb = document.getElementById('dashboardActivity');
         let rows = '';
         (d.recentDeposits || []).forEach(dep => { rows += '<tr><td>' + (dep.data || '') + '</td><td>Depósito</td><td>' + (dep.user || '') + '</td><td>' + fmtMoney(dep.valor) + '</td><td><span class="badge badge-success">Aprovado</span></td></tr>'; });
@@ -1122,10 +1212,90 @@
       try { const r = await api('/api/admin/cyber/test-pix', { method: 'POST' }); pre.textContent = JSON.stringify(r, null, 2); } catch (e) { pre.textContent = 'Erro: ' + e.message; }
     });
 
+    // ── Site / Home (CMS) ──
+    const loadSiteHome = async () => {
+      try {
+        const d = await api('/api/admin/cms');
+        document.getElementById('cmsCarouselJson').value = JSON.stringify(d.carouselSlides || [], null, 2);
+        document.getElementById('cmsPopupEnabled').checked = !!d.sitePopup?.enabled;
+        document.getElementById('cmsPopupTitle').value = d.sitePopup?.title || '';
+        document.getElementById('cmsPopupContent').value = d.sitePopup?.content || '';
+        document.getElementById('cmsPopupImg').value = d.sitePopup?.imageUrl || '';
+        document.getElementById('cmsPopupKey').value = d.sitePopup?.dismissKey || 'default';
+        document.getElementById('cmsPopupAud').value = d.sitePopup?.audience || 'all';
+        document.getElementById('cmsMarquee').value = d.homeMarquee || '';
+      } catch (e) { console.error('cms', e); showToast('Erro ao carregar Site/Home.', 'error'); }
+    };
+    document.getElementById('btnReloadCms').addEventListener('click', loadSiteHome);
+    document.getElementById('btnSaveCms').addEventListener('click', async () => {
+      let slides;
+      try { slides = JSON.parse(document.getElementById('cmsCarouselJson').value || '[]'); } catch (e) {
+        showToast('JSON do carrossel inválido.', 'error'); return;
+      }
+      if (!Array.isArray(slides)) { showToast('Carrossel: use um array JSON [...]', 'error'); return; }
+      const body = {
+        carouselSlides: slides,
+        sitePopup: {
+          enabled: document.getElementById('cmsPopupEnabled').checked,
+          title: document.getElementById('cmsPopupTitle').value,
+          content: document.getElementById('cmsPopupContent').value,
+          imageUrl: document.getElementById('cmsPopupImg').value,
+          dismissKey: document.getElementById('cmsPopupKey').value || 'default',
+          audience: document.getElementById('cmsPopupAud').value
+        },
+        homeMarquee: document.getElementById('cmsMarquee').value
+      };
+      try {
+        const r = await api('/api/admin/cms', { method: 'POST', body: JSON.stringify(body) });
+        showToast(r.ok ? 'Site / Home salvo.' : (r.error || 'Erro'), r.ok ? 'success' : 'error');
+      } catch (e) { showToast('Erro ao salvar.', 'error'); }
+    });
+
+    // ── Cupons ──
+    const loadCupons = async () => {
+      try {
+        const list = await api('/api/admin/coupons');
+        const tb = document.getElementById('cuponsTableBody');
+        let rows = '';
+        (list || []).forEach((c) => {
+          const exp = c.expiresAt ? String(c.expiresAt).replace('T', ' ').slice(0, 16) : '—';
+          rows += '<tr><td><strong>' + (c.code || '') + '</strong></td><td>' + fmtMoney(c.bonusAmount) + '</td><td>' + c.usesCount + '/' + c.maxUses + ' <span style="color:var(--text-muted);font-size:0.8rem">(' + (c.redemptions ?? 0) + ' jog.)</span></td><td>' + (c.active ? '<span class="badge badge-success">sim</span>' : '<span class="badge badge-danger">não</span>') + '</td><td>' + exp + '</td><td><button type="button" class="btn btn-outline btn-cp-toggle" style="padding:0.2rem 0.5rem;font-size:0.8rem" data-id="' + c.id + '" data-active="' + (c.active ? '1' : '0') + '">' + (c.active ? 'Desativar' : 'Ativar') + '</button></td></tr>';
+        });
+        tb.innerHTML = rows || '<tr><td colspan="6" style="text-align:center;color:var(--text-muted)">Nenhum cupom</td></tr>';
+      } catch (e) { console.error('cupons', e); }
+    };
+    document.getElementById('btnCpReload').addEventListener('click', loadCupons);
+    document.getElementById('btnCpCreate').addEventListener('click', async () => {
+      const code = document.getElementById('cpCode').value.trim();
+      const bonusAmount = parseFloat(document.getElementById('cpAmount').value) || 0;
+      const maxUses = parseInt(document.getElementById('cpMax').value, 10) || 100;
+      const rolloverAdd = parseFloat(document.getElementById('cpRoll').value) || 0;
+      const expEl = document.getElementById('cpExp').value;
+      const description = document.getElementById('cpDesc').value.trim();
+      if (!code || !bonusAmount) { showToast('Código e valor obrigatórios.', 'error'); return; }
+      try {
+        const r = await api('/api/admin/coupons', { method: 'POST', body: JSON.stringify({
+          code, bonusAmount, maxUses, rolloverAdd,
+          expiresAt: expEl || null,
+          description: description || null,
+          active: true
+        }) });
+        if (r.ok) {
+          showToast('Cupom criado.', 'success');
+          document.getElementById('cpCode').value = '';
+          document.getElementById('cpAmount').value = '';
+          loadCupons();
+        } else showToast(r.error || 'Erro', 'error');
+      } catch (e) { showToast('Erro.', 'error'); }
+    });
+
     // ── iGameWin ──
     const loadIgamewin = async () => {
       try {
-        const d = await api('/api/settings/igamewin');
+        const [d, hp] = await Promise.all([
+          api('/api/settings/igamewin'),
+          fetch('/api/settings/home-providers').then((r) => r.json()).catch(() => ({}))
+        ]);
         document.getElementById('igwCode').value = d.agent_code || '';
         document.getElementById('igwToken').value = d.agent_token || '';
         document.getElementById('igwSecret').value = d.agent_secret || '';
@@ -1133,6 +1303,8 @@
         document.getElementById('igwEndpoint').value = d.site_endpoint || '';
         document.getElementById('igwSandbox').checked = d.sandbox !== false;
         document.getElementById('igwDemo').checked = d.is_demo !== false;
+        const ta = document.getElementById('igwHomeProviders');
+        if (ta) ta.value = (hp.homeProviders || []).join('\n');
       } catch (e) { console.error('igamewin', e); }
     };
     document.getElementById('btnSaveIgamewin').addEventListener('click', async () => {
@@ -1146,7 +1318,10 @@
           sandbox: document.getElementById('igwSandbox').checked,
           is_demo: document.getElementById('igwDemo').checked
         }) });
-        showToast(r.ok ? 'iGameWin salvo.' : (r.error || 'Erro'), r.ok ? 'success' : 'error');
+        const rawHp = document.getElementById('igwHomeProviders')?.value || '';
+        const homeProviders = rawHp.split(/[\n,]+/).map((s) => s.trim()).filter(Boolean);
+        const r2 = await api('/api/settings/home-providers', { method: 'POST', body: JSON.stringify({ homeProviders }) });
+        showToast(r.ok && r2.ok ? 'iGameWin e ordem da home salvos.' : (r.error || r2.error || 'Verifique erros'), r.ok && r2.ok ? 'success' : 'error');
       } catch (e) { showToast('Erro.', 'error'); }
     });
 
@@ -1201,6 +1376,14 @@
             .then(() => { showToast('Promoção removida.', 'success'); loadPromos(); })
             .catch(() => showToast('Erro.', 'error'));
         }
+        return;
+      }
+      if (btn.classList.contains('btn-cp-toggle')) {
+        const id = btn.dataset.id;
+        const cur = btn.dataset.active === '1';
+        api('/api/admin/coupons/' + id, { method: 'PATCH', body: JSON.stringify({ active: !cur }) })
+          .then((r) => { if (r.ok) { showToast('Cupom atualizado.', 'success'); loadCupons(); } else showToast(r.error || 'Erro', 'error'); })
+          .catch(() => showToast('Erro.', 'error'));
         return;
       }
     });

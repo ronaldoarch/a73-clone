@@ -168,15 +168,17 @@ export const useSystemStore = defineStore('system', () => {
   }
 
   async function fetchCarousel() {
+    if (carouselList.value?.length > 0) return
     try {
       const data = await trpcQuery('carousel.configList', null, { cache: true, cacheTTL: 120000 })
-      if (Array.isArray(data)) carouselList.value = data
+      if (Array.isArray(data) && data.length > 0) carouselList.value = data
     } catch (e) {
       console.error('Failed to fetch carousel:', e)
     }
   }
 
   async function fetchMarquee() {
+    if (marqueeContent.value?.length > 0) return
     try {
       const data = await trpcQuery('home.marquee', null, { cache: true, cacheTTL: 60000 })
       if (data?.content) marqueeContent.value = data.content
@@ -200,6 +202,17 @@ export const useSystemStore = defineStore('system', () => {
       const res = await fetch('/api/settings')
       const data = await res.json()
       settings.value = data
+      if (Array.isArray(data.carouselSlides) && data.carouselSlides.length > 0) {
+        carouselList.value = data.carouselSlides.map((b) => ({
+          imageUrl: b.imageUrl || b.img || '',
+          title: b.title || b.name || '',
+          targetValue: b.targetValue || b.link || b.url || '/main/promo',
+          targetType: b.targetType || 'none'
+        }))
+      }
+      const mq = typeof data.homeMarquee === 'string' ? data.homeMarquee.trim() : ''
+      if (mq) marqueeContent.value = [{ content: mq }]
+      else if (Object.prototype.hasOwnProperty.call(data, 'homeMarquee')) marqueeContent.value = []
     } catch (e) {
       console.error('Failed to fetch settings:', e)
     }

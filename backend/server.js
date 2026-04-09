@@ -131,6 +131,60 @@ const settingUpsert = async (id, value, extra = {}) => {
   })
 }
 
+/** CMS da home (setting `cms`): carrossel, popup, marquee */
+function normalizeCmsSlide(sl, i) {
+  const imageUrl = String(sl?.imageUrl || sl?.img || '').trim()
+  return {
+    id: String(sl?.id || `slide-${i}`),
+    title: String(sl?.title || '').trim().slice(0, 200),
+    imageUrl,
+    link: String(sl?.link || sl?.route || '/main/promo').trim().slice(0, 500),
+    order: Number(sl?.order) || i,
+    startsAt: sl?.startsAt ? String(sl.startsAt).slice(0, 32) : null,
+    endsAt: sl?.endsAt ? String(sl.endsAt).slice(0, 32) : null
+  }
+}
+
+function normalizeCms(stored) {
+  const o = stored && typeof stored === 'object' ? stored : {}
+  const raw = Array.isArray(o.carouselSlides) ? o.carouselSlides : []
+  const carouselSlides = raw.map(normalizeCmsSlide).filter(s => s.imageUrl)
+  carouselSlides.sort((a, b) => a.order - b.order)
+  const sp = o.sitePopup && typeof o.sitePopup === 'object' ? o.sitePopup : {}
+  const dismissKey = String(sp.dismissKey || 'default').replace(/[^a-zA-Z0-9_-]/g, '-').slice(0, 64) || 'default'
+  const aud = String(sp.audience || 'all').toLowerCase()
+  const sitePopup = {
+    enabled: sp.enabled === true,
+    title: String(sp.title || '').trim().slice(0, 200),
+    content: String(sp.content || '').trim().slice(0, 8000),
+    imageUrl: String(sp.imageUrl || '').trim().slice(0, 500),
+    dismissKey,
+    audience: ['all', 'guest', 'auth'].includes(aud) ? aud : 'all'
+  }
+  const homeMarquee = String(o.homeMarquee || '').trim().slice(0, 2000)
+  return { carouselSlides, sitePopup, homeMarquee }
+}
+
+function cmsSlidesPublic(slides) {
+  const now = Date.now()
+  return slides.filter((s) => {
+    if (s.startsAt) {
+      const t = new Date(s.startsAt).getTime()
+      if (Number.isFinite(t) && now < t) return false
+    }
+    if (s.endsAt) {
+      const t = new Date(s.endsAt).getTime()
+      if (Number.isFinite(t) && now > t) return false
+    }
+    return true
+  })
+}
+
+async function getCmsSettings() {
+  const v = await settingGetValue('cms', {})
+  return normalizeCms(v)
+}
+
 const app = express()
 const PORT = process.env.PORT || 3000
 const JWT_SECRET = process.env.JWT_SECRET
@@ -1290,6 +1344,63 @@ app.get('/api/deposito/pix/status/:externalId', authMiddleware, async (req, res)
   }
 })
 
+/** Resgate de cupom (crédito em saldo; opcional rollover) — uma vez por usuário */
+app.post('/api/coupon/redeem', authMiddleware, async (req, res) => {
+  try {
+    const raw = req.body?.code ?? req.body?.json?.code ?? ''
+    const code = String(raw).trim().toUpperCase().replace(/\s+/g, '')
+    if (!code || code.length > 64) return res.status(400).json({ ok: false, error: 'Código inválido' })
+
+    const user = await prisma.user.findUnique({ where: { id: req.userId } })
+    if (!user) return res.status(401).json({ ok: false, error: 'Usuário não encontrado' })
+    await ensureAfiliado(req.userId, user.account || '')
+
+    const coupon = await prisma.coupon.findUnique({ where: { code } })
+    if (!coupon || !coupon.active) return res.status(400).json({ ok: false, error: 'Código inválido ou expirado' })
+    if (coupon.expiresAt && coupon.expiresAt < new Date()) {
+      return res.status(400).json({ ok: false, error: 'Código expirado' })
+    }
+
+    const existing = await prisma.couponRedemption.findFirst({
+      where: { userId: req.userId, couponId: coupon.id }
+    })
+    if (existing) return res.status(400).json({ ok: false, error: 'Você já resgatou este código' })
+
+    const result = await prisma.$transaction(async (tx) => {
+      const n = await tx.$executeRaw`
+        UPDATE Coupon SET usesCount = usesCount + 1
+        WHERE id = ${coupon.id} AND active = true AND usesCount < maxUses
+        AND (expiresAt IS NULL OR expiresAt > NOW())
+      `
+      const affected = Number(n) || 0
+      if (affected !== 1) return { err: 'Código esgotado ou indisponível' }
+      await tx.couponRedemption.create({
+        data: { userId: req.userId, couponId: coupon.id }
+      })
+      const roll = Math.max(0, Number(coupon.rolloverAdd) || 0)
+      await tx.afiliadoData.update({
+        where: { userId: req.userId },
+        data: {
+          balance: { increment: coupon.bonusAmount },
+          rolloverPendente: roll ? { increment: roll } : undefined,
+          updatedAt: new Date()
+        }
+      })
+      return { ok: true, bonusAmount: coupon.bonusAmount }
+    })
+
+    if (result.err) return res.status(400).json({ ok: false, error: result.err })
+    return res.json({
+      ok: true,
+      message: `Bônus de R$ ${Number(result.bonusAmount).toFixed(2)} creditado na conta.`,
+      bonusAmount: result.bonusAmount
+    })
+  } catch (e) {
+    console.error('coupon redeem:', e)
+    return res.status(500).json({ ok: false, error: e.message })
+  }
+})
+
 // POST depósito (legado - crédito imediato, sem PIX)
 app.post('/api/deposito', authMiddleware, async (req, res) => {
   try {
@@ -1992,7 +2103,7 @@ app.get('/api/settings/home-providers', async (req, res) => {
   }
 })
 
-app.post('/api/settings/home-providers', async (req, res) => {
+app.post('/api/settings/home-providers', adminAuthMiddleware, async (req, res) => {
   try {
     const { homeProviders } = req.body?.json || req.body || {}
     const list = Array.isArray(homeProviders) ? homeProviders.filter(x => typeof x === 'string') : []
@@ -2785,25 +2896,39 @@ app.get('/api/admin/dashboard', adminAuthMiddleware, async (req, res) => {
     today.setHours(0, 0, 0, 0)
     const todayEnd = new Date(today)
     todayEnd.setDate(todayEnd.getDate() + 1)
-    const [usersCount, depositsToday, withdrawalsPending, recentDeposits, recentWithdrawals, totalDeposits] = await Promise.all([
+    const [
+      usersCount, depositsToday, withdrawalsPending, recentDeposits, recentWithdrawals, totalDeposits,
+      depositsApproved, withdrawalsPaid
+    ] = await Promise.all([
       prisma.user.count(),
       prisma.deposit.aggregate({ where: { createdAt: { gte: today, lt: todayEnd } }, _sum: { valor: true } }),
       prisma.withdrawal.aggregate({ where: { status: { in: ['pendente', 'processando'] } }, _sum: { valor: true } }),
       prisma.deposit.findMany({ orderBy: { createdAt: 'desc' }, take: 5, include: { user: { select: { account: true } } } }),
       prisma.withdrawal.findMany({ where: { status: { in: ['pendente', 'processando'] } }, orderBy: { createdAt: 'desc' }, take: 5, include: { user: { select: { account: true } } } }),
-      prisma.deposit.aggregate({ _sum: { valor: true } })
+      prisma.deposit.aggregate({ _sum: { valor: true } }),
+      prisma.deposit.aggregate({ where: { status: 'concluido' }, _sum: { valor: true } }),
+      prisma.withdrawal.aggregate({ where: { status: 'concluido' }, _sum: { valor: true } })
     ])
+    const depOk = depositsApproved._sum.valor ?? 0
+    const wdOk = withdrawalsPaid._sum.valor ?? 0
     return res.json({
       usersCount,
       depositsToday: depositsToday._sum.valor ?? 0,
       withdrawalsPending: withdrawalsPending._sum.valor ?? 0,
       totalDeposits: totalDeposits._sum.valor ?? 0,
+      depositsApprovedTotal: depOk,
+      withdrawalsPaidTotal: wdOk,
+      cashFlowNet: depOk - wdOk,
       recentDeposits: recentDeposits.map(d => ({ user: maskAccount(d.user?.account), valor: d.valor, status: 'Aprovado', data: d.createdAt?.toISOString?.()?.slice(0, 16)?.replace('T', ' ') })),
       recentWithdrawals: recentWithdrawals.map(w => ({ user: maskAccount(w.user?.account), valor: w.valor, status: w.status, data: w.createdAt?.toISOString?.()?.slice(0, 16)?.replace('T', ' ') }))
     })
   } catch (e) {
     console.error('admin dashboard:', e)
-    return res.status(500).json({ usersCount: 0, depositsToday: 0, withdrawalsPending: 0, totalDeposits: 0, recentDeposits: [], recentWithdrawals: [] })
+    return res.status(500).json({
+      usersCount: 0, depositsToday: 0, withdrawalsPending: 0, totalDeposits: 0,
+      depositsApprovedTotal: 0, withdrawalsPaidTotal: 0, cashFlowNet: 0,
+      recentDeposits: [], recentWithdrawals: []
+    })
   }
 })
 
@@ -3052,6 +3177,107 @@ app.post('/api/admin/mystery-baus', adminAuthMiddleware, async (req, res) => {
   }
 })
 
+app.get('/api/admin/cms', adminAuthMiddleware, async (req, res) => {
+  try {
+    return res.json(await getCmsSettings())
+  } catch (e) {
+    console.error('admin cms get:', e)
+    return res.status(500).json({ error: e.message })
+  }
+})
+
+app.post('/api/admin/cms', adminAuthMiddleware, async (req, res) => {
+  try {
+    const body = req.body?.json || req.body || {}
+    const normalized = normalizeCms(body)
+    await settingUpsert('cms', normalized)
+    return res.json({ ok: true, ...normalized })
+  } catch (e) {
+    console.error('admin cms save:', e)
+    return res.status(500).json({ ok: false, error: e.message })
+  }
+})
+
+app.get('/api/admin/coupons', adminAuthMiddleware, async (req, res) => {
+  try {
+    const list = await prisma.coupon.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+      include: { _count: { select: { redemptions: true } } }
+    })
+    return res.json(list.map((c) => ({
+      id: c.id,
+      code: c.code,
+      bonusAmount: c.bonusAmount,
+      maxUses: c.maxUses,
+      usesCount: c.usesCount,
+      expiresAt: c.expiresAt?.toISOString?.() || null,
+      active: c.active,
+      rolloverAdd: c.rolloverAdd,
+      description: c.description,
+      createdAt: c.createdAt?.toISOString?.() || null,
+      redemptions: c._count.redemptions
+    })))
+  } catch (e) {
+    console.error('admin coupons list:', e)
+    return res.status(500).json([])
+  }
+})
+
+app.post('/api/admin/coupons', adminAuthMiddleware, async (req, res) => {
+  try {
+    const body = req.body?.json || req.body || {}
+    const code = String(body.code || '').trim().toUpperCase().replace(/\s+/g, '')
+    const bonusAmount = Math.max(0, parseFloat(body.bonusAmount) || 0)
+    const maxUses = Math.max(1, parseInt(body.maxUses, 10) || 100)
+    const rolloverAdd = Math.max(0, parseFloat(body.rolloverAdd) || 0)
+    if (!code || code.length > 64) return res.status(400).json({ ok: false, error: 'Código inválido (máx. 64 caracteres)' })
+    if (!bonusAmount) return res.status(400).json({ ok: false, error: 'Valor do bônus obrigatório' })
+    let expiresAt = null
+    if (body.expiresAt) {
+      const d = new Date(body.expiresAt)
+      if (Number.isFinite(d.getTime())) expiresAt = d
+    }
+    const c = await prisma.coupon.create({
+      data: {
+        code,
+        bonusAmount,
+        maxUses,
+        rolloverAdd,
+        expiresAt,
+        active: body.active !== false,
+        description: String(body.description || '').trim().slice(0, 500) || null
+      }
+    })
+    return res.json({ ok: true, coupon: c })
+  } catch (e) {
+    if (e.code === 'P2002') return res.status(400).json({ ok: false, error: 'Este código já existe' })
+    console.error('admin coupon create:', e)
+    return res.status(500).json({ ok: false, error: e.message })
+  }
+})
+
+app.patch('/api/admin/coupons/:id', adminAuthMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params
+    const body = req.body?.json || req.body || {}
+    const data = {}
+    if (body.active !== undefined) data.active = !!body.active
+    if (body.maxUses !== undefined) data.maxUses = Math.max(1, parseInt(body.maxUses, 10) || 100)
+    if (body.bonusAmount !== undefined) data.bonusAmount = Math.max(0, parseFloat(body.bonusAmount) || 0)
+    if (body.rolloverAdd !== undefined) data.rolloverAdd = Math.max(0, parseFloat(body.rolloverAdd) || 0)
+    if (body.description !== undefined) data.description = String(body.description || '').trim().slice(0, 500) || null
+    if (body.expiresAt !== undefined) {
+      data.expiresAt = body.expiresAt ? new Date(body.expiresAt) : null
+    }
+    await prisma.coupon.update({ where: { id }, data })
+    return res.json({ ok: true })
+  } catch (e) {
+    console.error('admin coupon patch:', e)
+    return res.status(500).json({ ok: false, error: e.message })
+  }
+})
+
 app.get('/api/admin/gatebox', adminAuthMiddleware, async (req, res) => {
   try {
     const s = await settingGet('gatebox')
@@ -3229,14 +3455,28 @@ app.post('/api/admin/usuarios/:id/add-bonus', adminAuthMiddleware, async (req, r
 // GET settings (logo, banner, siteName, pageTitle, depositoMin, saqueMin, saqueMax, pixEnabled) - público
 app.get('/api/settings', async (req, res) => {
   try {
-    const [main, appCfg, mb] = await Promise.all([
+    const [main, appCfg, mb, cms] = await Promise.all([
       settingGet('main'),
       getAppConfig(),
-      getMysteryBaus()
+      getMysteryBaus(),
+      getCmsSettings()
     ])
     const v = main?.value || {}
     const defaultLogo = '/s5/app-icon/1222508/LOGO.jpg'
     const savedLogo = (main?.logo && String(main.logo).trim()) || ''
+    const slides = cmsSlidesPublic(cms.carouselSlides).map((s) => ({
+      imageUrl: s.imageUrl,
+      img: s.imageUrl,
+      title: s.title,
+      link: s.link,
+      targetValue: s.link,
+      targetType: /^https?:\/\//i.test(s.link) ? 'external' : 'route'
+    }))
+    const p = cms.sitePopup
+    const sitePopup =
+      p.enabled && (p.title || p.content || p.imageUrl)
+        ? { enabled: true, title: p.title, content: p.content, imageUrl: p.imageUrl, dismissKey: p.dismissKey, audience: p.audience }
+        : { enabled: false }
     return res.json({
       /* vazio até enviar logo no Admin — o app mostra o texto A73.com */
       logo: savedLogo,
@@ -3251,6 +3491,9 @@ app.get('/api/settings', async (req, res) => {
       pixEnabled: appCfg.pixEnabled !== false,
       activePixProvider: appCfg.activePixProvider || 'gatebox',
       appUiTheme: appCfg.appUiTheme || '',
+      carouselSlides: slides,
+      sitePopup,
+      homeMarquee: cms.homeMarquee || '',
       mysteryBaus: {
         reclamarMinDep: mb.reclamarMinDep,
         reclamarTabela: mb.reclamarTabela,
@@ -3262,7 +3505,7 @@ app.get('/api/settings', async (req, res) => {
     })
   } catch (e) {
     const fbMb = normalizeMysteryBaus({})
-    return res.json({ logo: '', banner: '/s5/1770954153806/9999.jpg', loadingBanner: '/s5/app-icon/1222508/LOGO.jpg', siteName: '35m', pageTitle: '35m', depositoMin: 10, saqueMin: 20, saqueMax: 40000, whatsappUrl: '', pixEnabled: true, activePixProvider: 'gatebox', appUiTheme: '', mysteryBaus: { reclamarMinDep: fbMb.reclamarMinDep, reclamarTabela: fbMb.reclamarTabela, minDeposit2dReais: fbMb.minDeposit2dReais, minValidBetReais: fbMb.minValidBetReais, headlinePrize: fbMb.headlinePrize, boxes: fbMb.boxes } })
+    return res.json({ logo: '', banner: '/s5/1770954153806/9999.jpg', loadingBanner: '/s5/app-icon/1222508/LOGO.jpg', siteName: '35m', pageTitle: '35m', depositoMin: 10, saqueMin: 20, saqueMax: 40000, whatsappUrl: '', pixEnabled: true, activePixProvider: 'gatebox', appUiTheme: '', carouselSlides: [], sitePopup: { enabled: false }, homeMarquee: '', mysteryBaus: { reclamarMinDep: fbMb.reclamarMinDep, reclamarTabela: fbMb.reclamarTabela, minDeposit2dReais: fbMb.minDeposit2dReais, minValidBetReais: fbMb.minValidBetReais, headlinePrize: fbMb.headlinePrize, boxes: fbMb.boxes } })
   }
 })
 

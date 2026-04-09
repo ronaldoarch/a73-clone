@@ -4,7 +4,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
@@ -52,8 +52,8 @@ model AfiliadoData {
   misteriosoReclamado  Boolean  @default(false)
   misteriosoDiasAtivos Int      @default(0)
   misteriosoCicloAtual Int      @default(0)  // ciclo de 32 dias para reset
-  bonusPromoReclamados String   @default("[]")  // [{ pessoas, valor }]
-  bonusVipColetados    String   @default("[]")  // [{ nivel, valor }]
+  bonusPromoReclamados String   @default("[]") @db.Text // [{ pessoas, valor }]
+  bonusVipColetados    String   @default("[]") @db.Text // [{ nivel, valor }]
   balance             Float    @default(0)     // Saldo para jogos (Seamless iGameWin)
   vipDiarioColetadoEm  DateTime?               // última coleta do bônus diário VIP
   vipSemanalColetadoEm DateTime?               // última coleta do bônus semanal VIP
@@ -69,7 +69,7 @@ model Deposit {
   valor      Float
   status     String   @default("concluido")  // concluido, pendente, processando, expirado, erro, estornado, reembolsando (transiente, estorno PIX)
   externalId String?  // id conciliação Gatebox / txn_ Cyber
-  creditJson String?  // snapshot do crédito em confirmarDepositoPix (estorno pix.in.reversal.confirmation)
+  creditJson String?  @db.LongText // snapshot JSON (estorno PIX etc.)
   createdAt  DateTime @default(now())
 
   @@index([userId, status, createdAt])
@@ -80,7 +80,7 @@ model Setting {
   id     String  @id @default("main")
   logo   String?
   banner String?
-  value  String? // Config extra (ex: igamewin { agent_code, agent_token, agent_secret })
+  value  String? @db.LongText // JSON: config, igamewin, promocoes, misterioso…
 }
 
 model RoletaBonus {

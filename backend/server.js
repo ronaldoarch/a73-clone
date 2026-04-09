@@ -111,7 +111,7 @@ async function getMysteryBaus() {
   }
 }
 
-// SQLite stores Setting.value as String, so we need JSON serialization helpers
+// Setting.value é JSON em texto (MySQL LONGTEXT / SQLite); serialização nos helpers abaixo
 const settingGet = async (id) => {
   const s = await prisma.setting.findUnique({ where: { id } })
   if (!s) return null

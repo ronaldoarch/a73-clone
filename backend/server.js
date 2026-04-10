@@ -668,18 +668,26 @@ function invalidateAppConfigCache() {
   _appConfigCacheAt = 0
 }
 
-/** Confirma depósito PIX e credita saldo (usado por polling e webhook)
- * @param {object} deposit - Deposit com user incluído
+/** Confirma depósito PIX e credita saldo (usado por polling, webhook e reconciliação).
+ * Idempotente: só credita se o depósito ainda está pendente ou processando (evita duplicar em corrida).
+ * @param {object} deposit - Deposit (mínimo: id; user/account opcional)
  * @param {number} [bonusExtra=0] - Bônus extra em R$ (admin pode adicionar ao aprovar)
  */
 async function confirmarDepositoPix(deposit, bonusExtra = 0) {
-  const af = await ensureAfiliado(deposit.userId, deposit.user?.account || '')
+  const depRow = await prisma.deposit.findUnique({
+    where: { id: deposit.id },
+    include: { user: { select: { account: true } } }
+  })
+  if (!depRow || !['pendente', 'processando'].includes(depRow.status)) return
+
+  const userAccount = depRow.user?.account || deposit.user?.account || ''
+  const af = await ensureAfiliado(depRow.userId, userAccount)
   const cfg = await getAppConfig()
   const bonusPrimeiro = (af.numDepositos ?? 0) === 0
-    ? (cfg.bonusPrimeiroDep ?? 0) + (deposit.valor * (cfg.bonusPrimeiroDepPercent ?? 0) / 100)
+    ? (cfg.bonusPrimeiroDep ?? 0) + (depRow.valor * (cfg.bonusPrimeiroDepPercent ?? 0) / 100)
     : 0
-  const balanceIncrement = deposit.valor + bonusPrimeiro + (Number(bonusExtra) || 0)
-  const rebate = deposit.valor * 0.05
+  const balanceIncrement = depRow.valor + bonusPrimeiro + (Number(bonusExtra) || 0)
+  const rebate = depRow.valor * 0.05
   const niveisVip = [
     { nivel: 0, aposta: 0, bonus: 0 },
     { nivel: 1, aposta: 100, bonus: 1 }, { nivel: 2, aposta: 1000, bonus: 3 }, { nivel: 3, aposta: 3000, bonus: 10 },
@@ -688,7 +696,7 @@ async function confirmarDepositoPix(deposit, bonusExtra = 0) {
     { nivel: 10, aposta: 1000000, bonus: 355 }, { nivel: 11, aposta: 2000000, bonus: 555 }, { nivel: 12, aposta: 3000000, bonus: 755 },
     { nivel: 13, aposta: 4000000, bonus: 855 }, { nivel: 14, aposta: 5000000, bonus: 955 }, { nivel: 15, aposta: 6000000, bonus: 1055 }
   ]
-  const apostaNova = af.apostaAcumulada + deposit.valor * 5
+  const apostaNova = af.apostaAcumulada + depRow.valor * 5
   let nivelVip = af.nivelVip
   let bonusVipReclamar = af.bonusVipReclamar
   const oldBonusVipReclamar = bonusVipReclamar
@@ -700,26 +708,33 @@ async function confirmarDepositoPix(deposit, bonusExtra = 0) {
     nivelVipIncreased = true
   }
   const bonusVipDelta = nivelVipIncreased ? (bonusVipReclamar - oldBonusVipReclamar) : 0
-  const indicator = (await prisma.user.findUnique({ where: { id: deposit.userId }, select: { indicatorId: true } }))?.indicatorId
-  const creditJson = {
+  const indicator = (await prisma.user.findUnique({ where: { id: depRow.userId }, select: { indicatorId: true } }))?.indicatorId
+  const creditSnapshot = {
     v: 1,
     balanceIncrement,
     rebate,
     bonusPrimeiro,
     bonusExtra: Number(bonusExtra) || 0,
-    apostaDelta: deposit.valor * 5,
+    apostaDelta: depRow.valor * 5,
     nivelVipIncreased,
     bonusVipDelta,
     indicatorId: indicator || null,
     indicatorRebate: indicator ? rebate : 0
   }
-  const ops = [
-    prisma.deposit.update({ where: { id: deposit.id }, data: { status: 'concluido', creditJson } }),
-    prisma.afiliadoData.update({
-      where: { userId: deposit.userId },
+  // schema: creditJson é String (LONGTEXT); objeto puro faz o Prisma tratar chaves como operadores (erro "Unknown argument v")
+  const creditJsonStored = JSON.stringify(creditSnapshot)
+
+  await prisma.$transaction(async (tx) => {
+    const moved = await tx.deposit.updateMany({
+      where: { id: depRow.id, status: { in: ['pendente', 'processando'] } },
+      data: { status: 'concluido', creditJson: creditJsonStored }
+    })
+    if (moved.count !== 1) return
+    await tx.afiliadoData.update({
+      where: { userId: depRow.userId },
       data: {
-        depositoMisterioso: { increment: deposit.valor },
-        valorDeposito: { increment: deposit.valor },
+        depositoMisterioso: { increment: depRow.valor },
+        valorDeposito: { increment: depRow.valor },
         numDepositos: { increment: 1 },
         balance: { increment: balanceIncrement },
         coletavelRebate: { increment: rebate },
@@ -731,32 +746,105 @@ async function confirmarDepositoPix(deposit, bonusExtra = 0) {
         updatedAt: new Date()
       }
     })
-  ]
-  if (indicator) {
-    ops.push(prisma.afiliadoData.update({
-      where: { userId: indicator },
-      data: {
-        comissaoPendente: { increment: rebate },
-        coletavelRebate: { increment: rebate },
-        comissaoHoje: { increment: rebate },
-        updatedAt: new Date()
+    if (indicator) {
+      await tx.afiliadoData.update({
+        where: { userId: indicator },
+        data: {
+          comissaoPendente: { increment: rebate },
+          coletavelRebate: { increment: rebate },
+          comissaoHoje: { increment: rebate },
+          updatedAt: new Date()
+        }
+      })
+    }
+  })
+}
+
+/** Consulta gateways e confirma depósitos PIX já pagos mas ainda não creditados (webhook falhou ou usuário fechou o app). */
+async function reconciliarDepositosPixAutomatico() {
+  try {
+    const cfg = await getAppConfig()
+    if (cfg.activePixProvider === 'none') return
+    const minAge = new Date(Date.now() - 40 * 1000)
+    const list = await prisma.deposit.findMany({
+      where: {
+        status: { in: ['pendente', 'processando'] },
+        externalId: { not: null },
+        createdAt: { lt: minAge }
+      },
+      take: 50,
+      orderBy: { createdAt: 'asc' },
+      include: { user: { select: { account: true } } }
+    })
+    for (const deposit of list) {
+      const ext = String(deposit.externalId).trim()
+      if (!ext) continue
+      const isCyber = ext.startsWith('txn_')
+      let paid = false
+      try {
+        if (isCyber) {
+          const statusResult = await cyberGetTransaction(ext)
+          if (!statusResult.ok) continue
+          const st = String(statusResult.data?.status || '').toUpperCase()
+          if (st === 'EXPIRED') {
+            await prisma.deposit.updateMany({
+              where: { id: deposit.id, status: { in: ['pendente', 'processando'] } },
+              data: { status: 'expirado' }
+            })
+            continue
+          }
+          if (st === 'FAILED') {
+            await prisma.deposit.updateMany({
+              where: { id: deposit.id, status: { in: ['pendente', 'processando'] } },
+              data: { status: 'erro' }
+            })
+            continue
+          }
+          paid = ['APPROVED', 'PAID'].includes(st)
+        } else {
+          const statusResult = await gateboxPixStatus({ externalId: ext })
+          if (!statusResult.ok) continue
+          const st = statusResult.data?.status || statusResult.data?.transactionStatus || (statusResult.data?.paid ? 'PAID' : 'PENDING')
+          paid = ['PAID', 'PAID_OUT', 'CONCLUIDO', 'concluido', 'pago'].includes(String(st).toUpperCase())
+        }
+      } catch (e) {
+        console.error('reconciliarDepositosPix:', deposit.id, e.message)
+        continue
       }
-    }))
+      if (paid) await confirmarDepositoPix(deposit)
+    }
+  } catch (e) {
+    console.error('reconciliarDepositosPix:', e)
   }
-  await prisma.$transaction(ops)
+}
+
+/** creditJson no banco é texto JSON; aceita também objeto (legado em memória). */
+function parseDepositCreditJson(raw) {
+  if (raw == null || raw === '') return null
+  if (typeof raw === 'object') return raw
+  if (typeof raw === 'string') {
+    try {
+      const o = JSON.parse(raw)
+      return typeof o === 'object' && o !== null ? o : null
+    } catch {
+      return null
+    }
+  }
+  return null
 }
 
 /** Normaliza snapshot gravado em confirmarDepositoPix para estorno (Cyber pix.in.reversal.confirmation) */
 function creditSnapshotForReversal(deposit, raw) {
-  if (raw && typeof raw === 'object' && raw.v === 1) {
+  const parsed = parseDepositCreditJson(raw)
+  if (parsed && parsed.v === 1) {
     return {
-      balanceIncrement: Number(raw.balanceIncrement) || deposit.valor,
-      rebate: Number(raw.rebate) >= 0 ? Number(raw.rebate) : deposit.valor * 0.05,
-      apostaDelta: Number(raw.apostaDelta) > 0 ? Number(raw.apostaDelta) : deposit.valor * 5,
-      nivelVipIncreased: !!raw.nivelVipIncreased,
-      bonusVipDelta: Math.max(0, Number(raw.bonusVipDelta) || 0),
-      indicatorId: raw.indicatorId || null,
-      indicatorRebate: Math.max(0, Number(raw.indicatorRebate) || 0)
+      balanceIncrement: Number(parsed.balanceIncrement) || deposit.valor,
+      rebate: Number(parsed.rebate) >= 0 ? Number(parsed.rebate) : deposit.valor * 0.05,
+      apostaDelta: Number(parsed.apostaDelta) > 0 ? Number(parsed.apostaDelta) : deposit.valor * 5,
+      nivelVipIncreased: !!parsed.nivelVipIncreased,
+      bonusVipDelta: Math.max(0, Number(parsed.bonusVipDelta) || 0),
+      indicatorId: parsed.indicatorId || null,
+      indicatorRebate: Math.max(0, Number(parsed.indicatorRebate) || 0)
     }
   }
   const rebate = deposit.valor * 0.05
@@ -3418,8 +3506,8 @@ app.post('/api/admin/depositos/:id/approve', adminAuthMiddleware, async (req, re
       include: { user: { select: { account: true } } }
     })
     if (!deposit) return res.status(404).json({ ok: false, error: 'Depósito não encontrado' })
-    if (deposit.status !== 'pendente') {
-      return res.status(400).json({ ok: false, error: 'Apenas depósitos pendentes podem ser aprovados' })
+    if (!['pendente', 'processando'].includes(deposit.status)) {
+      return res.status(400).json({ ok: false, error: 'Apenas depósitos pendentes ou em processamento podem ser aprovados' })
     }
     const bonus = Math.max(0, parseFloat(bonusAmount) || 0)
     await confirmarDepositoPix(deposit, bonus)
@@ -4394,6 +4482,10 @@ async function main() {
     } else if (serveSiteBaixado) {
       console.log(`Site estático (site_baixado): http://localhost:${PORT}/`)
     }
+    // Credita depósitos PIX automaticamente se o gateway já marcou pago (sem depender só de webhook ou do app aberto)
+    const reconciliarMs = Math.max(30_000, parseInt(process.env.RECONCILE_DEPOSIT_MS || '90000', 10) || 90_000)
+    setTimeout(() => reconciliarDepositosPixAutomatico().catch(() => {}), 15_000)
+    setInterval(() => reconciliarDepositosPixAutomatico().catch(() => {}), reconciliarMs)
   })
 }
 

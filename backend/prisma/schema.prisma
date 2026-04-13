@@ -20,9 +20,29 @@ model User {
   afiliado           AfiliadoData?
   depositos          Deposit[]
   withdrawals        Withdrawal[]
+  withdrawSavedAccounts WithdrawSavedAccount[]
 
   @@index([indicatorId])
   @@index([createdAt])
+}
+
+/// Conta PIX ou bancária guardada pelo usuário para saques
+model WithdrawSavedAccount {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type         String   @db.VarChar(16) // PIX, BANK
+  holderName   String   @db.VarChar(128)
+  pixKeyType   String?  @db.VarChar(32)  // tipo escolhido na UI ou inferido (EMAIL, PHONE…)
+  pixKey       String?  @db.VarChar(256) // chave normalizada (igual ao fluxo de saque)
+  bankCode     String?  @db.VarChar(32)
+  bankAccount  String?  @db.VarChar(128)
+  isDefault    Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([userId])
+  @@index([userId, isDefault])
 }
 
 model AfiliadoData {

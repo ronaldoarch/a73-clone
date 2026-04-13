@@ -87,6 +87,10 @@ export const useWithdrawStore = defineStore('withdraw', () => {
   async function bindBankAccount(payload) {
     try {
       const data = await apiPost('/api/saque/bind-account', payload)
+      if (data?.error?.message) {
+        throw new Error(data.error.message)
+      }
+      await fetchBankAccounts()
       return data
     } catch (e) {
       console.error('Failed to bind bank account:', e)

@@ -244,6 +244,7 @@ async function handleSubmit() {
     router.back()
   } catch (e) {
     console.error('Bind failed:', e)
+    window.alert(e?.message || 'Não foi possível vincular a conta. Tente novamente.')
   } finally {
     loading.value = false
   }

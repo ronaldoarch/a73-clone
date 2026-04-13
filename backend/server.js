@@ -2796,6 +2796,151 @@ app.post('/api/roleta/spin', authMiddleware, async (req, res) => {
   }
 })
 
+// ========== Saque (Withdraw) - contas guardadas, info, histórico ==========
+app.get('/api/saque/info', authMiddleware, async (req, res) => {
+  try {
+    const cfg = await getAppConfig()
+    const start = new Date()
+    start.setHours(0, 0, 0, 0)
+    const dailyUsed = await prisma.withdrawal.count({
+      where: { userId: req.userId, createdAt: { gte: start } }
+    })
+    return res.json({
+      minAmount: cfg.saqueMin ?? 20,
+      maxAmount: cfg.saqueMax ?? 40000,
+      feeRate: 0,
+      feeFixed: 0,
+      dailyLimit: 50,
+      dailyUsed
+    })
+  } catch (e) {
+    console.error('saque info:', e)
+    return res.json({ error: { message: e.message || 'Erro ao carregar' } })
+  }
+})
+
+app.get('/api/saque/accounts', authMiddleware, async (req, res) => {
+  try {
+    const rows = await prisma.withdrawSavedAccount.findMany({
+      where: { userId: req.userId },
+      orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }]
+    })
+    const list = rows.map((r) => ({
+      id: r.id,
+      relatedCode: r.id,
+      type: r.type,
+      valueType: r.type,
+      holderName: r.holderName,
+      realName: r.holderName,
+      keyType: r.pixKeyType,
+      key: r.type === 'PIX' ? (r.pixKey || '') : (r.bankAccount || ''),
+      pixKey: r.type === 'PIX' ? (r.pixKey || '') : undefined,
+      accountNumber: r.type === 'BANK' ? (r.bankAccount || '') : (r.pixKey || ''),
+      bankCode: r.bankCode || undefined,
+      isDefault: r.isDefault
+    }))
+    return res.json({ list })
+  } catch (e) {
+    console.error('saque accounts:', e)
+    return res.json({ list: [], error: { message: e.message || 'Erro ao listar contas' } })
+  }
+})
+
+app.post('/api/saque/bind-account', authMiddleware, async (req, res) => {
+  try {
+    const body = req.body?.json || req.body || {}
+    const type = String(body.type || '').toUpperCase()
+    const holderName = String(body.holderName || '').trim()
+    if (!holderName || holderName.length > 128) {
+      return res.json({ error: { message: 'Nome do titular é obrigatório' } })
+    }
+    if (type === 'PIX') {
+      const keyRaw = String(body.key || '').trim()
+      if (!keyRaw) return res.json({ error: { message: 'Chave PIX obrigatória' } })
+      let parsed
+      try {
+        parsed = parsePixKeyForWithdrawal(keyRaw)
+      } catch (e) {
+        return res.json({ error: { message: e.message || 'Chave PIX inválida' } })
+      }
+      const uiKeyType = String(body.keyType || '').trim() || null
+      const dup = await prisma.withdrawSavedAccount.findFirst({
+        where: { userId: req.userId, type: 'PIX', pixKey: parsed.normalizedKey }
+      })
+      if (dup) {
+        return res.json({ error: { message: 'Esta chave PIX já está cadastrada' } })
+      }
+      await prisma.$transaction([
+        prisma.withdrawSavedAccount.updateMany({
+          where: { userId: req.userId },
+          data: { isDefault: false }
+        }),
+        prisma.withdrawSavedAccount.create({
+          data: {
+            userId: req.userId,
+            type: 'PIX',
+            holderName,
+            pixKeyType: uiKeyType,
+            pixKey: parsed.normalizedKey,
+            isDefault: true
+          }
+        })
+      ])
+      return res.json({ ok: true })
+    }
+    if (type === 'BANK') {
+      const bankAccount = String(body.bankAccount || '').trim()
+      const bankCode = String(body.bankCode || '').trim()
+      if (!bankAccount) return res.json({ error: { message: 'Número da conta é obrigatório' } })
+      if (!bankCode) return res.json({ error: { message: 'Selecione o banco' } })
+      await prisma.$transaction([
+        prisma.withdrawSavedAccount.updateMany({
+          where: { userId: req.userId },
+          data: { isDefault: false }
+        }),
+        prisma.withdrawSavedAccount.create({
+          data: {
+            userId: req.userId,
+            type: 'BANK',
+            holderName,
+            bankCode,
+            bankAccount,
+            isDefault: true
+          }
+        })
+      ])
+      return res.json({ ok: true })
+    }
+    return res.json({ error: { message: 'Tipo de conta inválido' } })
+  } catch (e) {
+    console.error('saque bind-account:', e)
+    return res.json({ error: { message: e.message || 'Erro ao salvar conta' } })
+  }
+})
+
+app.get('/api/saque/history', authMiddleware, async (req, res) => {
+  try {
+    const rows = await prisma.withdrawal.findMany({
+      where: { userId: req.userId },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+      select: { id: true, valor: true, status: true, metodo: true, createdAt: true }
+    })
+    const list = rows.map((w) => ({
+      id: w.id,
+      amount: w.valor,
+      valor: w.valor,
+      status: w.status,
+      metodo: w.metodo,
+      createdAt: w.createdAt?.toISOString?.() || ''
+    }))
+    return res.json({ list })
+  } catch (e) {
+    console.error('saque history:', e)
+    return res.json({ list: [], error: { message: e.message || 'Erro' } })
+  }
+})
+
 // ========== Saque (Withdraw) - Automático via Gatebox ==========
 app.post('/api/saque', authMiddleware, async (req, res) => {
   try {

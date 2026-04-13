@@ -197,11 +197,29 @@ export const useSystemStore = defineStore('system', () => {
     }
   }
 
+  function applyBrandingDocumentTitle(data) {
+    if (typeof document === 'undefined' || !data || typeof data !== 'object') return
+    const raw =
+      (typeof data.pageTitle === 'string' && data.pageTitle.trim()) ||
+      (typeof data.siteName === 'string' && data.siteName.trim()) ||
+      ''
+    if (!raw) return
+    document.title = raw
+    let m = document.querySelector('meta[name="apple-mobile-web-app-title"]')
+    if (!m) {
+      m = document.createElement('meta')
+      m.setAttribute('name', 'apple-mobile-web-app-title')
+      document.head.appendChild(m)
+    }
+    m.setAttribute('content', raw.length > 50 ? raw.slice(0, 49) + '…' : raw)
+  }
+
   async function fetchSettings() {
     try {
       const res = await fetch('/api/settings')
       const data = await res.json()
       settings.value = data
+      applyBrandingDocumentTitle(data)
       if (Array.isArray(data.carouselSlides) && data.carouselSlides.length > 0) {
         carouselList.value = data.carouselSlides.map((b) => ({
           imageUrl: b.imageUrl || b.img || '',

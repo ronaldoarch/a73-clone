@@ -253,13 +253,13 @@ const displayName = computed(() =>
 const userId = computed(() => userDetails.value?.userId || userDetails.value?.id || '---')
 const userInitial = computed(() => (displayName.value || 'U').charAt(0).toUpperCase())
 
-const balanceValue = computed(() => Number(assets.value?.balance ?? assets.value?.gold ?? 0) / 100)
+const balanceValue = computed(() => Number(assets.value?.balance ?? assets.value?.gold ?? 0))
 const formattedBalance = computed(() => fmtNum(balanceValue.value))
 
-const bonusValue = computed(() => Number(assets.value?.totalRewardAmountChange ?? 0) / 100)
+const bonusValue = computed(() => Number(assets.value?.totalRewardAmountChange ?? 0))
 const formattedBonus = computed(() => fmtNum(bonusValue.value))
 
-const commission = computed(() => Number(assets.value?.commission ?? 0) / 100)
+const commission = computed(() => Number(assets.value?.commission ?? 0))
 
 const svgReport = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>'
 const svgInvite = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>'
@@ -293,7 +293,7 @@ onMounted(async () => {
         vipLevel.value = data.curVipLevel
         vipNextLevel.value = data.nextVipLevel ?? null
         vipProgress.value = Math.min(100, (data.firstLevelProgress ?? 0) * 100)
-        vipNeedRecharge.value = (data.rechargeRequirements ?? 0) / 100
+        vipNeedRecharge.value = Number(data.rechargeRequirements ?? 0)
       }
     } catch {}
   }

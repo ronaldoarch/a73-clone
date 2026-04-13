@@ -116,7 +116,7 @@
   <!-- Login Overlay -->
   <div id="loginOverlay" style="position:fixed;inset:0;z-index:9999;background:var(--bg-dark);display:flex;align-items:center;justify-content:center">
     <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:16px;padding:2.5rem;width:100%;max-width:380px">
-      <h2 style="text-align:center;margin-bottom:0.5rem;color:var(--accent)">🎰 A73 Admin</h2>
+      <h2 id="loginBrandTitle" style="text-align:center;margin-bottom:0.5rem;color:var(--accent)">🎰 A73 Admin</h2>
       <p style="text-align:center;color:var(--text-muted);margin-bottom:1.5rem;font-size:0.9rem">Faça login para acessar o painel</p>
       <div class="form-group"><label>Usuário</label><input type="text" id="loginUser" class="search-box" placeholder="admin" style="max-width:100%"></div>
       <div class="form-group"><label>Senha</label><input type="password" id="loginPassword" class="search-box" placeholder="••••••••" style="max-width:100%"></div>
@@ -706,14 +706,28 @@
       note.style.display = sel.value ? 'block' : 'none';
     }
 
+    /** Atualiza título do separador, sidebar e ecrã de login a partir de /api/settings (público). */
+    function applyAdminChromeFromSettings(d) {
+      const base = (d && d.siteName && String(d.siteName).trim()) || 'A73';
+      const tab = (d && d.pageTitle && String(d.pageTitle).trim()) || base;
+      const line = '🎰 ' + base + ' Admin';
+      const sidebarEl = document.getElementById('adminSidebarTitle');
+      if (sidebarEl) sidebarEl.textContent = line;
+      const loginEl = document.getElementById('loginBrandTitle');
+      if (loginEl) loginEl.textContent = line;
+      document.title = tab + ' — Admin';
+    }
+
     async function refreshAdminSidebarLogo() {
       const img = document.getElementById('adminSidebarLogo');
       const title = document.getElementById('adminSidebarTitle');
-      if (!img || !title) return;
-      const showImg = () => { img.classList.add('is-visible'); title.classList.add('is-hidden'); };
-      const hideImg = () => { img.classList.remove('is-visible'); img.removeAttribute('src'); title.classList.remove('is-hidden'); };
+      if (!title) return;
+      const showImg = () => { if (img) { img.classList.add('is-visible'); title.classList.add('is-hidden'); } };
+      const hideImg = () => { if (img) { img.classList.remove('is-visible'); img.removeAttribute('src'); } title.classList.remove('is-hidden'); };
       try {
         const d = await fetch('/api/settings').then((r) => r.json());
+        applyAdminChromeFromSettings(d);
+        if (!img) return;
         const url = (d.logo && String(d.logo).trim()) ? String(d.logo).trim() : '';
         if (!url) { hideImg(); return; }
         img.onload = showImg;
@@ -742,6 +756,7 @@
     };
     document.getElementById('btnLogin').addEventListener('click', doLogin);
     document.getElementById('loginPassword').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+    refreshAdminSidebarLogo();
 
     // ── Navigation ──
     document.querySelectorAll('.nav-item').forEach(el => {
@@ -1107,7 +1122,13 @@
     };
     document.getElementById('btnSaveBranding').addEventListener('click', async () => {
       try {
-        const r = await api('/api/settings/branding', { method: 'POST', body: JSON.stringify({ siteName: document.getElementById('brandSiteName').value, pageTitle: document.getElementById('brandPageTitle').value }) });
+        const siteName = document.getElementById('brandSiteName').value;
+        const pageTitle = document.getElementById('brandPageTitle').value;
+        const r = await api('/api/settings/branding', { method: 'POST', body: JSON.stringify({ siteName, pageTitle }) });
+        if (r.ok) {
+          applyAdminChromeFromSettings({ siteName: r.siteName ?? siteName, pageTitle: r.pageTitle ?? pageTitle });
+          refreshAdminSidebarLogo();
+        }
         showToast(r.ok ? 'Branding salvo.' : (r.error || 'Erro'), r.ok ? 'success' : 'error');
       } catch (e) { showToast('Erro.', 'error'); }
     });

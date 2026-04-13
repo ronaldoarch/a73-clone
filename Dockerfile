@@ -40,6 +40,10 @@ WORKDIR /app
 # ── 3. Código do backend ─────────────────────────────────────
 COPY backend/ ./
 
+# Assets estáticos do clone (evita download+tar de ~195MB na build — mais rápido e estável no Coolify).
+# O RUN abaixo só baixa o .tar.gz se este diretório não existir ou tiver poucos ficheiros.
+COPY site_baixado/ /app/site_baixado/
+
 # ── 4. Frontend estático (site_baixado) ──────────────────────
 # Repositório privado: GitHub devolve 404 sem autenticação. Em Coolify defina
 # GITHUB_TOKEN (PAT com scope repo / leitura de releases) como Build Argument.
@@ -74,7 +78,7 @@ RUN if [ -d /app/site_baixado ] && [ "$(ls -A /app/site_baixado 2>/dev/null | wc
         fi; \
         if [ "$DOWNLOAD_OK" = "1" ]; then \
             tar -xzf /tmp/site_baixado.tar.gz -C /app && \
-            rm /tmp/site_baixado.tar.gz && \
+            rm -f /tmp/site_baixado.tar.gz && \
             echo "Download concluído."; \
         else \
             echo "AVISO: Download do site_baixado falhou. Criando diretório vazio."; \

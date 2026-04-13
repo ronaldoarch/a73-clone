@@ -51,7 +51,20 @@ export const useWithdrawStore = defineStore('withdraw', () => {
   async function submitWithdraw(payload) {
     loading.value = true
     try {
-      const data = await apiPost('/api/saque', payload)
+      const valor = Number(payload.valor ?? payload.amount ?? 0)
+      if (!Number.isFinite(valor) || valor <= 0) {
+        throw new Error('Valor inválido')
+      }
+      const body = {
+        valor,
+        metodo: payload.metodo || 'pix',
+        nome: String(payload.nome || '').trim(),
+        cpfId: String(payload.cpfId || '').trim()
+      }
+      const data = await apiPost('/api/saque', body)
+      if (data?.error?.message) {
+        throw new Error(data.error.message)
+      }
       return data
     } catch (e) {
       console.error('Failed to submit withdraw:', e)

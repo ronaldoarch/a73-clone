@@ -75,18 +75,18 @@
           class="quick-btn"
           :class="{ active: Number(amountInput) === val, disabled: balanceNum < val }"
           @click="amountInput = val"
-        >{{ fmtMoney(val * 100) }}</button>
+        >{{ fmtMoney(val) }}</button>
       </div>
 
       <!-- Fee info -->
       <div class="fee-info" v-if="amountInput > 0">
         <div class="fee-row">
           <span>Taxa de serviço</span>
-          <span class="fee-val">{{ currency }} {{ fmtMoney(feeAmount * 100) }}</span>
+          <span class="fee-val">{{ currency }} {{ fmtMoney(feeAmount) }}</span>
         </div>
         <div class="fee-row receive">
           <span>Valor a receber</span>
-          <span class="receive-val">{{ currency }} {{ fmtMoney(receiveAmount * 100) }}</span>
+          <span class="receive-val">{{ currency }} {{ fmtMoney(receiveAmount) }}</span>
         </div>
       </div>
 
@@ -130,11 +130,11 @@
         </button>
         <h3>Confirmar Saque</h3>
         <p class="confirm-label">Valor do saque</p>
-        <p class="confirm-amount">{{ currency }} {{ fmtMoney(receiveAmount * 100) }}</p>
+        <p class="confirm-amount">{{ currency }} {{ fmtMoney(receiveAmount) }}</p>
         <div class="confirm-line"></div>
         <div class="confirm-detail">
           <span>Taxa de serviço</span>
-          <span>{{ currency }} {{ fmtMoney(feeAmount * 100) }}</span>
+          <span>{{ currency }} {{ fmtMoney(feeAmount) }}</span>
         </div>
 
         <div class="password-section" v-if="requirePassword">
@@ -204,10 +204,8 @@ const channelList = ref([
 const pwInput = ref(null)
 const quickAmounts = [50, 100, 200, 500, 1000, 2000]
 
-const balanceNum = computed(() => {
-  const raw = assets.value?.balance ?? 0
-  return Number(raw) / 100
-})
+/** Saldo em reais (igual AppHeader / AfiliadoData.balance na API — não é centavos). */
+const balanceNum = computed(() => Number(assets.value?.balance ?? 0) || 0)
 
 const formattedBalance = computed(() =>
   balanceNum.value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -228,8 +226,8 @@ const maskedKey = computed(() => {
   return key.slice(0, 3) + '***' + key.slice(-3)
 })
 
-function fmtMoney(val) {
-  const num = Number(val) / 100
+function fmtMoney(reais) {
+  const num = Number(reais) || 0
   return num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
@@ -269,8 +267,13 @@ function onPasswordInput() {
 
 async function executeWithdraw() {
   try {
+    const accounts = withdrawStore.bankAccounts || []
+    const acct = accounts[0]
     await withdrawStore.submitWithdraw({
-      amount: Number(amountInput.value) * 100,
+      valor: Number(amountInput.value),
+      metodo: 'pix',
+      nome: String(acct?.realName || acct?.holderName || acct?.accountHolder || '').trim(),
+      cpfId: String(acct?.pixKey || acct?.accountNumber || acct?.key || '').trim(),
       password: password.value || undefined
     })
     showConfirmModal.value = false

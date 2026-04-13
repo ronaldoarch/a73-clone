@@ -965,8 +965,14 @@
     document.getElementById('btnAddPromo').addEventListener('click', () => openPromoModal(-1));
 
     // ── Prêmio misterioso / baús ──
-    function initMisteriosoFormDom() {
+    /** @param {boolean} force — true ao abrir a secção: reconstrói tabela/caixas (corrige DOM vazio da primeira montagem). */
+    function initMisteriosoFormDom(force) {
       const tb = document.getElementById('mstTabBody');
+      const wrap = document.getElementById('mstBoxesWrap');
+      if (force) {
+        if (tb) { tb.innerHTML = ''; delete tb.dataset.inited; }
+        if (wrap) { wrap.innerHTML = ''; delete wrap.dataset.inited; }
+      }
       if (tb && tb.dataset.inited !== '1') {
         tb.dataset.inited = '1';
         for (let i = 0; i < 8; i++) {
@@ -975,7 +981,6 @@
           tb.appendChild(tr);
         }
       }
-      const wrap = document.getElementById('mstBoxesWrap');
       if (wrap && wrap.dataset.inited !== '1') {
         wrap.dataset.inited = '1';
         let html = '<div style="display:grid;gap:1rem">';
@@ -1000,13 +1005,27 @@
     }
     const loadMisterioso = async () => {
       try {
-        initMisteriosoFormDom();
+        initMisteriosoFormDom(true);
       } catch (e) {
         console.error('initMisteriosoFormDom', e);
         showToast('Erro ao montar o formulário dos baús.', 'error');
       }
       try {
-        const d = await api('/api/admin/mystery-baus');
+        let d = null;
+        try {
+          d = await api('/api/admin/mystery-baus');
+        } catch (errAdmin) {
+          console.warn('mystery-baus (admin):', errAdmin);
+        }
+        if (!d || d.error || !Array.isArray(d.reclamarTabela) || !Array.isArray(d.boxes)) {
+          const pub = await fetch('/api/settings').then((r) => r.json()).catch(() => ({}));
+          d = pub.mysteryBaus || {};
+          if (!d || !Array.isArray(d.reclamarTabela) || !Array.isArray(d.boxes)) {
+            showToast('Não foi possível carregar as configurações dos baús.', 'error');
+            return;
+          }
+          showToast('Dados carregados da API pública. Faça login como admin para alterar e gravar.', 'info');
+        }
         const elH = document.getElementById('mstHeadlinePrize');
         const elR = document.getElementById('mstReclamarMinDep');
         const el2 = document.getElementById('mstMinDep2d');
@@ -1045,7 +1064,7 @@
       }
     };
     const saveMisterioso = async () => {
-      initMisteriosoFormDom();
+      initMisteriosoFormDom(false);
       const reclamarTabela = [];
       for (let i = 0; i < 8; i++) {
         reclamarTabela.push({

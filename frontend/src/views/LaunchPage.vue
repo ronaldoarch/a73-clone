@@ -86,6 +86,8 @@ async function launchGame() {
   error.value = ''
 
   try {
+    if (auth.isLoggedIn) await auth.getAccount()
+
     const res = await fetch('/api/igamewin/launch-game', {
       method: 'POST',
       headers: {

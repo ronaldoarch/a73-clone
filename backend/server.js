@@ -1849,12 +1849,55 @@ async function getIgamewinConfig() {
         agent_token: v.agent_token || '',
         agent_secret: v.agent_secret || '',
         sandbox: v.sandbox ?? true,
-        is_demo: v.is_demo ?? true,
+        is_demo: v.is_demo !== undefined ? !!v.is_demo : false,
         api_mode: v.api_mode || 'seamless', // 'seamless' | 'transfer'
         site_endpoint: String(v.site_endpoint || v.public_api_url || '').replace(/\/$/, '')
       }
     }
   } catch (e) { /* ignore */ }
+  return null
+}
+
+/** Afiliado/saldo para callbacks iGameWin (user_balance / transaction): mesmo user_code que o provedor envia. */
+async function findAfiliadoForIgameUserCode(user_code) {
+  if (user_code == null || String(user_code).trim() === '') return null
+  const raw = String(user_code).trim()
+  if (raw.toLowerCase() === 'guest') return null
+  const tryByAccount = (acc) => acc
+    ? prisma.afiliadoData.findFirst({
+        where: { user: { account: acc } },
+        include: { user: true }
+      })
+    : null
+  let af = await tryByAccount(raw)
+  if (af) return af
+  const norm = normalizeAccount(raw)
+  if (norm) {
+    af = await tryByAccount(norm)
+    if (af) return af
+    if (norm.length >= 12 && norm.startsWith('55')) {
+      af = await tryByAccount(norm.slice(2))
+      if (af) return af
+    }
+    if (norm.length >= 10 && norm.length <= 11) {
+      af = await tryByAccount(`55${norm}`)
+      if (af) return af
+    }
+    if (norm.length >= 10) {
+      af = await prisma.afiliadoData.findFirst({
+        where: { user: { phone: norm } },
+        include: { user: true }
+      })
+      if (af) return af
+    }
+  }
+  if (/^c[a-z0-9]{20,}$/i.test(raw)) {
+    af = await prisma.afiliadoData.findUnique({
+      where: { userId: raw },
+      include: { user: true }
+    })
+    if (af) return af
+  }
   return null
 }
 
@@ -1880,22 +1923,10 @@ const handleSeamless = async (req, res) => {
     }
 
     const fmt = (v) => Math.round(Number(v) * 100) / 100
-    const isDemo = stored?.is_demo ?? true
+    const isDemo = Boolean(stored?.is_demo)
 
     if (method === 'user_balance') {
-      let af = await prisma.afiliadoData.findFirst({
-        where: { user: { account: user_code } },
-        include: { user: true }
-      })
-      if (!af && user_code !== 'guest') {
-        const codeNorm = normalizeAccount(user_code)
-        if (codeNorm.length >= 10) {
-          af = await prisma.afiliadoData.findFirst({
-            where: { user: { account: codeNorm } },
-            include: { user: true }
-          })
-        }
-      }
+      const af = await findAfiliadoForIgameUserCode(user_code)
       const balance = af?.balance ?? 0
       return res.json({ status: 1, user_balance: fmt(balance) })
     }
@@ -1921,19 +1952,7 @@ const handleSeamless = async (req, res) => {
       else if (txnType === 'credit') delta = winReais
       else delta = winReais - betReais
 
-      let af = await prisma.afiliadoData.findFirst({
-        where: { user: { account: user_code } },
-        include: { user: true }
-      })
-      if (!af && user_code !== 'guest') {
-        const codeNorm = normalizeAccount(user_code)
-        if (codeNorm.length >= 10) {
-          af = await prisma.afiliadoData.findFirst({
-            where: { user: { account: codeNorm } },
-            include: { user: true }
-          })
-        }
-      }
+      const af = await findAfiliadoForIgameUserCode(user_code)
       if (!af) {
         if (user_code === 'guest' && isDemo) {
           return res.json({ status: 1, user_balance: 0 })
@@ -1997,13 +2016,13 @@ app.post('/api/games/seamless', handleSeamless)
 app.get('/api/settings/igamewin', adminAuthMiddleware, async (req, res) => {
   try {
     const cfg = await getIgamewinConfig()
-    const base = cfg || { agent_code: '', agent_token: '', agent_secret: '', sandbox: true, is_demo: true, api_mode: 'seamless', site_endpoint: '' }
+    const base = cfg || { agent_code: '', agent_token: '', agent_secret: '', sandbox: true, is_demo: false, api_mode: 'seamless', site_endpoint: '' }
     const envBase = (process.env.API_PUBLIC_URL || process.env.BACKEND_PUBLIC_URL || '').replace(/\/$/, '')
     base.site_endpoint = (cfg?.site_endpoint || envBase || '').replace(/\/$/, '')
     return res.json(base)
   } catch (e) {
     const envBase = (process.env.API_PUBLIC_URL || process.env.BACKEND_PUBLIC_URL || '').replace(/\/$/, '')
-    return res.json({ agent_code: '', agent_token: '', agent_secret: '', sandbox: true, is_demo: true, api_mode: 'seamless', site_endpoint: envBase })
+    return res.json({ agent_code: '', agent_token: '', agent_secret: '', sandbox: true, is_demo: false, api_mode: 'seamless', site_endpoint: envBase })
   }
 })
 
@@ -2026,7 +2045,7 @@ app.post('/api/settings/igamewin', adminAuthMiddleware, async (req, res) => {
       agent_token: finalToken,
       agent_secret: finalSecret,
       sandbox: sandbox ?? true,
-      is_demo: is_demo ?? true,
+      is_demo: is_demo !== undefined && is_demo !== null ? !!is_demo : (existing?.is_demo ?? false),
       api_mode: mode,
       site_endpoint: finalSite
     })
@@ -2228,10 +2247,22 @@ app.post('/api/igamewin/launch-game', async (req, res) => {
     if (!stored?.agent_code || !stored?.agent_token) {
       return res.json({ status: 0, msg: 'IGAMEWIN_NOT_CONFIGURED' })
     }
-    // user_code: normaliza (só dígitos para telefone, ou guest) - iGameWin pode rejeitar espaços/caracteres
-    const raw = String(user_code || 'guest').trim()
-    const userCode = raw === 'guest' ? 'guest' : (normalizeAccount(raw) || raw)
-    const isDemo = stored.is_demo ?? true
+    // Com Bearer válido, usa sempre a conta do BD (evita guest quando o Pinia ainda não carregou saved_account)
+    let resolvedRaw = String(user_code || 'guest').trim()
+    const authHdr = req.headers.authorization || ''
+    const bearer = authHdr.startsWith('Bearer ') ? authHdr.slice(7).trim() : ''
+    if (bearer) {
+      try {
+        const dec = jwt.verify(bearer, JWT_SECRET)
+        if (dec?.userId) {
+          const u = await prisma.user.findUnique({ where: { id: dec.userId }, select: { account: true } })
+          if (u?.account) resolvedRaw = String(u.account).trim()
+        }
+      } catch { /* token inválido: mantém user_code do body */ }
+    }
+    const raw = resolvedRaw === '' ? 'guest' : resolvedRaw
+    const userCode = raw.toLowerCase() === 'guest' ? 'guest' : (normalizeAccount(raw) || raw)
+    const isDemo = Boolean(stored.is_demo)
     const apiMode = stored.api_mode || 'seamless'
 
     // 1. user_create (obrigatório antes de game_launch) - modo samples usa is_demo: true
@@ -2254,19 +2285,7 @@ app.post('/api/igamewin/launch-game', async (req, res) => {
 
     // 2. Modo transfer: user_deposit com saldo do usuário antes de game_launch
     if (apiMode === 'transfer' && userCode !== 'guest') {
-      let af = await prisma.afiliadoData.findFirst({
-        where: { user: { account: userCode } },
-        include: { user: true }
-      })
-      if (!af) {
-        const codeNorm = normalizeAccount(userCode)
-        if (codeNorm.length >= 10) {
-          af = await prisma.afiliadoData.findFirst({
-            where: { user: { account: codeNorm } },
-            include: { user: true }
-          })
-        }
-      }
+      const af = await findAfiliadoForIgameUserCode(userCode)
       const balance = af?.balance ?? 0
       if (balance > 0) {
         const depositRes = await fetch(IGAMEWIN_URL, {
@@ -2391,19 +2410,7 @@ app.get('/api/igamewin/game-return', async (req, res) => {
     })
     // 3. Creditar saldo de volta no nosso sistema
     if (balanceToCredit > 0) {
-      let af = await prisma.afiliadoData.findFirst({
-        where: { user: { account: userCode } },
-        include: { user: true }
-      })
-      if (!af) {
-        const codeNorm = normalizeAccount(userCode)
-        if (codeNorm.length >= 10) {
-          af = await prisma.afiliadoData.findFirst({
-            where: { user: { account: codeNorm } },
-            include: { user: true }
-          })
-        }
-      }
+      const af = await findAfiliadoForIgameUserCode(userCode)
       if (af) {
         await prisma.afiliadoData.update({
           where: { id: af.id },

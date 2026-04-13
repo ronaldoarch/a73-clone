@@ -1,9 +1,31 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 
+/** Em dev o index.html não passa pelo Express; substitui tokens OG para não aparecer __A73_*__ no browser. */
+function socialMetaDevPlugin() {
+  return {
+    name: 'social-meta-dev-placeholders',
+    transformIndexHtml(html, ctx) {
+      if (!ctx.server) return html
+      const base = 'http://localhost:5173'
+      const devIcon = `${base}/assets/inicio-36-DJCGom9R.svg`
+      const fill = (h) => h
+        .replace(/__A73_PAGE_TITLE__/g, 'A73 (dev)')
+        .replace(/__A73_OG_TITLE__/g, 'A73 (dev)')
+        .replace(/__A73_SITE_NAME__/g, 'A73')
+        .replace(/__A73_OG_DESC__/g, 'Ambiente de desenvolvimento')
+        .replace(/__A73_OG_IMAGE__/g, devIcon)
+        .replace(/__A73_OG_URL__/g, `${base}/`)
+        .replace(/__A73_LOGO_ABS__/g, devIcon)
+      return fill(html)
+    }
+  }
+}
+
 export default defineConfig({
   plugins: [
-    vue()
+    vue(),
+    socialMetaDevPlugin()
   ],
   server: {
     port: 5173,

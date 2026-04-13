@@ -3604,6 +3604,72 @@ app.get('/api/settings', async (req, res) => {
   }
 })
 
+/** Escape para atributos HTML (Open Graph / Twitter / title). */
+function escapeHtmlAttr(s) {
+  return String(s ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\r\n|\n|\r/g, ' ')
+}
+
+function reqPublicBase(req) {
+  try {
+    const xfProto = (req.get('x-forwarded-proto') || req.protocol || 'https').split(',')[0].trim().replace(/:+$/, '')
+    const proto = xfProto === 'http' || xfProto === 'https' ? xfProto : 'https'
+    const host = (req.get('x-forwarded-host') || req.get('host') || '').split(',')[0].trim()
+    if (!host) return ''
+    return `${proto}://${host}`
+  } catch {
+    return ''
+  }
+}
+
+function absolutePublicUrl(req, pathOrUrl) {
+  const s = String(pathOrUrl || '').trim()
+  if (!s) return ''
+  if (/^https?:\/\//i.test(s)) return s
+  const base = reqPublicBase(req)
+  if (!base) return s.startsWith('/') ? s : `/${s}`
+  return base + (s.startsWith('/') ? s : `/${s}`)
+}
+
+/** Dados de branding para meta tags OG/Twitter (pré-visualização WhatsApp, Telegram, etc.). */
+async function getSocialPreviewPayload(req) {
+  let main = null
+  try {
+    main = await settingGet('main')
+  } catch { /* defaults */ }
+  const v = main?.value || {}
+  const savedLogo = (main?.logo && String(main.logo).trim()) || ''
+  const banner = (main?.banner && String(main.banner).trim()) || ''
+  const defaultImg = '/s5/1770954153806/9999.jpg'
+  const siteName = (typeof v.siteName === 'string' && v.siteName.trim()) || '35m'
+  const pageTitle = (typeof v.pageTitle === 'string' && v.pageTitle.trim()) || siteName
+  const ogTitle = pageTitle
+  const imgRel = savedLogo || banner || defaultImg
+  const imageAbs = absolutePublicUrl(req, imgRel)
+  const logoAbs = savedLogo ? absolutePublicUrl(req, savedLogo) : imageAbs
+  const base = reqPublicBase(req)
+  const pathOnly = (req.path && String(req.path).split('?')[0]) || '/'
+  const ogUrl = base ? `${base}${pathOnly.startsWith('/') ? pathOnly : `/${pathOnly}`}` : ''
+  const desc = `🎰 ENTRA NO ${siteName} AGORA! 🎉 💰 GANHE ATÉ R$99 💸 🔄 AMANHÃ TEM MAIS PRÊMIOS! 🎁 👇 CLIQUE PARA GANHAR AGORA! 👆`
+  return { pageTitle, ogTitle, siteName, imageAbs, logoAbs, ogUrl, desc }
+}
+
+function fillSocialPreviewPlaceholders(html, p) {
+  const e = escapeHtmlAttr
+  return html
+    .replace(/__A73_PAGE_TITLE__/g, e(p.pageTitle))
+    .replace(/__A73_OG_TITLE__/g, e(p.ogTitle))
+    .replace(/__A73_SITE_NAME__/g, e(p.siteName))
+    .replace(/__A73_OG_DESC__/g, e(p.desc))
+    .replace(/__A73_OG_IMAGE__/g, e(p.imageAbs))
+    .replace(/__A73_OG_URL__/g, e(p.ogUrl))
+    .replace(/__A73_LOGO_ABS__/g, e(p.logoAbs))
+}
+
 function pwaManifestIconMime(logo) {
   const l = String(logo || '').toLowerCase()
   if (l.endsWith('.svg')) return 'image/svg+xml'
@@ -3968,14 +4034,31 @@ if (serveVueFrontend) {
   console.log('[server] Servindo novo frontend Vue.js de:', vueFrontendDir)
   app.use(express.static(vueFrontendDir, { index: false, maxAge: '1h' }))
   const vueIndexPath = path.join(vueFrontendDir, 'index.html')
-  app.get('*', (req, res, next) => {
+  let vueIndexTemplateCache = null
+  async function readVueIndexTemplate() {
+    if (vueIndexTemplateCache !== null) return vueIndexTemplateCache
+    vueIndexTemplateCache = await fs.promises.readFile(vueIndexPath, 'utf8')
+    return vueIndexTemplateCache
+  }
+  app.get('*', async (req, res, next) => {
     if (req.path.startsWith('/api/') || req.path.startsWith('/gold_api/') || req.path.startsWith('/admin')) {
       return next()
     }
     if (req.accepts('html')) {
-      res.setHeader('Content-Type', 'text/html; charset=utf-8')
-      res.setHeader('Cache-Control', 'no-store')
-      res.sendFile(vueIndexPath)
+      try {
+        const tmpl = await readVueIndexTemplate()
+        res.setHeader('Content-Type', 'text/html; charset=utf-8')
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate')
+        if (!tmpl.includes('__A73_PAGE_TITLE__')) {
+          res.sendFile(vueIndexPath)
+          return
+        }
+        const payload = await getSocialPreviewPayload(req)
+        res.send(fillSocialPreviewPlaceholders(tmpl, payload))
+      } catch (e) {
+        console.error('[server] index.html social preview:', e)
+        next(e)
+      }
     } else {
       next()
     }

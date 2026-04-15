@@ -64,7 +64,14 @@
             Meus subordinados diretos <strong class="invite-stats-num">{{ directTotal }}</strong> Pessoa
           </p>
           <p class="invite-stats-line invite-stats-line--second">
-            (Válido <strong class="invite-stats-num">{{ validTotal }}</strong> Pessoa)
+            (Válido agência <strong class="invite-stats-num">{{ validTotal }}</strong>)
+          </p>
+          <p class="invite-stats-line invite-stats-line--subef">
+            Subordinados efetivos (dep./aposta mín.) <strong class="invite-stats-num">{{ subEfetivosCount }}</strong>
+          </p>
+          <p v-if="mysteryBaus?.indicacaoManipEnabled" class="invite-stats-line invite-stats-line--effective">
+            Contagem para baús <strong class="invite-stats-num">{{ effectiveForChests }}</strong>
+            <span class="invite-stats-hint">(regra {{ mysteryBaus.indicacaoDar }}/{{ mysteryBaus.indicacaoRoubar }})</span>
           </p>
         </div>
         <button type="button" class="invite-details-btn" @click="$router.push('/spread')">
@@ -83,10 +90,12 @@
           <div class="invite-reward-row-chests">
             <div
               v-for="tier in row"
-              :key="`chest-${tier.people}-${tier.amount}`"
+              :key="`chest-${tier.index}`"
               class="invite-reward-cell invite-reward-cell--chest"
+              :class="{ 'invite-reward-cell--reached': isTierReached(tier) }"
             >
               <div class="invite-reward-stage">
+                <span class="invite-chest-badge" aria-hidden="true">#{{ tier.index }}</span>
                 <img class="invite-reward-chest" src="/assets/invite-friends/treasure-c1VM6Hn0.png" alt="" />
               </div>
             </div>
@@ -100,14 +109,25 @@
             <div class="invite-reward-row-details invite-reward-row-details--over-bench">
               <div
                 v-for="tier in row"
-                :key="`detail-${tier.people}-${tier.amount}`"
+                :key="`detail-${tier.index}`"
                 class="invite-reward-cell invite-reward-cell--details"
+                :class="{ 'invite-reward-cell--reached': isTierReached(tier) }"
               >
-                <p class="invite-reward-amount">{{ tier.amount }}</p>
+                <p class="invite-reward-amount">R$ {{ tier.amount }}</p>
                 <p class="invite-reward-meta">
                   Promoção <span class="invite-reward-milestone">{{ tier.people }}</span>
                 </p>
                 <p class="invite-reward-unit">Pessoas</p>
+                <button
+                  v-if="auth.isLoggedIn && isTierReached(tier) && !isTierClaimed(tier)"
+                  type="button"
+                  class="invite-claim-btn"
+                  :disabled="claimingIndex === tier.index"
+                  @click="claimTier(tier)"
+                >
+                  {{ claimingIndex === tier.index ? '…' : 'Resgatar' }}
+                </button>
+                <p v-else-if="auth.isLoggedIn && isTierClaimed(tier)" class="invite-claimed-label">Resgatado</p>
               </div>
             </div>
           </div>
@@ -146,85 +166,116 @@
 </template>
 
 <script setup>
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useAgentStore } from '../stores/agent'
-import { toastSuccess } from '../utils/toast'
+import { useAuthStore } from '../stores/auth'
+import { toastSuccess, toastError } from '../utils/toast'
+import { apiGet, apiPost } from '../utils/api'
+import {
+  DEFAULT_AFILIADO_BAUS,
+  buildAffiliateChestTiers,
+  chunkTiers,
+  effectiveInviteCount
+} from '../utils/affiliateMysteryBaus'
 
 const agentStore = useAgentStore()
+const auth = useAuthStore()
 const { inviteLink, agentData } = storeToRefs(agentStore)
+
+/** GET /api/settings → mysteryBaus (admin «Baús misterioso») */
+const mysteryBaus = ref(null)
+/** GET /api/afiliado — mesma base do servidor (subEfetivos, baús resgatados) */
+const afiliadoPayload = ref(null)
+const claimingIndex = ref(null)
 
 const displayLink = computed(() => inviteLink.value || `${window.location.origin}/`)
 
 const directTotal = computed(() => agentData.value?.histDirectCnt ?? 0)
 const validTotal = computed(() => agentData.value?.validDirectCnt ?? agentData.value?.dayDirectRechargeCnt ?? 0)
 
-const rewardTiers = [
-  { people: 1, amount: '50,00' },
-  { people: 2, amount: '50,00' },
-  { people: 3, amount: '50,00' },
-  { people: 4, amount: '50,00' },
-  { people: 5, amount: '50,00' },
-  { people: 10, amount: '100,00' },
-  { people: 25, amount: '200,00' },
-  { people: 50, amount: '400,00' },
-  { people: 75, amount: '700,00' },
-  { people: 100, amount: '1.200,00' },
-  { people: 125, amount: '1.800,00' },
-  { people: 150, amount: '2.500,00' },
-  { people: 200, amount: '2.500,00' },
-  { people: 250, amount: '2.500,00' },
-  { people: 300, amount: '2.500,00' },
-  { people: 350, amount: '2.500,00' },
-  { people: 400, amount: '2.500,00' },
-  { people: 450, amount: '2.500,00' },
-  { people: 500, amount: '3.000,00' },
-  { people: 600, amount: '4.000,00' },
-  { people: 750, amount: '5.500,00' },
-  { people: 900, amount: '7.500,00' },
-  { people: 1100, amount: '10.000,00' },
-  { people: 1300, amount: '13.000,00' },
-  { people: 1600, amount: '18.000,00' },
-  { people: 2000, amount: '25.000,00' },
-  { people: 2500, amount: '35.000,00' },
-  { people: 3000, amount: '48.000,00' },
-  { people: 3600, amount: '65.000,00' },
-  { people: 4200, amount: '85.000,00' },
-  { people: 5000, amount: '110.000,00' },
-  { people: 6000, amount: '140.000,00' },
-  { people: 7200, amount: '175.000,00' },
-  { people: 8500, amount: '215.000,00' },
-  { people: 10000, amount: '260.000,00' },
-  { people: 12000, amount: '310.000,00' },
-  { people: 13500, amount: '360.000,00' },
-  { people: 15000, amount: '400.000,00' },
-  { people: 16500, amount: '430.000,00' },
-  { people: 17500, amount: '455.000,00' },
-  { people: 18500, amount: '475.000,00' },
-  { people: 19500, amount: '490.000,00' },
-  { people: 20000, amount: '500.000,00' }
-]
-
-const rewardRows = computed(() => {
-  const rows = []
-  for (let i = 0; i < rewardTiers.length; i += 4) {
-    rows.push(rewardTiers.slice(i, i + 4))
-  }
-  return rows
+const subEfetivosCount = computed(() => {
+  const n = afiliadoPayload.value?.subEfetivos
+  return Number.isFinite(Number(n)) ? Number(n) : 0
 })
 
-const promotionConditions = [
-  { label: 'Primeiro depósito do subordinado', value: '≥0.00', accent: true },
-  { label: 'Depósitos acumulados do subordinado', value: '≥30.00', accent: true },
-  { label: 'Quantidade de apostas acumuladas pelo subordinado', value: '≥600.00', accent: true },
-  { label: 'Dias acumulados de depósito do subordinado', value: '≥0', accent: false },
-  { label: 'Número acumulado de recargas dos subordinados', value: '≥0', accent: false }
-]
+const effectiveForChests = computed(() =>
+  effectiveInviteCount(subEfetivosCount.value, mysteryBaus.value || DEFAULT_AFILIADO_BAUS)
+)
+
+function isTierReached(tier) {
+  return effectiveForChests.value >= (tier?.people ?? 0)
+}
+
+function isTierClaimed(tier) {
+  const list = afiliadoPayload.value?.bonusPromoReclamados
+  if (!Array.isArray(list) || !tier) return false
+  return list.some(
+    (x) =>
+      Number(x.chestIndex) === tier.index ||
+      (!x.chestIndex && Number(x.pessoas) === tier.people)
+  )
+}
+
+async function loadAfiliadoApi() {
+  if (!auth.isLoggedIn) {
+    afiliadoPayload.value = null
+    return
+  }
+  try {
+    const d = await apiGet('/api/afiliado')
+    const payload = d?.result?.data?.json ?? d
+    if (payload && typeof payload === 'object') afiliadoPayload.value = payload
+  } catch (e) {
+    console.warn('[InviteFriends] /api/afiliado', e)
+  }
+}
+
+async function claimTier(tier) {
+  if (!tier?.index || !auth.isLoggedIn) {
+    toastError('Faça login para resgatar.')
+    return
+  }
+  claimingIndex.value = tier.index
+  try {
+    const d = await apiPost('/api/afiliado/reclamar-promo', { json: { chestIndex: tier.index } })
+    const j = d?.result?.data?.json
+    const v = j?.valor != null ? Number(j.valor) : null
+    toastSuccess(v != null && Number.isFinite(v) ? `Resgatado R$ ${v.toFixed(2)} no saldo de afiliado.` : 'Resgatado com sucesso.')
+    await loadAfiliadoApi()
+    await agentStore.fetchAgentInfo()
+  } catch (e) {
+    toastError(e.message || 'Não foi possível resgatar.')
+  } finally {
+    claimingIndex.value = null
+  }
+}
+
+const rewardRows = computed(() => {
+  const mb = mysteryBaus.value ? { ...DEFAULT_AFILIADO_BAUS, ...mysteryBaus.value } : null
+  const tiers = buildAffiliateChestTiers(mb)
+  return chunkTiers(tiers, 4)
+})
+
+const promotionConditions = computed(() => {
+  const mb = { ...DEFAULT_AFILIADO_BAUS, ...(mysteryBaus.value || {}) }
+  const fmt = (n) =>
+    Number(n ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  const pct = Math.min(100, Math.max(0, Number(mb.cpaWinChancePct) || 0))
+  return [
+    { label: 'CPA afiliado nível 1', value: `R$ ${fmt(mb.cpaNivel1)}`, accent: true },
+    { label: 'CPA afiliado nível 2', value: `R$ ${fmt(mb.cpaNivel2)}`, accent: true },
+    { label: 'CPA afiliado nível 3', value: `R$ ${fmt(mb.cpaNivel3)}`, accent: true },
+    { label: 'Chance de ganhar o CPA (nível 1)', value: `${pct}%`, accent: true },
+    { label: 'Depósito mín. do indicado', value: `≥ R$ ${fmt(mb.minDeposit2dReais)}`, accent: true },
+    { label: 'Aposta válida mín. do indicado', value: `≥ R$ ${fmt(mb.minValidBetReais)}`, accent: true }
+  ]
+})
 
 const eventRules = [
   'Convide amigos para reivindicar bônus. Quanto mais pessoas você convidar, mais bônus você receberá;',
   'Os bônus precisam ser reivindicados manualmente. Após a expiração, os bônus serão distribuídos automaticamente e podem ser aproveitados junto com bônus e comissões de outros agentes;',
-  'Os bônus (excluindo o principal) exigem 0 vezes de apostas válidas para serem sacados;',
+  'Os bônus creditados no saldo de afiliado ficam sujeitos a rollover (ex.: 1x) antes do saque, conforme regras da plataforma;',
   'Somente o proprietário da conta pode realizar operações manuais normais, caso contrário, o bônus será cancelado ou deduzido, congelado ou até mesmo colocado na lista negra;',
   'Para evitar diferenças na compreensão do texto, a plataforma se reserva o direito final de interpretação desta atividade.'
 ]
@@ -296,8 +347,25 @@ function copyLink() {
   navigator.clipboard?.writeText(t).then(() => toastSuccess('Link copiado.')).catch(() => {})
 }
 
-onMounted(() => {
-  agentStore.fetchAgentInfo()
+watch(
+  () => auth.isLoggedIn,
+  (loggedIn) => {
+    if (loggedIn) loadAfiliadoApi()
+    else afiliadoPayload.value = null
+  }
+)
+
+onMounted(async () => {
+  await agentStore.fetchAgentInfo()
+  try {
+    const d = await fetch('/api/settings').then((r) => r.json())
+    if (d && d.mysteryBaus && typeof d.mysteryBaus === 'object') {
+      mysteryBaus.value = d.mysteryBaus
+    }
+  } catch (e) {
+    console.warn('[InviteFriends] /api/settings', e)
+  }
+  await loadAfiliadoApi()
 })
 </script>
 
@@ -602,6 +670,21 @@ onMounted(() => {
   color: #fff;
 }
 
+.invite-stats-line--effective {
+  margin-top: 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: rgba(167, 243, 208, 0.98);
+}
+
+.invite-stats-hint {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.55);
+  margin-top: 0.12rem;
+}
+
 .invite-details-btn {
   flex-shrink: 0;
   padding: 0.45rem 0.75rem;
@@ -718,6 +801,36 @@ onMounted(() => {
   object-position: center bottom;
   display: block;
   flex-shrink: 0;
+}
+
+.invite-reward-cell--reached .invite-reward-chest {
+  opacity: 1;
+  filter: none;
+}
+
+.invite-reward-cell--chest:not(.invite-reward-cell--reached) .invite-reward-chest {
+  opacity: 0.42;
+  filter: grayscale(0.35);
+}
+
+.invite-reward-cell--details.invite-reward-cell--reached .invite-reward-amount {
+  color: #86efac;
+}
+
+.invite-chest-badge {
+  position: absolute;
+  top: 0.1rem;
+  right: 0.15rem;
+  z-index: 2;
+  min-width: 1.35rem;
+  padding: 0.1rem 0.28rem;
+  border-radius: 9999px;
+  background: #2563eb;
+  color: #fff;
+  font-size: 0.58rem;
+  font-weight: 700;
+  line-height: 1.2;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
 }
 
 .invite-reward-stage {

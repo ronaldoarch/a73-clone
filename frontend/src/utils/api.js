@@ -147,7 +147,12 @@ export async function apiPost(path, body, options = {}) {
     ...options
   })
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
-  return res.json()
+  const data = await res.json()
+  if (data?.error) {
+    const msg = data.error.message || data.error.json?.message || 'Pedido rejeitado'
+    throw new Error(msg)
+  }
+  return data
 }
 
 export function clearCache(pattern) {

@@ -74,9 +74,169 @@
     .badge-info { background: var(--accent-fade-20); color: var(--accent); }
     .section { display: none; }
     .section.active { display: block; position: relative; z-index: 1; color: var(--text); }
+    /* Ilha legível: tema admin (localStorage) não pode deixar esta secção sem contraste */
+    #misterioso.section.active {
+      --text: #e2e8f0;
+      --text-muted: #94a3b8;
+      --bg-card: #121827;
+      --border: #334155;
+      color: #e2e8f0;
+    }
+    #misterioso.section.active .header h1 { color: #f8fafc; }
+    #misterioso.section.active .card-title,
+    #misterioso.section.active .form-group label { color: #cbd5e1; }
+    #misterioso.section.active .search-box {
+      color: #e2e8f0;
+      background: #0f172a;
+      border-color: #334155;
+    }
+    #misterioso.section.active .btn-outline { color: #e2e8f0; border-color: #475569; }
+    #misterioso.section.active th { color: #94a3b8; }
     .search-box { padding: 0.5rem 1rem; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-dark); color: var(--text); width: 100%; max-width: 300px; }
     .search-box:focus { outline: none; border-color: var(--accent); }
     .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+    .mst-cpa-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; align-items: stretch; }
+    .mst-mini-card { margin-bottom: 0; }
+    .mst-mini-card .card-header { padding: 0.65rem 1rem; }
+    .mst-mini-card .card-title { font-size: 0.88rem; line-height: 1.35; }
+    .mst-mini-card > div[style*="padding"] { padding: 0.85rem 1rem !important; }
+    @media (max-width: 1100px) {
+      .mst-cpa-grid { grid-template-columns: 1fr 1fr; }
+    }
+    @media (max-width: 640px) {
+      .mst-cpa-grid { grid-template-columns: 1fr; }
+    }
+    /* Manipulação de indicações (layout tipo print) */
+    .mst-indicacao-wrap { margin-top: 1.75rem; padding-top: 1.25rem; border-top: 1px solid var(--border); }
+    .mst-indicacao-title { font-size: 1.05rem; font-weight: 700; color: #ea580c; margin: 0 0 0.75rem; letter-spacing: 0.02em; }
+    .mst-indicacao-alert {
+      background: rgba(254, 243, 199, 0.14);
+      border: 1px solid rgba(251, 191, 36, 0.35);
+      border-radius: 10px;
+      padding: 0.85rem 1rem;
+      font-size: 0.88rem;
+      line-height: 1.5;
+      color: var(--text);
+      margin-bottom: 1.1rem;
+    }
+    .mst-indicacao-alert strong { color: #fbbf24; }
+    .mst-indicacao-toggle-row { display: flex; align-items: flex-start; gap: 0.85rem; margin-bottom: 1.25rem; flex-wrap: wrap; }
+    .mst-switch { position: relative; display: inline-block; width: 48px; height: 26px; flex-shrink: 0; margin-top: 2px; }
+    .mst-switch input { opacity: 0; width: 0; height: 0; }
+    .mst-switch-slider {
+      position: absolute; cursor: pointer; inset: 0;
+      background: #334155; border-radius: 26px; transition: 0.2s;
+    }
+    .mst-switch-slider::before {
+      position: absolute; content: ""; height: 20px; width: 20px; left: 3px; bottom: 3px;
+      background: #fff; border-radius: 50%; transition: 0.2s;
+    }
+    .mst-switch input:checked + .mst-switch-slider { background: #3b82f6; }
+    .mst-switch input:checked + .mst-switch-slider::before { transform: translateX(22px); }
+    .mst-indicacao-toggle-text { flex: 1; min-width: 200px; }
+    .mst-indicacao-toggle-text .t-main { font-weight: 600; color: var(--text); font-size: 0.95rem; display: block; margin-bottom: 0.35rem; }
+    .mst-indicacao-toggle-text .t-sub { font-size: 0.82rem; color: var(--text-muted); line-height: 1.45; }
+    .mst-indicacao-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    @media (max-width: 768px) { .mst-indicacao-cards { grid-template-columns: 1fr; } }
+    .mst-indicacao-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .mst-indicacao-card-h { padding: 0.85rem 1rem 0.35rem; }
+    .mst-indicacao-card-h.give .mst-ich-title { color: #22c55e; font-weight: 700; font-size: 0.95rem; margin: 0 0 0.35rem; }
+    .mst-indicacao-card-h.take .mst-ich-title { color: #ef4444; font-weight: 700; font-size: 0.95rem; margin: 0 0 0.35rem; }
+    .mst-ich-desc { font-size: 0.82rem; color: var(--text-muted); margin: 0 0 0.85rem; line-height: 1.4; }
+    .mst-indicacao-input-shell {
+      display: flex; align-items: stretch;
+      background: #f8fafc;
+      border-radius: 10px;
+      overflow: hidden;
+      border: 1px solid #e2e8f0;
+      margin: 0 1rem;
+    }
+    .mst-indicacao-bar { width: 5px; flex-shrink: 0; }
+    .mst-indicacao-bar--give { background: #22c55e; }
+    .mst-indicacao-bar--take { background: #ef4444; }
+    .mst-indicacao-input-shell input[type="number"] {
+      flex: 1; min-width: 0; border: none; background: transparent;
+      text-align: center; font-size: 1.35rem; font-weight: 600; color: #0f172a;
+      padding: 0.65rem 0.5rem; outline: none;
+    }
+    .mst-indicacao-suffix {
+      display: flex; align-items: center;
+      padding: 0 0.9rem;
+      background: #e2e8f0;
+      color: #64748b;
+      font-size: 0.82rem;
+      font-weight: 500;
+      white-space: nowrap;
+    }
+    .mst-ich-hint { font-size: 0.78rem; color: var(--text-muted); margin: 0.65rem 1rem 1rem; }
+    /* Configurações de baús (afiliados) + preview */
+    .mst-ab-wrap { margin-top: 1.75rem; padding-top: 1.25rem; border-top: 1px solid var(--border); }
+    .mst-ab-title { font-size: 1.05rem; font-weight: 700; color: var(--text); margin: 0 0 1rem; }
+    .mst-ab-config-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-bottom: 1.25rem; }
+    @media (max-width: 1024px) { .mst-ab-config-grid { grid-template-columns: 1fr; } }
+    .mst-ab-field {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 1rem 1.1rem;
+      color: #0f172a;
+    }
+    .mst-ab-field .mst-ab-lbl { font-weight: 700; font-size: 0.95rem; margin: 0 0 0.5rem; color: #0f172a; }
+    .mst-ab-field .mst-ab-desc { font-size: 0.78rem; color: #64748b; line-height: 1.45; margin: 0 0 0.65rem; }
+    .mst-ab-field input.mst-ab-input,
+    .mst-ab-field textarea.mst-ab-input {
+      width: 100%; max-width: 100%; border: 1px solid #cbd5e1; border-radius: 8px;
+      padding: 0.55rem 0.65rem; font-size: 0.88rem; background: #fff; color: #0f172a;
+      font-family: inherit;
+    }
+    .mst-ab-field textarea.mst-ab-input { min-height: 4.5rem; resize: vertical; }
+    .mst-ab-field .mst-ab-foot { font-size: 0.72rem; color: #64748b; margin: 0.5rem 0 0; }
+    .mst-ab-preview-card {
+      margin-top: 0.5rem;
+      background: #f1f5f9;
+      border-color: #cbd5e1;
+    }
+    .mst-ab-preview-card .card-header {
+      background: #f8fafc;
+      border-bottom-color: #e2e8f0;
+    }
+    .mst-ab-preview-card .card-header .card-title { color: #334155; font-weight: 600; }
+    .mst-ab-preview-inner {
+      padding: 1rem 1.1rem 1.25rem;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 0.85rem;
+      align-items: stretch;
+      max-height: 520px;
+      overflow-y: auto;
+      background: #e2e8f0;
+    }
+    .mst-ab-tile {
+      position: relative;
+      min-width: 0;
+      background: #fff;
+      border-radius: 8px;
+      border: 1px solid #e2e8f0;
+      padding: 0.65rem 0.55rem 0.6rem;
+      text-align: center;
+      box-shadow: 0 2px 8px rgba(15, 23, 42, 0.1);
+    }
+    .mst-ab-tile-badge {
+      position: absolute; top: 6px; right: 6px;
+      min-width: 1.45rem; height: 1.45rem; padding: 0 0.3rem;
+      border-radius: 9999px; background: #2563eb; color: #fff;
+      font-size: 0.65rem; font-weight: 700; display: flex; align-items: center; justify-content: center;
+      line-height: 1;
+    }
+    .mst-ab-tile .mst-ab-svg-wrap { display: flex; justify-content: center; margin: 0.5rem 0 0.35rem; }
+    .mst-ab-chest-svg { display: block; width: 56px; height: auto; max-width: 100%; }
+    .mst-ab-tile-val { font-size: 0.875rem; font-weight: 700; color: #16a34a; margin-top: 0.2rem; }
+    .mst-ab-tile-req { font-size: 0.72rem; color: #64748b; margin-top: 0.25rem; line-height: 1.25; }
     .form-group { margin-bottom: 1rem; }
     .form-group label { display: block; margin-bottom: 0.4rem; color: var(--text-muted); font-size: 0.85rem; }
     .form-group input, .form-group select { width: 100%; max-width: 100%; }
@@ -347,7 +507,7 @@
         <div class="card-header"><span class="card-title">Cupons cadastrados</span><button class="btn btn-outline" id="btnCpReload">↻</button></div>
         <div class="table-wrap">
           <table><thead><tr><th>Código</th><th>Valor</th><th>Usos</th><th>Ativo</th><th>Expira</th><th>Ações</th></tr></thead>
-          <tbody id="cuponsTableBody"><tr><td colspan="6" style="text-align:center;color:var(--text-muted)">Carregando...</td></tr></tbody>
+          <tbody id="cuponsTableBody"><tr><td colspan="6" style="text-align:center;color:var(--text-muted)">Carregando...</td></tr></tbody></table>
         </div>
       </div>
     </section>
@@ -359,39 +519,125 @@
         <div class="header-actions"><button type="button" class="btn btn-outline" id="btnReloadMisterioso">↻ Recarregar</button></div>
       </div>
       <p style="color:var(--text-muted);font-size:0.88rem;margin-bottom:1rem;max-width:52rem">
-        Configura a página <strong>Prêmio misterioso</strong> na app, a tabela de prémios por depósito e as <strong>5 caixas</strong> da trilha. A reclamação no fluxo de afiliado usa o depósito mínimo e as faixas abaixo.
+        Configura a página <strong>Prêmio misterioso</strong> na app (hero, CPA do indicado, manipulação de indicações e baús de afiliados).
       </p>
-      <div class="grid-2">
-        <div class="card">
-          <div class="card-header"><span class="card-title">Página da atividade</span></div>
-          <div style="padding:1.25rem">
-            <div class="form-group"><label>Texto do prêmio principal (hero)</label><input type="text" id="mstHeadlinePrize" class="search-box" placeholder="R$ 8.888,00" style="max-width:100%"></div>
-            <div class="form-row">
-              <div class="form-group"><label>Depósito 2 dias mín. (R$)</label><input type="number" step="0.01" id="mstMinDep2d" class="search-box" style="max-width:100%"></div>
-              <div class="form-group"><label>Aposta válida mín. (R$)</label><input type="number" step="0.01" id="mstMinValidBet" class="search-box" style="max-width:100%"></div>
+      <input type="hidden" id="mstReclamarMinDep" value="">
+      <div>
+          <p style="color:var(--text-muted);font-size:0.82rem;margin:0 0 0.75rem;line-height:1.45">CPA e condições para o indicado (quem o afiliado trouxe). O texto hero continua na app; depósito/aposta mínimos abaixo alimentam as mesmas regras da API.</p>
+          <div class="form-group" style="margin-bottom:1rem">
+            <label>Texto do prêmio principal (hero)</label>
+            <input type="text" id="mstHeadlinePrize" class="search-box" placeholder="R$ 8.888,00" style="max-width:100%">
+          </div>
+          <div class="mst-cpa-grid">
+            <div class="card mst-mini-card">
+              <div class="card-header"><span class="card-title">CPA afiliado nível 1</span></div>
+              <div style="padding:1.25rem">
+                <div class="form-group" style="margin-bottom:0"><label>Valor (R$)</label><input type="number" step="0.01" min="0" id="mstCpaNivel1" class="search-box" placeholder="0,00" style="max-width:100%"></div>
+              </div>
+            </div>
+            <div class="card mst-mini-card">
+              <div class="card-header"><span class="card-title">CPA afiliado nível 2</span></div>
+              <div style="padding:1.25rem">
+                <div class="form-group" style="margin-bottom:0"><label>Valor (R$)</label><input type="number" step="0.01" min="0" id="mstCpaNivel2" class="search-box" placeholder="0,00" style="max-width:100%"></div>
+              </div>
+            </div>
+            <div class="card mst-mini-card">
+              <div class="card-header"><span class="card-title">CPA afiliado nível 3</span></div>
+              <div style="padding:1.25rem">
+                <div class="form-group" style="margin-bottom:0"><label>Valor (R$)</label><input type="number" step="0.01" min="0" id="mstCpaNivel3" class="search-box" placeholder="0,00" style="max-width:100%"></div>
+              </div>
+            </div>
+            <div class="card mst-mini-card">
+              <div class="card-header"><span class="card-title">Chance de ganhar o CPA (nível 1)</span></div>
+              <div style="padding:1.25rem">
+                <div class="form-group" style="margin-bottom:0"><label>Porcentagem (%)</label><input type="number" step="0.01" min="0" max="100" id="mstCpaWinChance" class="search-box" placeholder="100" style="max-width:100%"></div>
+              </div>
+            </div>
+            <div class="card mst-mini-card">
+              <div class="card-header"><span class="card-title">Depósito mín. do indicado</span></div>
+              <div style="padding:1.25rem">
+                <div class="form-group" style="margin-bottom:0"><label>Valor (R$) para liberar o baú</label><input type="number" step="0.01" min="0" id="mstMinDep2d" class="search-box" style="max-width:100%"></div>
+              </div>
+            </div>
+            <div class="card mst-mini-card">
+              <div class="card-header"><span class="card-title">Apostado mín. do indicado</span></div>
+              <div style="padding:1.25rem">
+                <div class="form-group" style="margin-bottom:0"><label>Aposta válida mín. (R$)</label><input type="number" step="0.01" min="0" id="mstMinValidBet" class="search-box" style="max-width:100%"></div>
+              </div>
             </div>
           </div>
         </div>
-        <div class="card">
-          <div class="card-header"><span class="card-title">Afiliado — reclamar misterioso</span></div>
-          <div style="padding:1.25rem">
-            <div class="form-group"><label>Depósito mínimo para poder reclamar (R$)</label><input type="number" step="1" id="mstReclamarMinDep" class="search-box" style="max-width:100%"></div>
+
+        <div class="mst-indicacao-wrap">
+          <h2 class="mst-indicacao-title">Manipulação de Indicações (Sistema 3/1)</h2>
+          <div class="mst-indicacao-alert">
+            <strong>Atenção:</strong> Este sistema controla quantas indicações são reais e quantas a casa «rouba». Exemplo: 3/1 significa que a cada 3 indicações dadas ao afiliado, 1 é subtraída pela casa.
+          </div>
+          <div class="mst-indicacao-toggle-row">
+            <label class="mst-switch" title="Ativar ou desativar">
+              <input type="checkbox" id="mstIndicacaoManipEnabled" />
+              <span class="mst-switch-slider"></span>
+            </label>
+            <div class="mst-indicacao-toggle-text">
+              <span class="t-main">Ativar Manipulação de Indicações</span>
+              <span class="t-sub">Quando ativado, o sistema irá manipular as indicações conforme configurado abaixo. Quando desativado, todas as indicações serão contabilizadas normalmente.</span>
+            </div>
+          </div>
+          <div class="mst-indicacao-cards">
+            <div class="mst-indicacao-card">
+              <div class="mst-indicacao-card-h give">
+                <p class="mst-ich-title">Dar Indicações</p>
+                <p class="mst-ich-desc">Quantas indicações serão creditadas ao afiliado antes de roubar.</p>
+              </div>
+              <div class="mst-indicacao-input-shell">
+                <span class="mst-indicacao-bar mst-indicacao-bar--give" aria-hidden="true"></span>
+                <input type="number" min="1" step="1" id="mstIndicacaoDar" value="3" />
+                <span class="mst-indicacao-suffix">indicações</span>
+              </div>
+              <p class="mst-ich-hint">Valor padrão recomendado: 3</p>
+            </div>
+            <div class="mst-indicacao-card">
+              <div class="mst-indicacao-card-h take">
+                <p class="mst-ich-title">Roubar Indicações</p>
+                <p class="mst-ich-desc">Quantas indicações a casa irá subtrair após dar as indicações.</p>
+              </div>
+              <div class="mst-indicacao-input-shell">
+                <span class="mst-indicacao-bar mst-indicacao-bar--take" aria-hidden="true"></span>
+                <input type="number" min="0" step="1" id="mstIndicacaoRoubar" value="1" />
+                <span class="mst-indicacao-suffix">indicações</span>
+              </div>
+              <p class="mst-ich-hint">Valor padrão recomendado: 1 ou 2</p>
+            </div>
           </div>
         </div>
-      </div>
-      <div class="card" style="margin-top:1rem">
-        <div class="card-header"><span class="card-title">Tabela de faixas (8 linhas)</span></div>
-        <div class="table-wrap" style="padding:1rem">
-          <table>
-            <thead><tr><th>#</th><th>Depósito mín. (R$)</th><th>Prêmio mín. (R$)</th><th>Prêmio máx. (R$)</th></tr></thead>
-            <tbody id="mstTabBody"></tbody>
-          </table>
+
+        <div class="mst-ab-wrap">
+          <h2 class="mst-ab-title">Configurações de Baús</h2>
+          <div class="mst-ab-config-grid">
+            <div class="mst-ab-field">
+              <p class="mst-ab-lbl">Qtd. Baús</p>
+              <p class="mst-ab-desc">Quantidade de baús que será exibido na tela de afiliados. Ex: 50, será 50 baús disponíveis.</p>
+              <input type="number" min="1" max="5000" step="1" class="mst-ab-input" id="mstAfiliadoBausQtd" value="39" />
+              <p class="mst-ab-foot">Define quantos baús serão exibidos.</p>
+            </div>
+            <div class="mst-ab-field">
+              <p class="mst-ab-lbl">Valores dos Baús</p>
+              <p class="mst-ab-desc">Separado por vírgula (ex: 10,20,50)</p>
+              <textarea class="mst-ab-input" id="mstAfiliadoBausValores" rows="3">50,50,50,50,50,300,300,300,500,600,600</textarea>
+              <p class="mst-ab-foot">Valor em R$ que o usuário ganha.</p>
+            </div>
+            <div class="mst-ab-field">
+              <p class="mst-ab-lbl">Qtd. Pessoas</p>
+              <p class="mst-ab-desc">Separado por vírgula (ex: 5,10,20)</p>
+              <textarea class="mst-ab-input" id="mstAfiliadoBausPessoas" rows="3">1,2,3,4,5,10,15,20,30,40,50,60,70,80,90,100</textarea>
+              <p class="mst-ab-foot">Indicações necessárias para abrir.</p>
+            </div>
+          </div>
+          <div class="card mst-ab-preview-card">
+            <div class="card-header"><span class="card-title">Visualização dos Baús (Preview)</span></div>
+            <div id="mstAfiliadoBausPreview" class="mst-ab-preview-inner" aria-live="polite"></div>
+          </div>
         </div>
-      </div>
-      <div class="card" style="margin-top:1rem">
-        <div class="card-header"><span class="card-title">5 caixas na trilha</span></div>
-        <div style="padding:1.25rem" id="mstBoxesWrap"></div>
-      </div>
       <button type="button" class="btn btn-primary" id="btnSaveMisterioso" style="margin-top:1rem;padding:0.75rem 2rem;font-size:1rem">Salvar baús</button>
     </section>
 
@@ -770,10 +1016,16 @@
         document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
         el.classList.add('active');
         const sec = (el.dataset.section || '').trim();
-        const panel = sec ? document.getElementById(sec) : null;
+        /* Preferir secção dentro de <main> (evita colisão de id noutro sítio do DOM) */
+        const panel = sec ? (document.querySelector('main #' + sec) || document.getElementById(sec)) : null;
         if (!panel) {
           console.error('Secção não encontrada:', sec);
           showToast('Erro: painel «' + (sec || '?') + '» não encontrado. Faça Ctrl+F5 para recarregar.', 'error');
+          const dash = document.getElementById('dashboard');
+          if (dash) dash.classList.add('active');
+          document.querySelectorAll('.nav-item').forEach((n) => n.classList.remove('active'));
+          const dashNav = document.querySelector('.nav-item[data-section="dashboard"]');
+          if (dashNav) dashNav.classList.add('active');
           return;
         }
         panel.classList.add('active');
@@ -965,32 +1217,23 @@
     document.getElementById('btnAddPromo').addEventListener('click', () => openPromoModal(-1));
 
     // ── Prêmio misterioso / baús ──
-    /** @param {boolean} force — true ao abrir a secção: reconstrói tabela/caixas (corrige DOM vazio da primeira montagem). */
-    function initMisteriosoFormDom(force) {
-      const tb = document.getElementById('mstTabBody');
-      const wrap = document.getElementById('mstBoxesWrap');
-      if (force) {
-        if (tb) { tb.innerHTML = ''; delete tb.dataset.inited; }
-        if (wrap) { wrap.innerHTML = ''; delete wrap.dataset.inited; }
-      }
-      if (tb && tb.dataset.inited !== '1') {
-        tb.dataset.inited = '1';
-        for (let i = 0; i < 8; i++) {
-          const tr = document.createElement('tr');
-          tr.innerHTML = '<td>' + (i + 1) + '</td><td><input type="number" step="0.01" id="mstTab' + i + '_minDep" class="search-box" style="width:100%;max-width:8rem"></td><td><input type="number" step="0.01" id="mstTab' + i + '_pmin" class="search-box" style="width:100%;max-width:8rem"></td><td><input type="number" step="0.01" id="mstTab' + i + '_pmax" class="search-box" style="width:100%;max-width:8rem"></td>';
-          tb.appendChild(tr);
-        }
-      }
-      if (wrap && wrap.dataset.inited !== '1') {
-        wrap.dataset.inited = '1';
-        let html = '<div style="display:grid;gap:1rem">';
-        for (let bid = 1; bid <= 5; bid++) {
-          html += '<div style="border:1px solid var(--border);border-radius:8px;padding:1rem"><strong>Caixa ' + bid + '</strong><div class="form-row" style="margin-top:0.75rem"><div class="form-group"><label>Label (ex.: Dia 2)</label><input type="text" id="mstBox' + bid + '_dayLabel" class="search-box" style="max-width:100%"></div><div class="form-group"><label>Dia na trilha</label><input type="number" id="mstBox' + bid + '_minDay" class="search-box" style="max-width:100%"></div></div><div class="form-group"><label>Texto do prêmio</label><input type="text" id="mstBox' + bid + '_prize" class="search-box" style="max-width:100%"></div><div class="form-row" style="align-items:flex-end;gap:1rem"><div class="toggle-row"><input type="checkbox" id="mstBox' + bid + '_locked"><label for="mstBox' + bid + '_locked">Trancada (exige tier)</label></div><div class="form-group"><label>Nível VIP mín. (0–4)</label><input type="number" min="0" max="4" id="mstBox' + bid + '_req" class="search-box" style="max-width:6rem"></div></div></div>';
-        }
-        html += '</div>';
-        wrap.innerHTML = html;
-      }
-    }
+    /** Faixa de prêmios por depósito (8 linhas) — mantida em memória; o card da tabela foi removido do admin. */
+    const MST_DEFAULT_RECLAMAR_TABELA = Object.freeze([
+      { minDep: 30, premioMin: 0.3, premioMax: 88 }, { minDep: 70, premioMin: 0.7, premioMax: 188 },
+      { minDep: 150, premioMin: 1, premioMax: 388 }, { minDep: 300, premioMin: 3, premioMax: 688 },
+      { minDep: 600, premioMin: 7, premioMax: 888 }, { minDep: 1000, premioMin: 10, premioMax: 1888 },
+      { minDep: 2000, premioMin: 24, premioMax: 2888 }, { minDep: 5000, premioMin: 61, premioMax: 8888 }
+    ]);
+    let mstCachedReclamarTabela = MST_DEFAULT_RECLAMAR_TABELA.map((r) => ({ ...r }));
+    /** 5 caixas da trilha — mantidas em memória; o card de edição foi removido do admin. */
+    const MST_DEFAULT_BOXES = Object.freeze([
+      { id: 1, dayLabel: 'Dia 2', minDay: 2, prize: 'R$ 2,00', locked: false, requiredLevel: 0 },
+      { id: 2, dayLabel: 'Dia 3', minDay: 3, prize: 'R$ 5,00', locked: false, requiredLevel: 0 },
+      { id: 3, dayLabel: 'Dia 7', minDay: 7, prize: 'R$ 8,00', locked: false, requiredLevel: 0 },
+      { id: 4, dayLabel: 'Dia 15', minDay: 15, prize: 'R$ 15,00', locked: false, requiredLevel: 0 },
+      { id: 5, dayLabel: 'Dia 30', minDay: 30, prize: 'R$ 50,00', locked: true, requiredLevel: 3 }
+    ]);
+    let mstCachedBoxes = MST_DEFAULT_BOXES.map((b) => ({ ...b }));
     function mstParseFloat(id, fallback) {
       const el = document.getElementById(id);
       if (!el) return fallback;
@@ -1003,13 +1246,59 @@
       const v = parseInt(el.value, 10);
       return Number.isFinite(v) ? v : fallback;
     }
-    const loadMisterioso = async () => {
+    const MST_AFILIADO_BAUS_SVG = '<svg class="mst-ab-chest-svg" viewBox="0 0 64 52" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect x="10" y="24" width="44" height="24" rx="5" fill="#d4a84b" stroke="#a16207" stroke-width="1"/><path d="M8 20h48v10H8z" fill="#fde68a" stroke="#ca8a04" stroke-width="1"/><ellipse cx="32" cy="20" rx="14" ry="5" fill="#fcd34d" stroke="#b45309" stroke-width="0.75"/><rect x="10" y="34" width="44" height="5" fill="#b91c1c" opacity="0.92"/><circle cx="32" cy="35" r="4.5" fill="#dc2626" stroke="#7f1d1d" stroke-width="0.5"/><path d="M32 30v10M28 35h8" stroke="#fef08a" stroke-width="1" stroke-linecap="round"/></svg>';
+    function mstFormatBrlPreview(n) {
+      const x = Number(n);
+      if (!Number.isFinite(x)) return 'R$ 0,00';
       try {
-        initMisteriosoFormDom(true);
-      } catch (e) {
-        console.error('initMisteriosoFormDom', e);
-        showToast('Erro ao montar o formulário dos baús.', 'error');
+        return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(x);
+      } catch {
+        return 'R$ ' + x.toFixed(2).replace('.', ',');
       }
+    }
+    function mstParseCsvNumbers(str) {
+      return String(str || '')
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .map((s) => parseFloat(s.replace(',', '.')))
+        .filter((n) => Number.isFinite(n));
+    }
+    function mstParseCsvInts(str) {
+      return String(str || '')
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .map((s) => parseInt(s, 10))
+        .filter((n) => Number.isFinite(n));
+    }
+    function renderMstAfiliadoBausPreview() {
+      const root = document.getElementById('mstAfiliadoBausPreview');
+      if (!root) return;
+      const qEl = document.getElementById('mstAfiliadoBausQtd');
+      const vEl = document.getElementById('mstAfiliadoBausValores');
+      const pEl = document.getElementById('mstAfiliadoBausPessoas');
+      let q = parseInt(qEl && qEl.value, 10);
+      if (!Number.isFinite(q) || q < 1) q = 1;
+      if (q > 5000) q = 5000;
+      const vals = mstParseCsvNumbers(vEl && vEl.value);
+      const lastVal = vals.length ? vals[vals.length - 1] : 0;
+      const inds = mstParseCsvInts(pEl && pEl.value);
+      const lastInd = inds.length ? inds[inds.length - 1] : 0;
+      const parts = [];
+      for (let i = 1; i <= q; i++) {
+        const idx = i - 1;
+        const amount = vals.length ? (idx < vals.length ? vals[idx] : lastVal) : 0;
+        const indN = inds.length ? (idx < inds.length ? inds[idx] : lastInd) : 0;
+        const label = mstFormatBrlPreview(amount);
+        const reqLine = inds.length ? (indN + ' indicações') : '—';
+        parts.push(
+          '<div class="mst-ab-tile"><span class="mst-ab-tile-badge">#' + i + '</span><div class="mst-ab-svg-wrap">' + MST_AFILIADO_BAUS_SVG + '</div><div class="mst-ab-tile-val">' + label + '</div><div class="mst-ab-tile-req">' + reqLine + '</div></div>'
+        );
+      }
+      root.innerHTML = parts.join('');
+    }
+    const loadMisterioso = async () => {
       try {
         let d = null;
         try {
@@ -1034,64 +1323,78 @@
         if (elR) elR.value = d.reclamarMinDep != null ? d.reclamarMinDep : '';
         if (el2) el2.value = d.minDeposit2dReais != null ? d.minDeposit2dReais : '';
         if (elV) elV.value = d.minValidBetReais != null ? d.minValidBetReais : '';
+        const elC1 = document.getElementById('mstCpaNivel1');
+        const elC2 = document.getElementById('mstCpaNivel2');
+        const elC3 = document.getElementById('mstCpaNivel3');
+        const elCh = document.getElementById('mstCpaWinChance');
+        if (elC1) elC1.value = d.cpaNivel1 != null ? d.cpaNivel1 : '';
+        if (elC2) elC2.value = d.cpaNivel2 != null ? d.cpaNivel2 : '';
+        if (elC3) elC3.value = d.cpaNivel3 != null ? d.cpaNivel3 : '';
+        if (elCh) elCh.value = d.cpaWinChancePct != null ? d.cpaWinChancePct : '';
+        const elIndEn = document.getElementById('mstIndicacaoManipEnabled');
+        const elIndDar = document.getElementById('mstIndicacaoDar');
+        const elIndRoub = document.getElementById('mstIndicacaoRoubar');
+        if (elIndEn) elIndEn.checked = !!d.indicacaoManipEnabled;
+        if (elIndDar) elIndDar.value = d.indicacaoDar != null ? d.indicacaoDar : '';
+        if (elIndRoub) elIndRoub.value = d.indicacaoRoubar != null ? d.indicacaoRoubar : '';
+        const elAbQ = document.getElementById('mstAfiliadoBausQtd');
+        const elAbV = document.getElementById('mstAfiliadoBausValores');
+        const elAbP = document.getElementById('mstAfiliadoBausPessoas');
+        if (elAbQ) elAbQ.value = d.afiliadoBausQtd != null ? d.afiliadoBausQtd : '';
+        if (elAbV) elAbV.value = d.afiliadoBausValoresCsv != null ? String(d.afiliadoBausValoresCsv) : '';
+        if (elAbP) elAbP.value = d.afiliadoBausPessoasCsv != null ? String(d.afiliadoBausPessoasCsv) : '';
+        renderMstAfiliadoBausPreview();
         const tab = Array.isArray(d.reclamarTabela) ? d.reclamarTabela : [];
-        for (let i = 0; i < 8; i++) {
-          const r = tab[i] || {};
-          const a = document.getElementById('mstTab' + i + '_minDep');
-          const b = document.getElementById('mstTab' + i + '_pmin');
-          const c = document.getElementById('mstTab' + i + '_pmax');
-          if (a) a.value = r.minDep != null ? r.minDep : '';
-          if (b) b.value = r.premioMin != null ? r.premioMin : '';
-          if (c) c.value = r.premioMax != null ? r.premioMax : '';
-        }
+        mstCachedReclamarTabela = MST_DEFAULT_RECLAMAR_TABELA.map((def, i) => {
+          const r = tab[i];
+          if (!r || typeof r !== 'object') return { ...def };
+          const minDep = parseFloat(r.minDep);
+          const premioMin = parseFloat(r.premioMin);
+          const premioMax = parseFloat(r.premioMax);
+          return {
+            minDep: Number.isFinite(minDep) ? minDep : def.minDep,
+            premioMin: Number.isFinite(premioMin) ? premioMin : def.premioMin,
+            premioMax: Number.isFinite(premioMax) ? premioMax : def.premioMax
+          };
+        });
         const boxes = Array.isArray(d.boxes) ? d.boxes : [];
-        for (let bid = 1; bid <= 5; bid++) {
-          const bx = boxes.find((x) => Number(x.id) === bid) || {};
-          const l = document.getElementById('mstBox' + bid + '_dayLabel');
-          const m = document.getElementById('mstBox' + bid + '_minDay');
-          const p = document.getElementById('mstBox' + bid + '_prize');
-          const lk = document.getElementById('mstBox' + bid + '_locked');
-          const rq = document.getElementById('mstBox' + bid + '_req');
-          if (l) l.value = bx.dayLabel || '';
-          if (m) m.value = bx.minDay != null ? bx.minDay : '';
-          if (p) p.value = bx.prize || '';
-          if (lk) lk.checked = !!bx.locked;
-          if (rq) rq.value = bx.requiredLevel != null ? bx.requiredLevel : 0;
-        }
+        mstCachedBoxes = MST_DEFAULT_BOXES.map((def) => {
+          const bx = boxes.find((x) => Number(x.id) === def.id);
+          if (!bx || typeof bx !== 'object') return { ...def };
+          const minDay = parseInt(bx.minDay, 10);
+          const req = parseInt(bx.requiredLevel, 10);
+          return {
+            id: def.id,
+            dayLabel: String(bx.dayLabel || '').trim() || def.dayLabel,
+            minDay: Number.isFinite(minDay) ? minDay : def.minDay,
+            prize: String(bx.prize || '').trim() || def.prize,
+            locked: bx.locked === true,
+            requiredLevel: Number.isFinite(req) ? Math.max(0, req) : def.requiredLevel
+          };
+        });
       } catch (e) {
         console.error('misterioso', e);
         showToast('Erro ao carregar baús. Verifique o login de admin.', 'error');
       }
     };
     const saveMisterioso = async () => {
-      initMisteriosoFormDom(false);
-      const reclamarTabela = [];
-      for (let i = 0; i < 8; i++) {
-        reclamarTabela.push({
-          minDep: mstParseFloat('mstTab' + i + '_minDep', 0),
-          premioMin: mstParseFloat('mstTab' + i + '_pmin', 0),
-          premioMax: mstParseFloat('mstTab' + i + '_pmax', 0)
-        });
-      }
-      const boxes = [];
-      for (let id = 1; id <= 5; id++) {
-        const dayLabelEl = document.getElementById('mstBox' + id + '_dayLabel');
-        const prizeEl = document.getElementById('mstBox' + id + '_prize');
-        const lockedEl = document.getElementById('mstBox' + id + '_locked');
-        boxes.push({
-          id,
-          dayLabel: (dayLabelEl && dayLabelEl.value.trim()) || 'Dia',
-          minDay: mstParseInt('mstBox' + id + '_minDay', 0),
-          prize: (prizeEl && prizeEl.value.trim()) || 'R$ 0,00',
-          locked: !!(lockedEl && lockedEl.checked),
-          requiredLevel: mstParseInt('mstBox' + id + '_req', 0)
-        });
-      }
+      const reclamarTabela = mstCachedReclamarTabela.map((r) => ({ ...r }));
+      const boxes = mstCachedBoxes.map((b) => ({ ...b }));
       const body = {
         reclamarMinDep: mstParseInt('mstReclamarMinDep', 30),
         minDeposit2dReais: mstParseFloat('mstMinDep2d', 30),
         minValidBetReais: mstParseFloat('mstMinValidBet', 1),
         headlinePrize: (document.getElementById('mstHeadlinePrize') && document.getElementById('mstHeadlinePrize').value.trim()) || 'R$ 8.888,00',
+        cpaNivel1: mstParseFloat('mstCpaNivel1', 0),
+        cpaNivel2: mstParseFloat('mstCpaNivel2', 0),
+        cpaNivel3: mstParseFloat('mstCpaNivel3', 0),
+        cpaWinChancePct: Math.min(100, Math.max(0, mstParseFloat('mstCpaWinChance', 100))),
+        indicacaoManipEnabled: !!(document.getElementById('mstIndicacaoManipEnabled') && document.getElementById('mstIndicacaoManipEnabled').checked),
+        indicacaoDar: Math.max(1, mstParseInt('mstIndicacaoDar', 3)),
+        indicacaoRoubar: Math.max(0, mstParseInt('mstIndicacaoRoubar', 1)),
+        afiliadoBausQtd: Math.min(5000, Math.max(1, mstParseInt('mstAfiliadoBausQtd', 39))),
+        afiliadoBausValoresCsv: (document.getElementById('mstAfiliadoBausValores') && document.getElementById('mstAfiliadoBausValores').value.trim()) || '',
+        afiliadoBausPessoasCsv: (document.getElementById('mstAfiliadoBausPessoas') && document.getElementById('mstAfiliadoBausPessoas').value.trim()) || '',
         reclamarTabela,
         boxes
       };
@@ -1102,8 +1405,13 @@
         showToast(e.message || 'Erro ao salvar.', 'error');
       }
     };
-    document.getElementById('btnSaveMisterioso').addEventListener('click', saveMisterioso);
-    document.getElementById('btnReloadMisterioso').addEventListener('click', loadMisterioso);
+    document.getElementById('btnSaveMisterioso')?.addEventListener('click', saveMisterioso);
+    document.getElementById('btnReloadMisterioso')?.addEventListener('click', loadMisterioso);
+    ['mstAfiliadoBausQtd', 'mstAfiliadoBausValores', 'mstAfiliadoBausPessoas'].forEach((id) => {
+      document.getElementById(id)?.addEventListener('input', renderMstAfiliadoBausPreview);
+      document.getElementById(id)?.addEventListener('change', renderMstAfiliadoBausPreview);
+    });
+    renderMstAfiliadoBausPreview();
 
     // ── Branding ──
     const loadBranding = async () => {
@@ -1455,19 +1763,53 @@
       if (!m || m.length < 3) return [0, 212, 170];
       return m.map((x) => parseInt(x, 16));
     };
+    /** Luminância relativa WCAG (0–1), a partir de hex #RRGGBB ou #RGB. */
+    function relLuminanceFromHex(hex) {
+      const toLin = (c255) => {
+        const c = Math.max(0, Math.min(255, c255)) / 255;
+        return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+      };
+      const [r, g, b] = hexToRgb(hex);
+      const R = toLin(r), G = toLin(g), B = toLin(b);
+      return 0.2126 * R + 0.7152 * G + 0.0722 * B;
+    }
+    /** Razão de contraste entre duas cores (≥1). */
+    function contrastRatio(fgHex, bgHex) {
+      const L1 = relLuminanceFromHex(fgHex) + 0.05;
+      const L2 = relLuminanceFromHex(bgHex) + 0.05;
+      if (L2 <= 0) return 21;
+      return L1 > L2 ? L1 / L2 : L2 / L1;
+    }
+    /** Evita texto/cartões invisíveis quando fundo principal, fundo dos cards e texto ficam com a mesma cor (ex.: área «Baús» aparentemente vazia). */
+    function normalizeAdminTheme(t) {
+      const base = { ...THEME_DEFAULT, ...(t && typeof t === 'object' ? t : {}) };
+      const normHex = (h) => String(h || '').replace(/^#/, '').toLowerCase();
+      const same = (a, b) => normHex(a) === normHex(b) && normHex(a).length === 6;
+      if (same(base.text, base.bgDark) || same(base.text, base.bgCard)) base.text = THEME_DEFAULT.text;
+      if (same(base.bgCard, base.bgDark)) base.bgCard = THEME_DEFAULT.bgCard;
+      if (contrastRatio(base.text, base.bgDark) < 2.25 || contrastRatio(base.text, base.bgCard) < 2.25) {
+        base.text = THEME_DEFAULT.text;
+      }
+      if (same(base.textMuted, base.bgDark) || same(base.textMuted, base.bgCard)) base.textMuted = THEME_DEFAULT.textMuted;
+      if (contrastRatio(base.textMuted, base.bgDark) < 1.85 || contrastRatio(base.textMuted, base.bgCard) < 1.85) {
+        base.textMuted = THEME_DEFAULT.textMuted;
+      }
+      return base;
+    }
     const hexToRgba = (hex, a) => { const [r, g, b] = hexToRgb(hex); return `rgba(${r},${g},${b},${a})`; };
     const applyTheme = (t) => {
+      const nt = normalizeAdminTheme(t);
       const r = document.documentElement;
-      Object.entries({ '--accent': t.accent, '--accent-hover': t.accentHover, '--bg-dark': t.bgDark, '--bg-card': t.bgCard, '--bg-sidebar': t.bgSidebar, '--text': t.text, '--text-muted': t.textMuted, '--border': t.border, '--success': t.success, '--danger': t.danger, '--warning': t.warning }).forEach(([k, v]) => r.style.setProperty(k, v));
-      r.style.setProperty('--accent-fade-04', hexToRgba(t.accent, 0.04));
-      r.style.setProperty('--accent-fade-08', hexToRgba(t.accent, 0.08));
-      r.style.setProperty('--accent-fade-12', hexToRgba(t.accent, 0.12));
-      r.style.setProperty('--accent-fade-20', hexToRgba(t.accent, 0.2));
+      Object.entries({ '--accent': nt.accent, '--accent-hover': nt.accentHover, '--bg-dark': nt.bgDark, '--bg-card': nt.bgCard, '--bg-sidebar': nt.bgSidebar, '--text': nt.text, '--text-muted': nt.textMuted, '--border': nt.border, '--success': nt.success, '--danger': nt.danger, '--warning': nt.warning }).forEach(([k, v]) => r.style.setProperty(k, v));
+      r.style.setProperty('--accent-fade-04', hexToRgba(nt.accent, 0.04));
+      r.style.setProperty('--accent-fade-08', hexToRgba(nt.accent, 0.08));
+      r.style.setProperty('--accent-fade-12', hexToRgba(nt.accent, 0.12));
+      r.style.setProperty('--accent-fade-20', hexToRgba(nt.accent, 0.2));
     };
     const setThemeInputs = (t) => { ['themeAccent','themeAccentHover','themeBgDark','themeBgCard','themeBgSidebar','themeText'].forEach((id, i) => { const keys = ['accent','accentHover','bgDark','bgCard','bgSidebar','text']; const el = document.getElementById(id), hex = document.getElementById(id+'Hex'); if (el && hex) { el.value = t[keys[i]]; hex.value = t[keys[i]]; } }); };
     const getThemeFromInputs = () => ({ accent: document.getElementById('themeAccent')?.value || THEME_DEFAULT.accent, accentHover: document.getElementById('themeAccentHover')?.value || THEME_DEFAULT.accentHover, bgDark: document.getElementById('themeBgDark')?.value || THEME_DEFAULT.bgDark, bgCard: document.getElementById('themeBgCard')?.value || THEME_DEFAULT.bgCard, bgSidebar: document.getElementById('themeBgSidebar')?.value || THEME_DEFAULT.bgSidebar, text: document.getElementById('themeText')?.value || THEME_DEFAULT.text, textMuted: THEME_DEFAULT.textMuted, border: THEME_DEFAULT.border, success: THEME_DEFAULT.success, danger: THEME_DEFAULT.danger, warning: THEME_DEFAULT.warning });
-    const saveTheme = () => localStorage.setItem('adminTheme', JSON.stringify(getThemeFromInputs()));
-    const loadTheme = () => { try { const t = JSON.parse(localStorage.getItem('adminTheme') || 'null'); applyTheme(t || THEME_DEFAULT); if (t) setThemeInputs(t); } catch (e) { applyTheme(THEME_DEFAULT); } };
+    const saveTheme = () => localStorage.setItem('adminTheme', JSON.stringify(normalizeAdminTheme(getThemeFromInputs())));
+    const loadTheme = () => { try { const t = JSON.parse(localStorage.getItem('adminTheme') || 'null'); applyTheme(t || THEME_DEFAULT); if (t) setThemeInputs(normalizeAdminTheme(t)); } catch (e) { applyTheme(THEME_DEFAULT); } };
     loadTheme();
     ['themeAccent','themeAccentHover','themeBgDark','themeBgCard','themeBgSidebar','themeText'].forEach(id => {
       const el = document.getElementById(id), hex = document.getElementById(id + 'Hex');

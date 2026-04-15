@@ -42,6 +42,20 @@ const DEFAULT_MYSTERY_BAUS = Object.freeze({
   ],
   minDeposit2dReais: 30,
   minValidBetReais: 1,
+  /** CPA (R$) por nível de afiliado — usado no admin e API pública */
+  cpaNivel1: 0,
+  cpaNivel2: 0,
+  cpaNivel3: 0,
+  /** Chance 0–100% de ganhar o CPA (nível 1 / fluxo principal) */
+  cpaWinChancePct: 100,
+  /** Manipulação de indicações (ex.: sistema 3/1): dar N, depois roubar M */
+  indicacaoManipEnabled: false,
+  indicacaoDar: 3,
+  indicacaoRoubar: 1,
+  /** Baús na tela de afiliados (quantidade + listas CSV) */
+  afiliadoBausQtd: 39,
+  afiliadoBausValoresCsv: '50,50,50,50,50,300,300,300,500,600,600',
+  afiliadoBausPessoasCsv: '1,2,3,4,5,10,15,20,30,40,50,60,70,80,90,100',
   headlinePrize: 'R$ 8.888,00',
   boxes: [
     { id: 1, dayLabel: 'Dia 2', minDay: 2, prize: 'R$ 2,00', locked: false, requiredLevel: 0 },
@@ -97,6 +111,45 @@ function normalizeMysteryBaus(stored) {
       return Number.isFinite(x) ? Math.max(0, x) : DEFAULT_MYSTERY_BAUS.minValidBetReais
     })(),
     headlinePrize: String(o.headlinePrize || '').trim() || DEFAULT_MYSTERY_BAUS.headlinePrize,
+    cpaNivel1: (() => {
+      const x = parseFloat(o.cpaNivel1)
+      return Number.isFinite(x) ? Math.max(0, x) : DEFAULT_MYSTERY_BAUS.cpaNivel1
+    })(),
+    cpaNivel2: (() => {
+      const x = parseFloat(o.cpaNivel2)
+      return Number.isFinite(x) ? Math.max(0, x) : DEFAULT_MYSTERY_BAUS.cpaNivel2
+    })(),
+    cpaNivel3: (() => {
+      const x = parseFloat(o.cpaNivel3)
+      return Number.isFinite(x) ? Math.max(0, x) : DEFAULT_MYSTERY_BAUS.cpaNivel3
+    })(),
+    cpaWinChancePct: (() => {
+      const x = parseFloat(o.cpaWinChancePct)
+      if (!Number.isFinite(x)) return DEFAULT_MYSTERY_BAUS.cpaWinChancePct
+      return Math.min(100, Math.max(0, x))
+    })(),
+    indicacaoManipEnabled: o.indicacaoManipEnabled === true,
+    indicacaoDar: (() => {
+      const n = parseInt(o.indicacaoDar, 10)
+      return Number.isFinite(n) && n >= 1 ? n : DEFAULT_MYSTERY_BAUS.indicacaoDar
+    })(),
+    indicacaoRoubar: (() => {
+      const n = parseInt(o.indicacaoRoubar, 10)
+      return Number.isFinite(n) && n >= 0 ? n : DEFAULT_MYSTERY_BAUS.indicacaoRoubar
+    })(),
+    afiliadoBausQtd: (() => {
+      const n = parseInt(o.afiliadoBausQtd, 10)
+      if (!Number.isFinite(n) || n < 1) return DEFAULT_MYSTERY_BAUS.afiliadoBausQtd
+      return Math.min(5000, n)
+    })(),
+    afiliadoBausValoresCsv: (() => {
+      const s = String(o.afiliadoBausValoresCsv ?? '').trim().slice(0, 12000)
+      return s || DEFAULT_MYSTERY_BAUS.afiliadoBausValoresCsv
+    })(),
+    afiliadoBausPessoasCsv: (() => {
+      const s = String(o.afiliadoBausPessoasCsv ?? '').trim().slice(0, 12000)
+      return s || DEFAULT_MYSTERY_BAUS.afiliadoBausPessoasCsv
+    })(),
     boxes
   }
 }
@@ -108,6 +161,116 @@ async function getMysteryBaus() {
     return normalizeMysteryBaus(v)
   } catch {
     return normalizeMysteryBaus({})
+  }
+}
+
+/** bonusPromoReclamados no MySQL é TEXT JSON */
+function parseBonusPromoReclamadosRaw(raw) {
+  if (Array.isArray(raw)) return raw
+  if (typeof raw === 'string' && raw.trim()) {
+    try {
+      const a = JSON.parse(raw)
+      return Array.isArray(a) ? a : []
+    } catch {
+      return []
+    }
+  }
+  return []
+}
+
+function parseCsvFloatsMystery(str) {
+  return String(str || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((s) => parseFloat(s.replace(',', '.')))
+    .filter((n) => Number.isFinite(n))
+}
+
+function parseCsvIntsMystery(str) {
+  return String(str || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((s) => parseInt(s, 10))
+    .filter((n) => Number.isFinite(n))
+}
+
+/** Tiers dos baús de afiliado (admin) — mesmo algoritmo do frontend */
+function buildAfiliadoBausTiers(mb) {
+  const o = mb && typeof mb === 'object' ? mb : {}
+  let q = parseInt(o.afiliadoBausQtd, 10)
+  if (!Number.isFinite(q) || q < 1) q = DEFAULT_MYSTERY_BAUS.afiliadoBausQtd
+  q = Math.min(5000, q)
+  const vals = parseCsvFloatsMystery(o.afiliadoBausValoresCsv)
+  const peopleList = parseCsvIntsMystery(o.afiliadoBausPessoasCsv)
+  const lastV = vals.length ? vals[vals.length - 1] : 0
+  const lastP = peopleList.length ? peopleList[peopleList.length - 1] : 0
+  const tiers = []
+  for (let i = 1; i <= q; i++) {
+    const idx = i - 1
+    const valor = vals.length ? (idx < vals.length ? vals[idx] : lastV) : 0
+    const people = peopleList.length ? (idx < peopleList.length ? peopleList[idx] : lastP) : idx + 1
+    tiers.push({ index: i, people, valor: Math.round(valor * 100) / 100 })
+  }
+  return tiers
+}
+
+function effectiveInviteCountServer(rawCount, mb) {
+  const r = Math.max(0, Math.floor(Number(rawCount) || 0))
+  if (!mb || mb.indicacaoManipEnabled !== true) return r
+  const dar = Math.max(1, parseInt(mb.indicacaoDar, 10) || 3)
+  const roubar = Math.max(0, parseInt(mb.indicacaoRoubar, 10) || 0)
+  return Math.max(0, r - Math.floor(r / dar) * roubar)
+}
+
+async function payCpaTierTx(tx, affiliateUserId, subUserId, tier, amount, chancePct) {
+  const a = Math.round((Number(amount) || 0) * 100) / 100
+  if (a <= 0 || !affiliateUserId || !subUserId) return null
+  const exists = await tx.cpaPayout.findUnique({
+    where: { affiliateUserId_subUserId_tier: { affiliateUserId, subUserId, tier } }
+  })
+  if (exists) return null
+  if (tier === 1 && chancePct < 100) {
+    if (Math.random() * 100 >= chancePct) return { skipped: true, chance: true }
+  }
+  await tx.cpaPayout.create({
+    data: { affiliateUserId, subUserId, tier, amount: a }
+  })
+  await tx.afiliadoData.update({
+    where: { userId: affiliateUserId },
+    data: {
+      balance: { increment: a },
+      rolloverPendente: { increment: a },
+      updatedAt: new Date()
+    }
+  })
+  return { amount: a, tier }
+}
+
+/** Quando um subordinado atinge dep+mín aposta mín., paga CPA L1→L2→L3 conforme mysteryBaus */
+async function tryApplyCpaChainTx(tx, subUserId) {
+  const mb = await getMysteryBaus()
+  const depMin = Number.isFinite(Number(mb.minDeposit2dReais)) ? Math.max(0, mb.minDeposit2dReais) : 30
+  const betMin = Number.isFinite(Number(mb.minValidBetReais)) ? Math.max(0, mb.minValidBetReais) : 1
+  const subAf = await tx.afiliadoData.findUnique({ where: { userId: subUserId } })
+  if (!subAf || subAf.valorDeposito < depMin || subAf.apostaAcumulada < betMin) return
+
+  const user = await tx.user.findUnique({ where: { id: subUserId }, select: { indicatorId: true } })
+  if (!user?.indicatorId) return
+
+  const pct1 = Math.min(100, Math.max(0, Number(mb.cpaWinChancePct) || 0))
+  await payCpaTierTx(tx, user.indicatorId, subUserId, 1, mb.cpaNivel1, pct1)
+
+  const u1 = await tx.user.findUnique({ where: { id: user.indicatorId }, select: { indicatorId: true } })
+  if (u1?.indicatorId) {
+    await payCpaTierTx(tx, u1.indicatorId, subUserId, 2, mb.cpaNivel2, 100)
+  }
+  if (u1?.indicatorId) {
+    const u2 = await tx.user.findUnique({ where: { id: u1.indicatorId }, select: { indicatorId: true } })
+    if (u2?.indicatorId) {
+      await payCpaTierTx(tx, u2.indicatorId, subUserId, 3, mb.cpaNivel3, 100)
+    }
   }
 }
 
@@ -757,6 +920,7 @@ async function confirmarDepositoPix(deposit, bonusExtra = 0) {
         }
       })
     }
+    await tryApplyCpaChainTx(tx, depRow.userId)
   })
 }
 
@@ -1225,12 +1389,15 @@ app.get('/api/afiliado', authMiddleware, async (req, res) => {
     const user = await prisma.user.findUnique({ where: { id: req.userId } })
     let af = await ensureAfiliado(req.userId, user?.account || '')
     af = await checkMisteriosoReset(af, user)
+    const mbAf = await getMysteryBaus()
+    const promoDepMin = Number.isFinite(Number(mbAf.minDeposit2dReais)) ? Math.max(0, mbAf.minDeposit2dReais) : 30
+    const promoApostaMin = Number.isFinite(Number(mbAf.minValidBetReais)) ? Math.max(0, mbAf.minValidBetReais) : 600
     const subEfetivos = await prisma.user.count({
       where: {
         indicatorId: req.userId,
         afiliado: {
-          valorDeposito: { gte: PROMO_DEP_MIN },
-          apostaAcumulada: { gte: PROMO_APOSTA_MIN }
+          valorDeposito: { gte: promoDepMin },
+          apostaAcumulada: { gte: promoApostaMin }
         }
       }
     })
@@ -1259,7 +1426,7 @@ app.get('/api/afiliado', authMiddleware, async (req, res) => {
       depositoMisterioso: af.depositoMisterioso,
       misteriosoReclamado: af.misteriosoReclamado,
       misteriosoDiasAtivos: af.misteriosoDiasAtivos,
-      bonusPromoReclamados: Array.isArray(af.bonusPromoReclamados) ? af.bonusPromoReclamados : [],
+      bonusPromoReclamados: parseBonusPromoReclamadosRaw(af.bonusPromoReclamados),
       bonusVipColetados: Array.isArray(af.bonusVipColetados) ? af.bonusVipColetados : [],
       rolloverPendente: af.rolloverPendente ?? 0,
       vipDiarioColetadoEm: af.vipDiarioColetadoEm?.toISOString?.() || null,
@@ -1560,59 +1727,71 @@ app.post('/api/deposito', authMiddleware, async (req, res) => {
   }
 })
 
-// Promo: critérios para "número de promoção efetiva"
-const PROMO_DEP_MIN = 30
-const PROMO_APOSTA_MIN = 600
-const PROMO_EXPIRA_DIAS = 180 // bônus promo expira 180 dias após o registro
+const PROMO_EXPIRA_DIAS = 180 // bônus baús afiliado expira X dias após registro do afiliado
 
-// POST reclamar bônus Promo - usa "promoção efetiva": subordinados com dep≥30 e apostas≥600
+// POST reclamar bônus dos baús de afiliado — tiers e limiares do admin (mysteryBaus)
 app.post('/api/afiliado/reclamar-promo', authMiddleware, async (req, res) => {
   try {
-    const { pessoas } = req.body?.json || req.body || {}
-    const p = parseInt(pessoas, 10)
-    if (!p || p < 1) return res.json({ error: { message: 'Pessoas inválido' } })
-    const recompensasPromo = [
-      { valor: 50, pessoas: 1 }, { valor: 50, pessoas: 2 }, { valor: 50, pessoas: 3 }, { valor: 50, pessoas: 4 },
-      { valor: 50, pessoas: 5 }, { valor: 300, pessoas: 10 }, { valor: 300, pessoas: 15 }, { valor: 300, pessoas: 20 },
-      { valor: 500, pessoas: 30 }, { valor: 600, pessoas: 40 }, { valor: 600, pessoas: 50 }, { valor: 600, pessoas: 60 },
-      { valor: 600, pessoas: 70 }, { valor: 600, pessoas: 80 }, { valor: 600, pessoas: 90 }, { valor: 700, pessoas: 100 },
-      { valor: 2500, pessoas: 150 }, { valor: 2500, pessoas: 200 }, { valor: 2500, pessoas: 250 }, { valor: 2500, pessoas: 300 },
-      { valor: 2500, pessoas: 350 }, { valor: 2500, pessoas: 400 }, { valor: 2500, pessoas: 450 }, { valor: 3000, pessoas: 500 }
-    ]
-    const r = recompensasPromo.find(x => x.pessoas === p)
-    if (!r) return res.json({ error: { message: 'Recompensa não encontrada' } })
+    const body = req.body?.json || req.body || {}
+    const chestIndex = parseInt(body.chestIndex ?? body.chest_index, 10)
+    const pessoasLegacy = parseInt(body.pessoas, 10)
+    const mb = await getMysteryBaus()
+    const tiers = buildAfiliadoBausTiers(mb)
+    let tier = null
+    if (Number.isFinite(chestIndex) && chestIndex >= 1) {
+      tier = tiers.find((t) => t.index === chestIndex)
+    }
+    if (!tier && Number.isFinite(pessoasLegacy) && pessoasLegacy >= 1) {
+      tier = tiers.find((t) => t.people === pessoasLegacy)
+    }
+    if (!tier) return res.json({ error: { message: 'Baú inválido' } })
     const user = await prisma.user.findUnique({ where: { id: req.userId } })
     const af = await ensureAfiliado(req.userId, user?.account || '')
-    // Verifica expiração: promo só disponível nos primeiros PROMO_EXPIRA_DIAS dias
     const horaReg = af.horaRegisto || user?.createdAt
     if (horaReg) {
       const diasDesdeReg = (Date.now() - new Date(horaReg).getTime()) / (24 * 60 * 60 * 1000)
       if (diasDesdeReg > PROMO_EXPIRA_DIAS) {
-        return res.json({ error: { message: `Bônus Promo expirado. Disponível apenas nos primeiros ${PROMO_EXPIRA_DIAS} dias após o registro.` } })
+        return res.json({ error: { message: `Bônus expirado. Disponível apenas nos primeiros ${PROMO_EXPIRA_DIAS} dias após o registro.` } })
       }
     }
+    const promoDepMin = Number.isFinite(Number(mb.minDeposit2dReais)) ? Math.max(0, mb.minDeposit2dReais) : 30
+    const promoApostaMin = Number.isFinite(Number(mb.minValidBetReais)) ? Math.max(0, mb.minValidBetReais) : 600
     const subEfetivosCount = await prisma.user.count({
       where: {
         indicatorId: req.userId,
         afiliado: {
-          valorDeposito: { gte: PROMO_DEP_MIN },
-          apostaAcumulada: { gte: PROMO_APOSTA_MIN }
+          valorDeposito: { gte: promoDepMin },
+          apostaAcumulada: { gte: promoApostaMin }
         }
       }
     })
-    if (subEfetivosCount < p) return res.json({ error: { message: `Subordinados efetivos insuficientes (${subEfetivosCount}/${p}). Necessário: depósito ≥ ${PROMO_DEP_MIN} e apostas ≥ ${PROMO_APOSTA_MIN} por subordinado.` } })
-    const reclamados = Array.isArray(af.bonusPromoReclamados) ? af.bonusPromoReclamados : []
-    if (reclamados.some(x => x.pessoas === p)) return res.json({ error: { message: 'Já reclamado' } })
-    reclamados.push({ pessoas: p, valor: r.valor })
+    const effective = effectiveInviteCountServer(subEfetivosCount, mb)
+    if (effective < tier.people) {
+      return res.json({
+        error: {
+          message: `Indicações efetivas insuficientes (${effective}/${tier.people}). Subordinados precisam depósito ≥ ${promoDepMin} e apostas válidas ≥ ${promoApostaMin}.`
+        }
+      })
+    }
+    const reclamados = parseBonusPromoReclamadosRaw(af.bonusPromoReclamados)
+    if (reclamados.some((x) => Number(x.chestIndex) === tier.index)) {
+      return res.json({ error: { message: 'Este baú já foi resgatado' } })
+    }
+    if (reclamados.some((x) => !x.chestIndex && Number(x.pessoas) === tier.people && Number(x.valor) === tier.valor)) {
+      return res.json({ error: { message: 'Este baú já foi resgatado' } })
+    }
+    const valor = tier.valor
+    reclamados.push({ chestIndex: tier.index, pessoas: tier.people, valor })
     await prisma.afiliadoData.update({
       where: { userId: req.userId },
       data: {
-        bonusPromoReclamados: reclamados,
-        balance: { increment: r.valor },
+        bonusPromoReclamados: JSON.stringify(reclamados),
+        balance: { increment: valor },
+        rolloverPendente: { increment: valor },
         updatedAt: new Date()
       }
     })
-    return res.json({ result: { data: { json: { ok: true, valor: r.valor } } } })
+    return res.json({ result: { data: { json: { ok: true, valor, chestIndex: tier.index } } } })
   } catch (e) {
     console.error('reclamar-promo:', e)
     return res.status(500).json({ error: { message: e.message } })
@@ -3740,12 +3919,22 @@ app.get('/api/settings', async (req, res) => {
         minDeposit2dReais: mb.minDeposit2dReais,
         minValidBetReais: mb.minValidBetReais,
         headlinePrize: mb.headlinePrize,
+        cpaNivel1: mb.cpaNivel1,
+        cpaNivel2: mb.cpaNivel2,
+        cpaNivel3: mb.cpaNivel3,
+        cpaWinChancePct: mb.cpaWinChancePct,
+        indicacaoManipEnabled: mb.indicacaoManipEnabled,
+        indicacaoDar: mb.indicacaoDar,
+        indicacaoRoubar: mb.indicacaoRoubar,
+        afiliadoBausQtd: mb.afiliadoBausQtd,
+        afiliadoBausValoresCsv: mb.afiliadoBausValoresCsv,
+        afiliadoBausPessoasCsv: mb.afiliadoBausPessoasCsv,
         boxes: mb.boxes
       }
     })
   } catch (e) {
     const fbMb = normalizeMysteryBaus({})
-    return res.json({ logo: '', banner: '/s5/1770954153806/9999.jpg', loadingBanner: '/s5/app-icon/1222508/LOGO.jpg', siteName: '35m', pageTitle: '35m', depositoMin: 10, saqueMin: 20, saqueMax: 40000, whatsappUrl: '', pixEnabled: true, activePixProvider: 'gatebox', appUiTheme: '', carouselSlides: [], sitePopup: { enabled: false }, homeMarquee: '', mysteryBaus: { reclamarMinDep: fbMb.reclamarMinDep, reclamarTabela: fbMb.reclamarTabela, minDeposit2dReais: fbMb.minDeposit2dReais, minValidBetReais: fbMb.minValidBetReais, headlinePrize: fbMb.headlinePrize, boxes: fbMb.boxes } })
+    return res.json({ logo: '', banner: '/s5/1770954153806/9999.jpg', loadingBanner: '/s5/app-icon/1222508/LOGO.jpg', siteName: '35m', pageTitle: '35m', depositoMin: 10, saqueMin: 20, saqueMax: 40000, whatsappUrl: '', pixEnabled: true, activePixProvider: 'gatebox', appUiTheme: '', carouselSlides: [], sitePopup: { enabled: false }, homeMarquee: '', mysteryBaus: { reclamarMinDep: fbMb.reclamarMinDep, reclamarTabela: fbMb.reclamarTabela, minDeposit2dReais: fbMb.minDeposit2dReais, minValidBetReais: fbMb.minValidBetReais, headlinePrize: fbMb.headlinePrize, cpaNivel1: fbMb.cpaNivel1, cpaNivel2: fbMb.cpaNivel2, cpaNivel3: fbMb.cpaNivel3, cpaWinChancePct: fbMb.cpaWinChancePct, indicacaoManipEnabled: fbMb.indicacaoManipEnabled, indicacaoDar: fbMb.indicacaoDar, indicacaoRoubar: fbMb.indicacaoRoubar, afiliadoBausQtd: fbMb.afiliadoBausQtd, afiliadoBausValoresCsv: fbMb.afiliadoBausValoresCsv, afiliadoBausPessoasCsv: fbMb.afiliadoBausPessoasCsv, boxes: fbMb.boxes } })
   }
 })
 
@@ -4173,7 +4362,18 @@ if (serveVueFrontend) {
   const siteBaixadoForAdmin = process.env.SITE_BAIXADO_DIR || path.join(__dirname, '..', 'site_baixado')
   const adminPanelStatic = path.join(siteBaixadoForAdmin, 'admin')
   if (fs.existsSync(path.join(adminPanelStatic, 'index.html'))) {
-    app.use('/admin', express.static(adminPanelStatic, { index: ['index.html'], maxAge: '1h' }))
+    app.use(
+      '/admin',
+      express.static(adminPanelStatic, {
+        index: ['index.html'],
+        maxAge: '1h',
+        setHeaders(res, filePath) {
+          if (path.basename(filePath) === 'index.html') {
+            res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate')
+          }
+        }
+      })
+    )
     console.log('[server] Painel admin: /admin/')
   }
   console.log('[server] Servindo novo frontend Vue.js de:', vueFrontendDir)

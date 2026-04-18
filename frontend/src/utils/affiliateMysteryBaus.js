@@ -13,6 +13,7 @@ export const DEFAULT_AFILIADO_BAUS = Object.freeze({
   cpaNivel1: 0,
   cpaNivel2: 0,
   cpaNivel3: 0,
+  /** Mesma % aplicada ao CPA nível 1, 2 e 3 (sorteio independente por nível) */
   cpaWinChancePct: 100,
   minDeposit2dReais: 30,
   minValidBetReais: 1

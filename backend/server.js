@@ -16,6 +16,14 @@ import {
   cyberWithdraw, cyberBalance,
   invalidateCyberConfigCache, verifyWebhookSignature
 } from './cyber.js'
+import {
+  setPrisma as setSarrixPrisma,
+  sarrixpayCreatePixCharge,
+  sarrixpayPixOut,
+  sarrixpayGetTransactions,
+  looksLikeSarrixPayTransactionId,
+  invalidateSarrixpayTokenCache
+} from './sarrixpay.js'
 import { parsePixKeyForWithdrawal, pixKeyForGatebox } from './pixKey.js'
 import { trpcBatchMiddleware } from './trpc-batch-bridge.js'
 
@@ -23,6 +31,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const prisma = new PrismaClient()
 setPrisma(prisma)
 setCyberPrisma(prisma)
+setSarrixPrisma(prisma)
 
 /** Temas CSS da PWA (frontend themes.css) — mesmo conjunto que appThemeCatalog.js */
 const APP_UI_THEME_IDS = new Set([
@@ -46,7 +55,7 @@ const DEFAULT_MYSTERY_BAUS = Object.freeze({
   cpaNivel1: 0,
   cpaNivel2: 0,
   cpaNivel3: 0,
-  /** Chance 0–100% de ganhar o CPA (nível 1 / fluxo principal) */
+  /** Chance 0–100% de ganhar o CPA em cada nível (1, 2 e 3) — sorteio independente por nível */
   cpaWinChancePct: 100,
   /** Manipulação de indicações (ex.: sistema 3/1): dar N, depois roubar M */
   indicacaoManipEnabled: false,
@@ -164,6 +173,20 @@ async function getMysteryBaus() {
   }
 }
 
+/**
+ * Depósito mínimo e aposta válida mínima do subordinado para contar como «efetivo»
+ * (subEfetivos, baús de afiliado, gate do CPA). Sempre derivado de getMysteryBaus() / normalizeMysteryBaus.
+ */
+function mysterySubEffectiveThresholds(mb) {
+  const m = mb && typeof mb === 'object' ? mb : normalizeMysteryBaus({})
+  const dep = Number(m.minDeposit2dReais)
+  const bet = Number(m.minValidBetReais)
+  return {
+    depMin: Number.isFinite(dep) ? Math.max(0, dep) : DEFAULT_MYSTERY_BAUS.minDeposit2dReais,
+    betMin: Number.isFinite(bet) ? Math.max(0, bet) : DEFAULT_MYSTERY_BAUS.minValidBetReais
+  }
+}
+
 /** bonusPromoReclamados no MySQL é TEXT JSON */
 function parseBonusPromoReclamadosRaw(raw) {
   if (Array.isArray(raw)) return raw
@@ -231,8 +254,9 @@ async function payCpaTierTx(tx, affiliateUserId, subUserId, tier, amount, chance
     where: { affiliateUserId_subUserId_tier: { affiliateUserId, subUserId, tier } }
   })
   if (exists) return null
-  if (tier === 1 && chancePct < 100) {
-    if (Math.random() * 100 >= chancePct) return { skipped: true, chance: true }
+  const pct = Math.min(100, Math.max(0, Number(chancePct) || 0))
+  if (pct < 100 && Math.random() * 100 >= pct) {
+    return { skipped: true, chance: true }
   }
   await tx.cpaPayout.create({
     data: { affiliateUserId, subUserId, tier, amount: a }
@@ -251,25 +275,24 @@ async function payCpaTierTx(tx, affiliateUserId, subUserId, tier, amount, chance
 /** Quando um subordinado atinge dep+mín aposta mín., paga CPA L1→L2→L3 conforme mysteryBaus */
 async function tryApplyCpaChainTx(tx, subUserId) {
   const mb = await getMysteryBaus()
-  const depMin = Number.isFinite(Number(mb.minDeposit2dReais)) ? Math.max(0, mb.minDeposit2dReais) : 30
-  const betMin = Number.isFinite(Number(mb.minValidBetReais)) ? Math.max(0, mb.minValidBetReais) : 1
+  const { depMin, betMin } = mysterySubEffectiveThresholds(mb)
   const subAf = await tx.afiliadoData.findUnique({ where: { userId: subUserId } })
   if (!subAf || subAf.valorDeposito < depMin || subAf.apostaAcumulada < betMin) return
 
   const user = await tx.user.findUnique({ where: { id: subUserId }, select: { indicatorId: true } })
   if (!user?.indicatorId) return
 
-  const pct1 = Math.min(100, Math.max(0, Number(mb.cpaWinChancePct) || 0))
-  await payCpaTierTx(tx, user.indicatorId, subUserId, 1, mb.cpaNivel1, pct1)
+  const cpaChance = Math.min(100, Math.max(0, Number(mb.cpaWinChancePct) || 0))
+  await payCpaTierTx(tx, user.indicatorId, subUserId, 1, mb.cpaNivel1, cpaChance)
 
   const u1 = await tx.user.findUnique({ where: { id: user.indicatorId }, select: { indicatorId: true } })
   if (u1?.indicatorId) {
-    await payCpaTierTx(tx, u1.indicatorId, subUserId, 2, mb.cpaNivel2, 100)
+    await payCpaTierTx(tx, u1.indicatorId, subUserId, 2, mb.cpaNivel2, cpaChance)
   }
   if (u1?.indicatorId) {
     const u2 = await tx.user.findUnique({ where: { id: u1.indicatorId }, select: { indicatorId: true } })
     if (u2?.indicatorId) {
-      await payCpaTierTx(tx, u2.indicatorId, subUserId, 3, mb.cpaNivel3, 100)
+      await payCpaTierTx(tx, u2.indicatorId, subUserId, 3, mb.cpaNivel3, cpaChance)
     }
   }
 }
@@ -682,6 +705,112 @@ app.post('/api/webhook/cyber', async (req, res) => {
   }
 })
 
+// POST webhook SarrixPay — eventos PIX normalizados (URL cadastrada no painel SarrixPay)
+app.post('/api/webhook/sarrixpay', async (req, res) => {
+  const webhookToken = process.env.SARRIXPAY_WEBHOOK_TOKEN
+  if (webhookToken) {
+    const authHeader = req.headers['authorization'] || ''
+    const tokenHeader = req.headers['x-webhook-token'] || req.headers['x-sarrixpay-token'] || ''
+    const received = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : tokenHeader
+    if (received !== webhookToken) {
+      console.warn('Webhook SarrixPay: token inválido')
+      return res.status(401).json({ ok: false, error: 'Unauthorized' })
+    }
+  }
+  const body = req.body || {}
+  const event = String(body.event || '')
+  res.status(200).json({ ok: true })
+  try {
+    const tx = body.transaction || {}
+    const ref = body.reference || {}
+    const txId = String(tx.id || ref.transaction_ref || '').trim()
+    if (!txId) {
+      if (event && !['pix_in.created'].includes(event)) {
+        console.log('Webhook SarrixPay: sem id de transação', { event })
+      }
+      return
+    }
+
+    if (event === 'pix_in.succeeded') {
+      let claimed = await prisma.deposit.updateMany({
+        where: { externalId: txId, status: 'pendente' },
+        data: { status: 'processando' }
+      })
+      if (claimed.count === 0) return
+      const deposit = await prisma.deposit.findFirst({
+        where: { externalId: txId, status: 'processando' },
+        include: { user: true }
+      })
+      if (!deposit) return
+      await confirmarDepositoPix(deposit)
+      console.log('Webhook SarrixPay pix_in.succeeded:', txId)
+      return
+    }
+
+    if (event === 'pix_in.refunded') {
+      const dep = await prisma.deposit.findFirst({
+        where: { externalId: txId, status: 'concluido' }
+      })
+      if (dep) {
+        try {
+          await estornarDepositoPixPorReembolsoGateway(dep)
+        } catch (err) {
+          console.error('Webhook SarrixPay pix_in.refunded:', err)
+        }
+      }
+      return
+    }
+
+    if (event === 'pix_out.created' || event === 'pix_out.processing') {
+      await prisma.withdrawal.updateMany({
+        where: { externalId: txId, status: 'pendente' },
+        data: { status: 'processando', updatedAt: new Date() }
+      })
+      return
+    }
+
+    if (event === 'pix_out.succeeded') {
+      await prisma.withdrawal.updateMany({
+        where: { externalId: txId, status: { in: ['pendente', 'processando'] } },
+        data: { status: 'concluido', updatedAt: new Date() }
+      })
+      console.log('Webhook SarrixPay pix_out.succeeded:', txId)
+      return
+    }
+
+    if (['pix_out.failed', 'pix_out.canceled', 'pix_out.refunded'].includes(event)) {
+      const w = await prisma.withdrawal.findFirst({
+        where: { externalId: txId, status: { in: ['pendente', 'processando'] } }
+      })
+      if (w) {
+        await prisma.$transaction([
+          prisma.withdrawal.update({
+            where: { id: w.id },
+            data: { status: 'recusado', updatedAt: new Date() }
+          }),
+          prisma.afiliadoData.update({
+            where: { userId: w.userId },
+            data: {
+              balance: { increment: w.valor },
+              valorSaque: { decrement: w.valor },
+              numSaques: { decrement: 1 },
+              updatedAt: new Date()
+            }
+          })
+        ])
+        console.log('Webhook SarrixPay', event, 'saque', w.id, body.message || '')
+      }
+      return
+    }
+
+    if (!['pix_in.created'].includes(event)) {
+      console.log('Webhook SarrixPay: evento não tratado:', event)
+    }
+  } catch (e) {
+    console.error('Webhook SarrixPay:', e)
+  }
+})
+
 /** Gera pid único a partir do account (hash polinomial para evitar colisões) */
 function generatePid(account) {
   const s = String(account)
@@ -759,22 +888,34 @@ let _appConfigCacheAt = 0
 const APP_CONFIG_TTL = 60_000
 
 /**
- * Gateway efetivo para PIX (depósito/saque), respeitando flags gateboxEnabled / cyberEnabled.
- * paymentProvider no banco: preferência ('gatebox' | 'cyber' | 'none').
+ * Gateway efetivo para PIX (depósito/saque).
+ * paymentProvider: 'gatebox' | 'cyber' | 'sarrixpay' | 'none'.
+ * SarrixPay só entra no roteamento se sarrixpayEnabled === true (explícito no admin).
  */
 function getActivePixProvider(cfg) {
   const gateboxEnabled = cfg.gateboxEnabled !== false
   const cyberEnabled = cfg.cyberEnabled !== false
+  const sarrixpayEnabled = cfg.sarrixpayEnabled === true
   let pref = String(cfg.paymentProvider || 'gatebox').toLowerCase()
-  if (!['gatebox', 'cyber', 'none'].includes(pref)) pref = 'gatebox'
-  if (!gateboxEnabled && !cyberEnabled) return 'none'
+  if (!['gatebox', 'cyber', 'sarrixpay', 'none'].includes(pref)) pref = 'gatebox'
+  if (!gateboxEnabled && !cyberEnabled && !sarrixpayEnabled) return 'none'
   if (pref === 'none') return 'none'
   if (pref === 'gatebox') {
     if (gateboxEnabled) return 'gatebox'
+    if (cyberEnabled) return 'cyber'
+    return sarrixpayEnabled ? 'sarrixpay' : 'none'
+  }
+  if (pref === 'cyber') {
+    if (cyberEnabled) return 'cyber'
+    if (gateboxEnabled) return 'gatebox'
+    return sarrixpayEnabled ? 'sarrixpay' : 'none'
+  }
+  if (pref === 'sarrixpay') {
+    if (sarrixpayEnabled) return 'sarrixpay'
+    if (gateboxEnabled) return 'gatebox'
     return cyberEnabled ? 'cyber' : 'none'
   }
-  if (cyberEnabled) return 'cyber'
-  return gateboxEnabled ? 'gatebox' : 'none'
+  return gateboxEnabled ? 'gatebox' : (cyberEnabled ? 'cyber' : (sarrixpayEnabled ? 'sarrixpay' : 'none'))
 }
 
 /** Configurações da plataforma (Saque, Roleta, Bônus) */
@@ -790,9 +931,10 @@ async function getAppConfig() {
       ? segs.map(sg => ({ label: String(sg?.label ?? ''), value: Number(sg?.value) ?? 0 }))
       : DEFAULT_ROLETA_SEGMENTS
     let paymentProvider = String(v.paymentProvider || 'gatebox').toLowerCase()
-    if (!['gatebox', 'cyber', 'none'].includes(paymentProvider)) paymentProvider = 'gatebox'
+    if (!['gatebox', 'cyber', 'sarrixpay', 'none'].includes(paymentProvider)) paymentProvider = 'gatebox'
     const gateboxEnabled = v.gateboxEnabled !== false
     const cyberEnabled = v.cyberEnabled !== false
+    const sarrixpayEnabled = v.sarrixpayEnabled === true
     let appUiTheme = String(v.appUiTheme || '').trim()
     if (!APP_UI_THEME_IDS.has(appUiTheme)) appUiTheme = ''
     const base = {
@@ -810,6 +952,7 @@ async function getAppConfig() {
       paymentProvider,
       gateboxEnabled,
       cyberEnabled,
+      sarrixpayEnabled,
       appUiTheme
     }
     base.activePixProvider = getActivePixProvider(base)
@@ -818,7 +961,7 @@ async function getAppConfig() {
     _appConfigCacheAt = Date.now()
     return _appConfigCache
   } catch (e) {
-    const fallback = { depositoMin: 10, saqueMin: 20, saqueMax: 40000, roletaMinWithdraw: 100, roletaBonusDays: 3, roletaDailySpins: 1, roletaBonusRolloverTimes: 0, bonusPrimeiroDep: 0, bonusPrimeiroDepPercent: 0, roletaSegments: DEFAULT_ROLETA_SEGMENTS, paymentProvider: 'gatebox', gateboxEnabled: true, cyberEnabled: true, appUiTheme: '' }
+    const fallback = { depositoMin: 10, saqueMin: 20, saqueMax: 40000, roletaMinWithdraw: 100, roletaBonusDays: 3, roletaDailySpins: 1, roletaBonusRolloverTimes: 0, bonusPrimeiroDep: 0, bonusPrimeiroDepPercent: 0, roletaSegments: DEFAULT_ROLETA_SEGMENTS, paymentProvider: 'gatebox', gateboxEnabled: true, cyberEnabled: true, sarrixpayEnabled: false, appUiTheme: '' }
     fallback.activePixProvider = getActivePixProvider(fallback)
     fallback.pixEnabled = fallback.activePixProvider !== 'none'
     return fallback
@@ -882,7 +1025,9 @@ async function confirmarDepositoPix(deposit, bonusExtra = 0) {
     nivelVipIncreased,
     bonusVipDelta,
     indicatorId: indicator || null,
-    indicatorRebate: indicator ? rebate : 0
+    indicatorRebate: indicator ? rebate : 0,
+    /** Rebate do indicador foi para saldo sacável (não comissaoPendente/coletavelRebate) */
+    indicatorToBalance: !!indicator
   }
   // schema: creditJson é String (LONGTEXT); objeto puro faz o Prisma tratar chaves como operadores (erro "Unknown argument v")
   const creditJsonStored = JSON.stringify(creditSnapshot)
@@ -913,8 +1058,8 @@ async function confirmarDepositoPix(deposit, bonusExtra = 0) {
       await tx.afiliadoData.update({
         where: { userId: indicator },
         data: {
-          comissaoPendente: { increment: rebate },
-          coletavelRebate: { increment: rebate },
+          balance: { increment: rebate },
+          comissaoRecebida: { increment: rebate },
           comissaoHoje: { increment: rebate },
           updatedAt: new Date()
         }
@@ -944,6 +1089,7 @@ async function reconciliarDepositosPixAutomatico() {
       const ext = String(deposit.externalId).trim()
       if (!ext) continue
       const isCyber = ext.startsWith('txn_')
+      const isSarrix = !isCyber && looksLikeSarrixPayTransactionId(ext)
       let paid = false
       try {
         if (isCyber) {
@@ -965,6 +1111,25 @@ async function reconciliarDepositosPixAutomatico() {
             continue
           }
           paid = ['APPROVED', 'PAID'].includes(st)
+        } else if (isSarrix) {
+          const statusResult = await sarrixpayGetTransactions({ transactionId: ext })
+          if (!statusResult.ok) continue
+          const st = String(statusResult.data?.status || '').toLowerCase()
+          if (st === 'failed' || st === 'canceled' || st === 'cancelled') {
+            await prisma.deposit.updateMany({
+              where: { id: deposit.id, status: { in: ['pendente', 'processando'] } },
+              data: { status: 'erro' }
+            })
+            continue
+          }
+          if (st === 'refunded') {
+            await prisma.deposit.updateMany({
+              where: { id: deposit.id, status: { in: ['pendente', 'processando'] } },
+              data: { status: 'expirado' }
+            })
+            continue
+          }
+          paid = st === 'succeeded'
         } else {
           const statusResult = await gateboxPixStatus({ externalId: ext })
           if (!statusResult.ok) continue
@@ -1008,7 +1173,8 @@ function creditSnapshotForReversal(deposit, raw) {
       nivelVipIncreased: !!parsed.nivelVipIncreased,
       bonusVipDelta: Math.max(0, Number(parsed.bonusVipDelta) || 0),
       indicatorId: parsed.indicatorId || null,
-      indicatorRebate: Math.max(0, Number(parsed.indicatorRebate) || 0)
+      indicatorRebate: Math.max(0, Number(parsed.indicatorRebate) || 0),
+      indicatorToBalance: parsed.indicatorToBalance === true
     }
   }
   const rebate = deposit.valor * 0.05
@@ -1020,6 +1186,7 @@ function creditSnapshotForReversal(deposit, raw) {
     bonusVipDelta: 0,
     indicatorId: null,
     indicatorRebate: 0,
+    indicatorToBalance: false,
     legacy: true
   }
 }
@@ -1072,15 +1239,27 @@ async function estornarDepositoPixPorReembolsoGateway(deposit) {
       }
     })
     if (snap.indicatorId && snap.indicatorRebate > 0) {
-      await tx.afiliadoData.update({
-        where: { userId: snap.indicatorId },
-        data: {
-          coletavelRebate: { decrement: snap.indicatorRebate },
-          comissaoPendente: { decrement: snap.indicatorRebate },
-          comissaoHoje: { decrement: snap.indicatorRebate },
-          updatedAt: new Date()
-        }
-      })
+      if (snap.indicatorToBalance) {
+        await tx.afiliadoData.update({
+          where: { userId: snap.indicatorId },
+          data: {
+            balance: { decrement: snap.indicatorRebate },
+            comissaoRecebida: { decrement: snap.indicatorRebate },
+            comissaoHoje: { decrement: snap.indicatorRebate },
+            updatedAt: new Date()
+          }
+        })
+      } else {
+        await tx.afiliadoData.update({
+          where: { userId: snap.indicatorId },
+          data: {
+            coletavelRebate: { decrement: snap.indicatorRebate },
+            comissaoPendente: { decrement: snap.indicatorRebate },
+            comissaoHoje: { decrement: snap.indicatorRebate },
+            updatedAt: new Date()
+          }
+        })
+      }
     }
     await tx.deposit.update({ where: { id: cur.id }, data: { status: 'estornado' } })
     return true
@@ -1390,8 +1569,7 @@ app.get('/api/afiliado', authMiddleware, async (req, res) => {
     let af = await ensureAfiliado(req.userId, user?.account || '')
     af = await checkMisteriosoReset(af, user)
     const mbAf = await getMysteryBaus()
-    const promoDepMin = Number.isFinite(Number(mbAf.minDeposit2dReais)) ? Math.max(0, mbAf.minDeposit2dReais) : 30
-    const promoApostaMin = Number.isFinite(Number(mbAf.minValidBetReais)) ? Math.max(0, mbAf.minValidBetReais) : 600
+    const { depMin: promoDepMin, betMin: promoApostaMin } = mysterySubEffectiveThresholds(mbAf)
     const subEfetivos = await prisma.user.count({
       where: {
         indicatorId: req.userId,
@@ -1492,6 +1670,22 @@ app.post('/api/deposito/pix', authMiddleware, async (req, res) => {
       externalId = d.id || d.transactionId
       copyPaste = d.copyPaste || ''
       qrcode = d.qrcode || ''
+    } else if (provider === 'sarrixpay') {
+      result = await sarrixpayCreatePixCharge({
+        amount: v,
+        currency: 'BRL',
+        description: `Depósito A73 - ${user.account}`,
+        idempotencyKey: deposit.id,
+        payer: { name: nomeDeposito, document: doc }
+      })
+      if (!result.ok) {
+        await prisma.deposit.update({ where: { id: deposit.id }, data: { status: 'erro' } })
+        return res.json({ error: { message: result.error || 'Erro ao gerar PIX' } })
+      }
+      const d = result.data || {}
+      externalId = d.transactionId
+      copyPaste = d.copyPaste || ''
+      qrcode = d.qrcode || ''
     } else {
       externalId = deposit.id
       result = await gateboxCreatePix({
@@ -1564,6 +1758,7 @@ app.get('/api/deposito/pix/status/:externalId', authMiddleware, async (req, res)
       return res.json({ result: { data: { json: { status: 'concluido', valor: deposit.valor } } } })
     }
     const isCyber = externalId.startsWith('txn_')
+    const isSarrix = !isCyber && looksLikeSarrixPayTransactionId(externalId)
     let paid = false
     if (isCyber) {
       const statusResult = await cyberGetTransaction(externalId)
@@ -1580,6 +1775,21 @@ app.get('/api/deposito/pix/status/:externalId', authMiddleware, async (req, res)
         return res.json({ result: { data: { json: { status: 'erro' } } } })
       }
       paid = ['APPROVED', 'PAID'].includes(st)
+    } else if (isSarrix) {
+      const statusResult = await sarrixpayGetTransactions({ transactionId: externalId })
+      if (!statusResult.ok) {
+        return res.json({ result: { data: { json: { status: 'pendente', error: statusResult.error } } } })
+      }
+      const st = String(statusResult.data?.status || '').toLowerCase()
+      if (st === 'failed' || st === 'canceled' || st === 'cancelled') {
+        await prisma.deposit.updateMany({ where: { externalId, status: { in: ['pendente', 'processando'] } }, data: { status: 'erro' } })
+        return res.json({ result: { data: { json: { status: 'erro' } } } })
+      }
+      if (st === 'refunded') {
+        await prisma.deposit.updateMany({ where: { externalId, status: { in: ['pendente', 'processando'] } }, data: { status: 'expirado' } })
+        return res.json({ result: { data: { json: { status: 'expirado' } } } })
+      }
+      paid = st === 'succeeded'
     } else {
       const statusResult = await gateboxPixStatus({ externalId })
       if (!statusResult.ok) {
@@ -1713,8 +1923,8 @@ app.post('/api/deposito', authMiddleware, async (req, res) => {
       await prisma.afiliadoData.update({
         where: { userId: user.indicatorId },
         data: {
-          comissaoPendente: { increment: rebate },
-          coletavelRebate: { increment: rebate },
+          balance: { increment: rebate },
+          comissaoRecebida: { increment: rebate },
           comissaoHoje: { increment: rebate },
           updatedAt: new Date()
         }
@@ -1754,8 +1964,7 @@ app.post('/api/afiliado/reclamar-promo', authMiddleware, async (req, res) => {
         return res.json({ error: { message: `Bônus expirado. Disponível apenas nos primeiros ${PROMO_EXPIRA_DIAS} dias após o registro.` } })
       }
     }
-    const promoDepMin = Number.isFinite(Number(mb.minDeposit2dReais)) ? Math.max(0, mb.minDeposit2dReais) : 30
-    const promoApostaMin = Number.isFinite(Number(mb.minValidBetReais)) ? Math.max(0, mb.minValidBetReais) : 600
+    const { depMin: promoDepMin, betMin: promoApostaMin } = mysterySubEffectiveThresholds(mb)
     const subEfetivosCount = await prisma.user.count({
       where: {
         indicatorId: req.userId,
@@ -3187,7 +3396,9 @@ app.post('/api/saque', authMiddleware, async (req, res) => {
     }
 
     let withdrawResult
-    const useCyber = getActivePixProvider(cfg) === 'cyber'
+    const pixProv = getActivePixProvider(cfg)
+    const useCyber = pixProv === 'cyber'
+    const useSarrix = pixProv === 'sarrixpay'
     try {
       if (useCyber) {
         withdrawResult = await cyberWithdraw({
@@ -3195,6 +3406,19 @@ app.post('/api/saque', authMiddleware, async (req, res) => {
           pixKey: key,
           pixKeyType: pixTipo,
           description: `Saque - ${user?.account || req.userId}`
+        })
+      } else if (useSarrix) {
+        withdrawResult = await sarrixpayPixOut({
+          amount: v,
+          currency: 'BRL',
+          description: `Saque - ${user?.account || req.userId}`,
+          idempotencyKey: `pixout-wd-${withdrawal.id}`,
+          beneficiary: {
+            name,
+            pix_key: pixTipo === 'PHONE' ? key : (pixTipo === 'EMAIL' ? key : key.replace(/^\+/, '')),
+            pix_key_type: pixTipo,
+            document: pixTipo === 'CPF' || pixTipo === 'CNPJ' ? key.replace(/\D/g, '') : undefined
+          }
         })
       } else {
         withdrawResult = await gateboxWithdraw({
@@ -3215,12 +3439,13 @@ app.post('/api/saque', authMiddleware, async (req, res) => {
       return refundAndFail(withdrawResult.error || 'Erro ao enviar PIX. Tente novamente ou entre em contato com o suporte.')
     }
 
-    if (useCyber) {
-      // Cyber é assíncrono: confirma via webhook pix.out.confirmation
-      const cyberWithdrawalId = withdrawResult.data?.withdrawalId
+    if (useCyber || useSarrix) {
+      const extOut = useCyber
+        ? withdrawResult.data?.withdrawalId
+        : withdrawResult.data?.transactionId
       await prisma.withdrawal.update({
         where: { id: withdrawal.id },
-        data: { status: 'processando', externalId: cyberWithdrawalId || null, updatedAt: new Date() }
+        data: { status: 'processando', externalId: extOut || null, updatedAt: new Date() }
       })
     } else {
       await prisma.withdrawal.update({ where: { id: withdrawal.id }, data: { status: 'concluido', updatedAt: new Date() } })
@@ -3413,9 +3638,11 @@ app.patch('/api/admin/saques/:id', adminAuthMiddleware, async (req, res) => {
     const name = String(w.nome || w.user?.account || 'Cliente').trim()
     const cfg = await getAppConfig()
     if (getActivePixProvider(cfg) === 'none') {
-      return res.status(400).json({ ok: false, error: 'Nenhum gateway PIX ativo. Ative Cyber ou Gatebox nas configurações.' })
+      return res.status(400).json({ ok: false, error: 'Nenhum gateway PIX ativo. Ative Gatebox, Cyber ou SarrixPay nas configurações.' })
     }
-    const useCyber = getActivePixProvider(cfg) === 'cyber'
+    const pixProv = getActivePixProvider(cfg)
+    const useCyber = pixProv === 'cyber'
+    const useSarrix = pixProv === 'sarrixpay'
     const withdrawResult = useCyber
       ? await cyberWithdraw({
           amount: w.valor,
@@ -3423,23 +3650,37 @@ app.patch('/api/admin/saques/:id', adminAuthMiddleware, async (req, res) => {
           pixKeyType: pixTipo,
           description: `Saque - ${w.user?.account || w.userId}`
         })
-      : await gateboxWithdraw({
-          externalId: id,
-          key: pixKeyForGatebox(key, pixTipo),
-          name,
-          amount: w.valor,
-          documentNumber: pixTipo === 'CPF' || pixTipo === 'CNPJ' ? key.replace(/^\+/, '') : undefined,
-          description: `Saque - ${w.user?.account || w.userId}`
-        })
+      : useSarrix
+        ? await sarrixpayPixOut({
+            amount: w.valor,
+            currency: 'BRL',
+            description: `Saque - ${w.user?.account || w.userId}`,
+            idempotencyKey: `pixout-admin-${id}`,
+            beneficiary: {
+              name,
+              pix_key: pixTipo === 'PHONE' ? key : (pixTipo === 'EMAIL' ? key : key.replace(/^\+/, '')),
+              pix_key_type: pixTipo,
+              document: pixTipo === 'CPF' || pixTipo === 'CNPJ' ? key.replace(/\D/g, '') : undefined
+            }
+          })
+        : await gateboxWithdraw({
+            externalId: id,
+            key: pixKeyForGatebox(key, pixTipo),
+            name,
+            amount: w.valor,
+            documentNumber: pixTipo === 'CPF' || pixTipo === 'CNPJ' ? key.replace(/^\+/, '') : undefined,
+            description: `Saque - ${w.user?.account || w.userId}`
+          })
     if (!withdrawResult.ok) {
       return res.status(400).json({ ok: false, error: withdrawResult.error || 'Erro ao enviar PIX' })
     }
-    if (useCyber) {
-      // Cyber é assíncrono: confirmação via webhook pix.out.confirmation
-      const cyberWithdrawalId = withdrawResult.data?.withdrawalId
+    if (useCyber || useSarrix) {
+      const extOut = useCyber
+        ? withdrawResult.data?.withdrawalId
+        : withdrawResult.data?.transactionId
       await prisma.withdrawal.update({
         where: { id },
-        data: { status: 'processando', externalId: cyberWithdrawalId || null, updatedAt: new Date() }
+        data: { status: 'processando', externalId: extOut || null, updatedAt: new Date() }
       })
       return res.json({ ok: true, status: 'processando' })
     }
@@ -3487,7 +3728,7 @@ app.get('/api/admin/config', adminAuthMiddleware, async (req, res) => {
     const cfg = await getAppConfig()
     return res.json(cfg)
   } catch (e) {
-    const fb = { depositoMin: 10, saqueMin: 20, saqueMax: 40000, roletaMinWithdraw: 100, roletaBonusDays: 3, roletaDailySpins: 1, bonusPrimeiroDep: 0, bonusPrimeiroDepPercent: 0, roletaSegments: DEFAULT_ROLETA_SEGMENTS, paymentProvider: 'gatebox', gateboxEnabled: true, cyberEnabled: true, appUiTheme: '' }
+    const fb = { depositoMin: 10, saqueMin: 20, saqueMax: 40000, roletaMinWithdraw: 100, roletaBonusDays: 3, roletaDailySpins: 1, bonusPrimeiroDep: 0, bonusPrimeiroDepPercent: 0, roletaSegments: DEFAULT_ROLETA_SEGMENTS, paymentProvider: 'gatebox', gateboxEnabled: true, cyberEnabled: true, sarrixpayEnabled: false, appUiTheme: '' }
     fb.activePixProvider = getActivePixProvider(fb)
     fb.pixEnabled = fb.activePixProvider !== 'none'
     return res.json(fb)
@@ -3543,15 +3784,23 @@ app.post('/api/admin/config', adminAuthMiddleware, async (req, res) => {
     const cyberEnabled = typeof body.cyberEnabled === 'boolean'
       ? body.cyberEnabled
       : (typeof prev.cyberEnabled === 'boolean' ? prev.cyberEnabled : true)
+    const sarrixpayEnabled = typeof body.sarrixpayEnabled === 'boolean'
+      ? body.sarrixpayEnabled
+      : (prev.sarrixpayEnabled === true)
 
     let paymentProvider = body.paymentProvider !== undefined
       ? String(body.paymentProvider || '').toLowerCase()
       : String(prev.paymentProvider || 'gatebox').toLowerCase()
-    if (!['gatebox', 'cyber', 'none'].includes(paymentProvider)) paymentProvider = 'gatebox'
+    if (!['gatebox', 'cyber', 'sarrixpay', 'none'].includes(paymentProvider)) paymentProvider = 'gatebox'
 
-    if (!gateboxEnabled && !cyberEnabled) paymentProvider = 'none'
-    else if (paymentProvider === 'gatebox' && !gateboxEnabled) paymentProvider = cyberEnabled ? 'cyber' : 'none'
-    else if (paymentProvider === 'cyber' && !cyberEnabled) paymentProvider = gateboxEnabled ? 'gatebox' : 'none'
+    if (!gateboxEnabled && !cyberEnabled && !sarrixpayEnabled) paymentProvider = 'none'
+    else if (paymentProvider === 'gatebox' && !gateboxEnabled) {
+      paymentProvider = cyberEnabled ? 'cyber' : (sarrixpayEnabled ? 'sarrixpay' : 'none')
+    } else if (paymentProvider === 'cyber' && !cyberEnabled) {
+      paymentProvider = gateboxEnabled ? 'gatebox' : (sarrixpayEnabled ? 'sarrixpay' : 'none')
+    } else if (paymentProvider === 'sarrixpay' && !sarrixpayEnabled) {
+      paymentProvider = gateboxEnabled ? 'gatebox' : (cyberEnabled ? 'cyber' : 'none')
+    }
 
     let appUiTheme = prev.appUiTheme != null ? String(prev.appUiTheme).trim() : ''
     if (!APP_UI_THEME_IDS.has(appUiTheme)) appUiTheme = ''
@@ -3563,7 +3812,7 @@ app.post('/api/admin/config', adminAuthMiddleware, async (req, res) => {
     const value = {
       depositoMin, saqueMin, saqueMax, roletaMinWithdraw, roletaBonusDays, roletaDailySpins,
       bonusPrimeiroDep, bonusPrimeiroDepPercent, roletaSegments, whatsappUrl,
-      paymentProvider, gateboxEnabled, cyberEnabled,
+      paymentProvider, gateboxEnabled, cyberEnabled, sarrixpayEnabled,
       appUiTheme
     }
     await settingUpsert('config', value)
@@ -3796,6 +4045,65 @@ app.post('/api/admin/cyber/test-pix', adminAuthMiddleware, async (req, res) => {
     })
   } catch (e) {
     console.error('admin cyber test-pix:', e)
+    return res.status(500).json({ ok: false, error: e.message })
+  }
+})
+
+app.get('/api/admin/sarrixpay', adminAuthMiddleware, async (req, res) => {
+  try {
+    const s = await settingGet('sarrixpay')
+    let v = s?.value
+    if (typeof v === 'string') { try { v = JSON.parse(v) } catch { v = {} } }
+    v = v && typeof v === 'object' ? v : {}
+    return res.json({
+      apiUrl: v.apiUrl || 'https://apiv1.sarrixpay.com',
+      clientId: v.clientId || v.client_id || '',
+      clientSecret: (v.clientSecret || v.client_secret) ? '••••••' : ''
+    })
+  } catch (e) {
+    return res.json({ apiUrl: 'https://apiv1.sarrixpay.com', clientId: '', clientSecret: '' })
+  }
+})
+
+app.post('/api/admin/sarrixpay', adminAuthMiddleware, async (req, res) => {
+  try {
+    const { apiUrl, clientId, client_id, clientSecret, client_secret } = req.body?.json || req.body || {}
+    const s = await settingGet('sarrixpay')
+    let v = s?.value
+    if (typeof v === 'string') { try { v = JSON.parse(v) } catch { v = {} } }
+    if (!v || typeof v !== 'object') v = {}
+    const cid = String(clientId || client_id || v.clientId || v.client_id || '').trim()
+    const csecRaw = clientSecret !== undefined ? clientSecret : client_secret
+    if (cid) v.clientId = cid
+    if (csecRaw !== undefined && String(csecRaw).trim() !== '' && String(csecRaw) !== '••••••') {
+      v.clientSecret = String(csecRaw).trim()
+    }
+    v.apiUrl = (apiUrl || v.apiUrl || 'https://apiv1.sarrixpay.com').replace(/\/$/, '')
+    await settingUpsert('sarrixpay', v)
+    invalidateSarrixpayTokenCache()
+    return res.json({ ok: true })
+  } catch (e) {
+    console.error('admin sarrixpay save:', e)
+    return res.status(500).json({ ok: false, error: e.message })
+  }
+})
+
+app.post('/api/admin/sarrixpay/test-pix', adminAuthMiddleware, async (req, res) => {
+  try {
+    const result = await sarrixpayCreatePixCharge({
+      amount: 1,
+      currency: 'BRL',
+      description: 'Teste PIX SarrixPay (admin)',
+      idempotencyKey: `admin-test-${Date.now()}`,
+      payer: { name: 'Teste Admin', document: '12345678901' }
+    })
+    return res.json({
+      ok: result.ok,
+      data: result.data,
+      error: result.error
+    })
+  } catch (e) {
+    console.error('admin sarrixpay test-pix:', e)
     return res.status(500).json({ ok: false, error: e.message })
   }
 })

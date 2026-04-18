@@ -80,6 +80,21 @@
       </div>
     </section>
 
+    <section
+      v-if="auth.isLoggedIn"
+      class="invite-block invite-block--hint"
+      aria-label="Como o saldo de indicação funciona"
+    >
+      <p class="invite-hint-text">
+        <strong>Comissão por depósito dos indicados (rebate):</strong> o valor creditado ao afiliado entra
+        <strong>direto no saldo da conta</strong> e pode ser sacado por PIX quando não houver rollover pendente
+        e dentro dos limites de saque da plataforma.
+        <strong>Baús de convite</strong> e <strong>CPA</strong> usam os valores e condições definidos no painel admin
+        (mesmos números da lista abaixo). A <strong>chance de CPA</strong> vale para os
+        <strong>três níveis</strong> (cada nível faz o sorteio à parte com a mesma porcentagem).
+      </p>
+    </section>
+
     <section class="invite-block invite-block--rewards">
       <div class="invite-title-bar invite-title-bar--rewards">
         <img class="invite-title-bar-bg" src="/assets/invite-friends/bar-title-B7k57w00.png" alt="" />
@@ -266,7 +281,7 @@ const promotionConditions = computed(() => {
     { label: 'CPA afiliado nível 1', value: `R$ ${fmt(mb.cpaNivel1)}`, accent: true },
     { label: 'CPA afiliado nível 2', value: `R$ ${fmt(mb.cpaNivel2)}`, accent: true },
     { label: 'CPA afiliado nível 3', value: `R$ ${fmt(mb.cpaNivel3)}`, accent: true },
-    { label: 'Chance de ganhar o CPA (nível 1)', value: `${pct}%`, accent: true },
+    { label: 'Chance de ganhar o CPA (níveis 1, 2 e 3)', value: `${pct}% cada`, accent: true },
     { label: 'Depósito mín. do indicado', value: `≥ R$ ${fmt(mb.minDeposit2dReais)}`, accent: true },
     { label: 'Aposta válida mín. do indicado', value: `≥ R$ ${fmt(mb.minValidBetReais)}`, accent: true }
   ]
@@ -473,6 +488,23 @@ onMounted(async () => {
   margin-bottom: 0.75rem;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
   overflow: visible;
+}
+
+.invite-block--hint {
+  border-color: rgba(251, 191, 36, 0.35);
+  background: rgba(45, 30, 20, 0.45);
+}
+
+.invite-hint-text {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: rgba(248, 237, 216, 0.92);
+}
+
+.invite-hint-text strong {
+  color: #fde68a;
+  font-weight: 700;
 }
 
 /* Faixa “Compartilhamento Rápido” sobe e ultrapassa o topo do card */

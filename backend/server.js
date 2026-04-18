@@ -2505,10 +2505,55 @@ const DEMO_CATALOG = {
   },
 }
 
+/** Uma entrada de jogo em destaque na home (admin). */
+function parseFeaturedGameEntry(raw) {
+  if (raw && typeof raw === 'object' && raw.providerCode != null && raw.gameCode != null) {
+    const providerCode = String(raw.providerCode || '').trim().toUpperCase()
+    const gameCode = String(raw.gameCode || '').trim()
+    if (!providerCode || !gameCode) return null
+    return { providerCode, gameCode }
+  }
+  const str = String(raw || '').trim()
+  if (!str) return null
+  if (str.includes('|')) {
+    const i = str.indexOf('|')
+    const a = str.slice(0, i).trim()
+    const b = str.slice(i + 1).trim()
+    if (!a || !b) return null
+    return { providerCode: a.toUpperCase(), gameCode: b }
+  }
+  const sp = str.split(/\s+/)
+  if (sp.length >= 2) {
+    return { providerCode: sp[0].trim().toUpperCase(), gameCode: sp.slice(1).join(' ').trim() }
+  }
+  return null
+}
+
+function normalizeFeaturedGamesList(input) {
+  const arr = Array.isArray(input) ? input : []
+  const out = []
+  const seen = new Set()
+  for (const item of arr) {
+    const p = parseFeaturedGameEntry(item)
+    if (!p) continue
+    const prov = p.providerCode.toUpperCase()
+    const codeKey = p.gameCode.toLowerCase().replace(/\s+/g, '')
+    const k = `${prov}|${codeKey}`
+    if (seen.has(k)) continue
+    seen.add(k)
+    out.push({ providerCode: prov, gameCode: p.gameCode.trim() })
+    if (out.length >= 24) break
+  }
+  return out
+}
+
+async function getHomeSettingValue() {
+  return await settingGetValue('home', {})
+}
+
 async function getHomeProviders() {
   try {
-    const s = await settingGet('home')
-    const v = s?.value
+    const v = await getHomeSettingValue()
     if (v && Array.isArray(v.homeProviders)) return v.homeProviders
   } catch (e) {}
   return []
@@ -2591,20 +2636,29 @@ async function refreshCatalogBackground() {
 
 app.get('/api/settings/home-providers', async (req, res) => {
   try {
-    const homeProviders = await getHomeProviders()
-    return res.json({ homeProviders })
+    const v = await getHomeSettingValue()
+    const homeProviders = Array.isArray(v.homeProviders) ? v.homeProviders : []
+    const featuredGames = normalizeFeaturedGamesList(v.featuredGames)
+    return res.json({ homeProviders, featuredGames })
   } catch (e) {
-    return res.json({ homeProviders: [] })
+    return res.json({ homeProviders: [], featuredGames: [] })
   }
 })
 
 app.post('/api/settings/home-providers', adminAuthMiddleware, async (req, res) => {
   try {
-    const { homeProviders } = req.body?.json || req.body || {}
-    const list = Array.isArray(homeProviders) ? homeProviders.filter(x => typeof x === 'string') : []
-    await settingUpsert('home', { homeProviders: list })
+    const body = req.body?.json || req.body || {}
+    const prevVal = await getHomeSettingValue()
+    const list = Array.isArray(body.homeProviders)
+      ? body.homeProviders.filter((x) => typeof x === 'string').map((s) => s.trim()).filter(Boolean)
+      : []
+    const featuredGames =
+      body.featuredGames !== undefined && body.featuredGames !== null
+        ? normalizeFeaturedGamesList(Array.isArray(body.featuredGames) ? body.featuredGames : [])
+        : normalizeFeaturedGamesList(prevVal.featuredGames)
+    await settingUpsert('home', { ...prevVal, homeProviders: list, featuredGames })
     catalogCache = null
-    return res.json({ ok: true, homeProviders: list })
+    return res.json({ ok: true, homeProviders: list, featuredGames })
   } catch (e) {
     console.error('save home providers:', e)
     return res.status(500).json({ ok: false, error: e.message })
@@ -4182,12 +4236,14 @@ app.post('/api/admin/usuarios/:id/add-bonus', adminAuthMiddleware, async (req, r
 // GET settings (logo, banner, siteName, pageTitle, depositoMin, saqueMin, saqueMax, pixEnabled) - público
 app.get('/api/settings', async (req, res) => {
   try {
-    const [main, appCfg, mb, cms] = await Promise.all([
+    const [main, appCfg, mb, cms, homeCfg] = await Promise.all([
       settingGet('main'),
       getAppConfig(),
       getMysteryBaus(),
-      getCmsSettings()
+      getCmsSettings(),
+      getHomeSettingValue()
     ])
+    const featuredGames = normalizeFeaturedGamesList(homeCfg?.featuredGames)
     const v = main?.value || {}
     const defaultLogo = '/s5/app-icon/1222508/LOGO.jpg'
     const savedLogo = (main?.logo && String(main.logo).trim()) || ''
@@ -4218,6 +4274,7 @@ app.get('/api/settings', async (req, res) => {
       pixEnabled: appCfg.pixEnabled !== false,
       activePixProvider: appCfg.activePixProvider || 'gatebox',
       appUiTheme: appCfg.appUiTheme || '',
+      featuredGames,
       carouselSlides: slides,
       sitePopup,
       homeMarquee: cms.homeMarquee || '',
@@ -4242,7 +4299,7 @@ app.get('/api/settings', async (req, res) => {
     })
   } catch (e) {
     const fbMb = normalizeMysteryBaus({})
-    return res.json({ logo: '', banner: '/s5/1770954153806/9999.jpg', loadingBanner: '/s5/app-icon/1222508/LOGO.jpg', siteName: '35m', pageTitle: '35m', depositoMin: 10, saqueMin: 20, saqueMax: 40000, whatsappUrl: '', pixEnabled: true, activePixProvider: 'gatebox', appUiTheme: '', carouselSlides: [], sitePopup: { enabled: false }, homeMarquee: '', mysteryBaus: { reclamarMinDep: fbMb.reclamarMinDep, reclamarTabela: fbMb.reclamarTabela, minDeposit2dReais: fbMb.minDeposit2dReais, minValidBetReais: fbMb.minValidBetReais, headlinePrize: fbMb.headlinePrize, cpaNivel1: fbMb.cpaNivel1, cpaNivel2: fbMb.cpaNivel2, cpaNivel3: fbMb.cpaNivel3, cpaWinChancePct: fbMb.cpaWinChancePct, indicacaoManipEnabled: fbMb.indicacaoManipEnabled, indicacaoDar: fbMb.indicacaoDar, indicacaoRoubar: fbMb.indicacaoRoubar, afiliadoBausQtd: fbMb.afiliadoBausQtd, afiliadoBausValoresCsv: fbMb.afiliadoBausValoresCsv, afiliadoBausPessoasCsv: fbMb.afiliadoBausPessoasCsv, boxes: fbMb.boxes } })
+    return res.json({ logo: '', banner: '/s5/1770954153806/9999.jpg', loadingBanner: '/s5/app-icon/1222508/LOGO.jpg', siteName: '35m', pageTitle: '35m', depositoMin: 10, saqueMin: 20, saqueMax: 40000, whatsappUrl: '', pixEnabled: true, activePixProvider: 'gatebox', appUiTheme: '', featuredGames: [], carouselSlides: [], sitePopup: { enabled: false }, homeMarquee: '', mysteryBaus: { reclamarMinDep: fbMb.reclamarMinDep, reclamarTabela: fbMb.reclamarTabela, minDeposit2dReais: fbMb.minDeposit2dReais, minValidBetReais: fbMb.minValidBetReais, headlinePrize: fbMb.headlinePrize, cpaNivel1: fbMb.cpaNivel1, cpaNivel2: fbMb.cpaNivel2, cpaNivel3: fbMb.cpaNivel3, cpaWinChancePct: fbMb.cpaWinChancePct, indicacaoManipEnabled: fbMb.indicacaoManipEnabled, indicacaoDar: fbMb.indicacaoDar, indicacaoRoubar: fbMb.indicacaoRoubar, afiliadoBausQtd: fbMb.afiliadoBausQtd, afiliadoBausValoresCsv: fbMb.afiliadoBausValoresCsv, afiliadoBausPessoasCsv: fbMb.afiliadoBausPessoasCsv, boxes: fbMb.boxes } })
   }
 })
 

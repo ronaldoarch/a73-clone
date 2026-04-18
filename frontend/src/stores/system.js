@@ -231,6 +231,12 @@ export const useSystemStore = defineStore('system', () => {
       const mq = typeof data.homeMarquee === 'string' ? data.homeMarquee.trim() : ''
       if (mq) marqueeContent.value = [{ content: mq }]
       else if (Object.prototype.hasOwnProperty.call(data, 'homeMarquee')) marqueeContent.value = []
+      try {
+        const { useGamesStore } = await import('./games')
+        await useGamesStore().applyFeaturedFromSettings()
+      } catch {
+        /* Pinia / catálogo ainda não carregado — ignora */
+      }
     } catch (e) {
       console.error('Failed to fetch settings:', e)
     }

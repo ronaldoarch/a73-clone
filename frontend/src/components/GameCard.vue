@@ -16,6 +16,8 @@
         <span>🔥</span>
       </div>
 
+      <div v-if="game.isFeatured" class="featured-badge">Destaque</div>
+
       <div v-if="game.isNew" class="new-badge">NEW</div>
 
       <div class="thumb-overlay">
@@ -135,6 +137,17 @@ function launchGame() {
   background: linear-gradient(135deg, #22c55e, #16a34a); color: #fff;
   font-size: .5rem; font-weight: 800; padding: 2px 6px;
   border-radius: .25rem; z-index: 2; letter-spacing: .5px;
+}
+
+.featured-badge {
+  position: absolute; bottom: 1.85rem; left: 50%; transform: translateX(-50%);
+  max-width: calc(100% - 0.5rem);
+  background: linear-gradient(90deg, #f59e0b, #d97706);
+  color: #1a0a0a;
+  font-size: .5rem; font-weight: 800; padding: 2px 6px;
+  border-radius: .25rem; z-index: 2; letter-spacing: .02em;
+  white-space: nowrap; text-overflow: ellipsis; overflow: hidden;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
 }
 
 .thumb-provider {

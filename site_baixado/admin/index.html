@@ -834,6 +834,11 @@
             <textarea id="igwHomeProviders" class="search-box" style="max-width:100%;width:100%;min-height:100px;font-family:monospace;font-size:12px" placeholder="PGSOFT&#10;PRAGMATIC"></textarea>
             <p style="font-size:0.8rem;color:var(--text-muted);margin-top:0.35rem">Ordem dos blocos de jogos na página inicial. Requer login de admin para salvar.</p>
           </div>
+          <div class="form-group" style="margin-top:1rem">
+            <label>Jogos em destaque na home (Popular)</label>
+            <textarea id="igwFeaturedGames" class="search-box" style="max-width:100%;width:100%;min-height:88px;font-family:monospace;font-size:12px" placeholder="PGSOFT|fortune-tiger&#10;PRAGMATIC|vs20olympgate"></textarea>
+            <p style="font-size:0.8rem;color:var(--text-muted);margin-top:0.35rem">Um por linha: <strong>PROVEDOR|código_do_jogo</strong> (códigos como na API iGameWin). Aparecem primeiro na secção Popular, com etiqueta «Destaque».</p>
+          </div>
           <button class="btn btn-primary" id="btnSaveIgamewin">Salvar</button>
         </div>
       </div>
@@ -1706,6 +1711,11 @@
         document.getElementById('igwDemo').checked = d.is_demo !== false;
         const ta = document.getElementById('igwHomeProviders');
         if (ta) ta.value = (hp.homeProviders || []).join('\n');
+        const tf = document.getElementById('igwFeaturedGames');
+        if (tf) {
+          const fg = hp.featuredGames || [];
+          tf.value = fg.map((x) => (x && x.providerCode && x.gameCode ? (x.providerCode + '|' + x.gameCode) : '')).filter(Boolean).join('\n');
+        }
       } catch (e) { console.error('igamewin', e); }
     };
     document.getElementById('btnSaveIgamewin').addEventListener('click', async () => {
@@ -1721,8 +1731,10 @@
         }) });
         const rawHp = document.getElementById('igwHomeProviders')?.value || '';
         const homeProviders = rawHp.split(/[\n,]+/).map((s) => s.trim()).filter(Boolean);
-        const r2 = await api('/api/settings/home-providers', { method: 'POST', body: JSON.stringify({ homeProviders }) });
-        showToast(r.ok && r2.ok ? 'iGameWin e ordem da home salvos.' : (r.error || r2.error || 'Verifique erros'), r.ok && r2.ok ? 'success' : 'error');
+        const rawFeat = document.getElementById('igwFeaturedGames')?.value || '';
+        const featuredGames = rawFeat.split('\n').map((s) => s.trim()).filter(Boolean);
+        const r2 = await api('/api/settings/home-providers', { method: 'POST', body: JSON.stringify({ homeProviders, featuredGames }) });
+        showToast(r.ok && r2.ok ? 'iGameWin, ordem da home e destaques salvos.' : (r.error || r2.error || 'Verifique erros'), r.ok && r2.ok ? 'success' : 'error');
       } catch (e) { showToast('Erro.', 'error'); }
     });
 

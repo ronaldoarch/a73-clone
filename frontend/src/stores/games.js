@@ -36,6 +36,55 @@ export const useGamesStore = defineStore('games', () => {
     return colors[Math.abs(hash) % colors.length]
   }
 
+  function normProv(c) {
+    return String(c || '').trim().toUpperCase()
+  }
+  function normGameCode(c) {
+    return String(c || '').trim().toLowerCase().replace(/\s+/g, '')
+  }
+  function gameMatchKey(g) {
+    return `${normProv(g.providerCode || g.platformCode || g.gameType)}|${normGameCode(g.game_code || g.gameCode || g.code || g.id)}`
+  }
+  function matchesFeaturedSpec(g, spec) {
+    const p = normProv(g.providerCode || g.platformCode || g.gameType)
+    if (p !== normProv(spec.providerCode)) return false
+    const code = normGameCode(g.game_code || g.gameCode || g.code || g.id)
+    const want = normGameCode(spec.gameCode)
+    if (!want) return false
+    return code === want || code.includes(want) || want.includes(code)
+  }
+
+  /** Jogos em destaque (admin) primeiro na lista Popular, sem duplicar. */
+  function mergeFeaturedIntoHot(hotBase, allGamesFlat, featuredSpecs) {
+    const specs = Array.isArray(featuredSpecs)
+      ? featuredSpecs.filter((s) => s && (s.providerCode || s.gameCode))
+      : []
+    if (!specs.length) return hotBase.map((g) => ({ ...g, isFeatured: false }))
+    const picked = []
+    const used = new Set()
+    for (const spec of specs) {
+      const found = allGamesFlat.find((g) => matchesFeaturedSpec(g, spec) && !used.has(gameMatchKey(g)))
+      if (found) {
+        used.add(gameMatchKey(found))
+        picked.push({ ...found, isFeatured: true })
+      }
+    }
+    const rest = hotBase.filter((h) => !used.has(gameMatchKey(h))).map((g) => ({ ...g, isFeatured: false }))
+    return [...picked, ...rest]
+  }
+
+  async function fetchFeaturedSpecs() {
+    try {
+      const { useSystemStore } = await import('./system')
+      const st = useSystemStore()
+      if (!st.settings) await st.fetchSettings()
+      const fg = st.settings?.featuredGames
+      return Array.isArray(fg) ? fg : []
+    } catch {
+      return []
+    }
+  }
+
   async function fetchCatalog() {
     if (loading.value) return
     if (allGames.value.length > 0) return
@@ -48,7 +97,8 @@ export const useGamesStore = defineStore('games', () => {
         const games = data.games || data.gameList || data.list || data
         if (Array.isArray(games)) {
           allGames.value = games
-          processGames(games)
+          const featuredSpecs = await fetchFeaturedSpecs()
+          processGames(games, featuredSpecs)
         }
       }
     } catch (e) {
@@ -62,7 +112,7 @@ export const useGamesStore = defineStore('games', () => {
     }
   }
 
-  function processGames(games) {
+  function processGames(games, featuredSpecs = []) {
     const provMap = {}
     const hot = []
     const provSet = new Map()
@@ -88,7 +138,15 @@ export const useGamesStore = defineStore('games', () => {
 
     gamesByProvider.value = provMap
     providers.value = Array.from(provSet.values())
-    hotGames.value = hot.length ? hot : games.slice(0, 30)
+    const hotBase = hot.length ? hot : games.slice(0, 30)
+    hotGames.value = mergeFeaturedIntoHot(hotBase, games, featuredSpecs)
+  }
+
+  /** Reaplica destaques quando `/api/settings` é atualizado (ex.: visibilitychange). */
+  async function applyFeaturedFromSettings() {
+    if (!allGames.value.length) return
+    const featuredSpecs = await fetchFeaturedSpecs()
+    processGames(allGames.value, featuredSpecs)
   }
 
   function setGameUrl(url) {
@@ -156,7 +214,7 @@ export const useGamesStore = defineStore('games', () => {
     catalog, providers, gamesByProvider, loading, hotGames, topProviders,
     allGames, recentGames, gameUrl, gameSportsUrl, gameDoc, categoryStates,
     isInGame,
-    fetchCatalog, getProviderGames, getColor, processGames,
+    fetchCatalog, getProviderGames, getColor, processGames, applyFeaturedFromSettings,
     setGameUrl, setGameDoc, addRecentGame,
     initCategoryState, getCategoryGames, updateCategoryPage, shouldLoadMore, markFavorites
   }

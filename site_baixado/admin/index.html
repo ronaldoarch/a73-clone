@@ -769,6 +769,7 @@
               <div class="form-group"><label>Dias de Bônus</label><input type="number" id="cfgRoletaDays" class="search-box" min="1" max="30" style="max-width:100%"></div>
             </div>
             <div class="form-group"><label>Giros Diários</label><input type="number" id="cfgRoletaSpins" class="search-box" min="1" max="10" style="max-width:100%"></div>
+            <div class="form-group"><label>Rollover ao transferir bônus da roleta (× valor creditado; 0 = sem)</label><input type="number" id="cfgRoletaRoll" class="search-box" step="0.1" min="0" max="50" style="max-width:100%"></div>
             <div class="form-group"><label>Segmentos da Roleta (8 valores separados por vírgula)</label><input type="text" id="cfgRoletaSegments" class="search-box" placeholder="0.5, 1, 2, 0.5, 5, 0.5, 1, 10" style="max-width:100%"></div>
           </div>
         </div>
@@ -788,6 +789,21 @@
             <div class="toggle-row"><input type="checkbox" id="cfgCyberEnabled"><label for="cfgCyberEnabled">Cyber Payment Habilitado</label></div>
             <div class="toggle-row"><input type="checkbox" id="cfgSarrixpayEnabled"><label for="cfgSarrixpayEnabled">SarrixPay Habilitado</label></div>
           </div>
+        </div>
+      </div>
+      <div class="card" style="margin-top:1rem">
+        <div class="card-header"><span class="card-title">Rollover (aposta antes do saque)</span></div>
+        <div style="padding:1.25rem">
+          <p style="margin:0 0 1rem;font-size:0.9rem;opacity:0.85">Multiplicador sobre o valor creditado: <code>rollover pendente += valor × vezes</code>. Use 0 para não exigir rollover nessa origem.</p>
+          <div class="form-row">
+            <div class="form-group"><label>Depósito PIX (× total creditado)</label><input type="number" id="cfgRollDep" class="search-box" step="0.1" min="0" max="50" style="max-width:100%"></div>
+            <div class="form-group"><label>VIP diário / semanal / mensal (× bônus)</label><input type="number" id="cfgRollVipRot" class="search-box" step="0.1" min="0" max="50" style="max-width:100%"></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label>VIP acumulado (reclamar nível; × valor)</label><input type="number" id="cfgRollVipAcc" class="search-box" step="0.1" min="0" max="50" style="max-width:100%"></div>
+            <div class="form-group"><label>Baús promo indique (× prêmio)</label><input type="number" id="cfgRollPromo" class="search-box" step="0.1" min="0" max="50" style="max-width:100%"></div>
+          </div>
+          <div class="form-group"><label>Mistério (× prêmio)</label><input type="number" id="cfgRollMist" class="search-box" step="0.1" min="0" max="50" style="max-width:100%"></div>
         </div>
       </div>
       <button class="btn btn-primary" id="btnSaveConfig" style="padding:0.75rem 2rem;font-size:1rem">Salvar Configurações</button>
@@ -1753,6 +1769,12 @@
         document.getElementById('cfgRoletaMin').value = cfg.roletaMinWithdraw ?? 100;
         document.getElementById('cfgRoletaDays').value = cfg.roletaBonusDays ?? 3;
         document.getElementById('cfgRoletaSpins').value = cfg.roletaDailySpins ?? 1;
+        document.getElementById('cfgRoletaRoll').value = cfg.roletaBonusRolloverTimes ?? 1;
+        document.getElementById('cfgRollDep').value = cfg.rolloverDepositoTimes ?? 0;
+        document.getElementById('cfgRollVipRot').value = cfg.rolloverVipRotinaTimes ?? 1;
+        document.getElementById('cfgRollVipAcc').value = cfg.rolloverVipAcumuladoTimes ?? 0;
+        document.getElementById('cfgRollPromo').value = cfg.rolloverPromoBaixTimes ?? 1;
+        document.getElementById('cfgRollMist').value = cfg.rolloverMisteriosoTimes ?? 1;
         document.getElementById('cfgPaymentProvider').value = cfg.paymentProvider || 'gatebox';
         document.getElementById('cfgGateboxEnabled').checked = cfg.gateboxEnabled !== false;
         document.getElementById('cfgCyberEnabled').checked = cfg.cyberEnabled !== false;
@@ -1766,6 +1788,11 @@
       const segStr = document.getElementById('cfgRoletaSegments').value;
       const segArr = segStr.split(',').map(s => parseFloat(s.trim()) || 0);
       const roletaSegments = segArr.length === 8 ? segArr.map(v => ({ label: 'R$ ' + v, value: v })) : undefined;
+      const rollParse = (id, def) => {
+        const n = parseFloat(String(document.getElementById(id).value).replace(',', '.'));
+        if (!Number.isFinite(n)) return def;
+        return Math.max(0, Math.min(50, n));
+      };
       const body = {
         depositoMin: parseInt(document.getElementById('cfgDepositoMin').value) || 10,
         saqueMin: parseInt(document.getElementById('cfgSaqueMin').value) || 20,
@@ -1776,6 +1803,12 @@
         roletaMinWithdraw: parseInt(document.getElementById('cfgRoletaMin').value) || 100,
         roletaBonusDays: parseInt(document.getElementById('cfgRoletaDays').value) || 3,
         roletaDailySpins: parseInt(document.getElementById('cfgRoletaSpins').value) || 1,
+        roletaBonusRolloverTimes: rollParse('cfgRoletaRoll', 1),
+        rolloverDepositoTimes: rollParse('cfgRollDep', 0),
+        rolloverVipRotinaTimes: rollParse('cfgRollVipRot', 1),
+        rolloverVipAcumuladoTimes: rollParse('cfgRollVipAcc', 0),
+        rolloverPromoBaixTimes: rollParse('cfgRollPromo', 1),
+        rolloverMisteriosoTimes: rollParse('cfgRollMist', 1),
         paymentProvider: document.getElementById('cfgPaymentProvider').value,
         gateboxEnabled: document.getElementById('cfgGateboxEnabled').checked,
         cyberEnabled: document.getElementById('cfgCyberEnabled').checked,

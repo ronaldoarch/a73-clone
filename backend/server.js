@@ -944,7 +944,13 @@ async function getAppConfig() {
       roletaMinWithdraw: v.roletaMinWithdraw ?? 100,
       roletaBonusDays: v.roletaBonusDays ?? 3,
       roletaDailySpins: v.roletaDailySpins ?? 1,
-      roletaBonusRolloverTimes: v.roletaBonusRolloverTimes ?? 0,
+      /** Ao transferir bônus da roleta para a carteira (1 = igual ao valor creditado; 0 = sem rollover). */
+      roletaBonusRolloverTimes: storedRolloverTimes(v, 'roletaBonusRolloverTimes', 1),
+      rolloverDepositoTimes: storedRolloverTimes(v, 'rolloverDepositoTimes', 0),
+      rolloverVipRotinaTimes: storedRolloverTimes(v, 'rolloverVipRotinaTimes', 1),
+      rolloverVipAcumuladoTimes: storedRolloverTimes(v, 'rolloverVipAcumuladoTimes', 0),
+      rolloverMisteriosoTimes: storedRolloverTimes(v, 'rolloverMisteriosoTimes', 1),
+      rolloverPromoBaixTimes: storedRolloverTimes(v, 'rolloverPromoBaixTimes', 1),
       bonusPrimeiroDep: v.bonusPrimeiroDep ?? 0,
       bonusPrimeiroDepPercent: v.bonusPrimeiroDepPercent ?? 0,
       roletaSegments,
@@ -961,7 +967,13 @@ async function getAppConfig() {
     _appConfigCacheAt = Date.now()
     return _appConfigCache
   } catch (e) {
-    const fallback = { depositoMin: 10, saqueMin: 20, saqueMax: 40000, roletaMinWithdraw: 100, roletaBonusDays: 3, roletaDailySpins: 1, roletaBonusRolloverTimes: 0, bonusPrimeiroDep: 0, bonusPrimeiroDepPercent: 0, roletaSegments: DEFAULT_ROLETA_SEGMENTS, paymentProvider: 'gatebox', gateboxEnabled: true, cyberEnabled: true, sarrixpayEnabled: false, appUiTheme: '' }
+    const fallback = {
+      depositoMin: 10, saqueMin: 20, saqueMax: 40000, roletaMinWithdraw: 100, roletaBonusDays: 3, roletaDailySpins: 1,
+      roletaBonusRolloverTimes: 1, rolloverDepositoTimes: 0, rolloverVipRotinaTimes: 1, rolloverVipAcumuladoTimes: 0,
+      rolloverMisteriosoTimes: 1, rolloverPromoBaixTimes: 1,
+      bonusPrimeiroDep: 0, bonusPrimeiroDepPercent: 0, roletaSegments: DEFAULT_ROLETA_SEGMENTS, paymentProvider: 'gatebox',
+      gateboxEnabled: true, cyberEnabled: true, sarrixpayEnabled: false, appUiTheme: ''
+    }
     fallback.activePixProvider = getActivePixProvider(fallback)
     fallback.pixEnabled = fallback.activePixProvider !== 'none'
     return fallback
@@ -972,6 +984,32 @@ async function getAppConfig() {
 function invalidateAppConfigCache() {
   _appConfigCache = null
   _appConfigCacheAt = 0
+}
+
+const ROLLOVER_TIMES_MAX = 50
+
+/** Multiplicador de rollover (0–50, decimais). */
+function clampRolloverTimes(n) {
+  const x = Number(n)
+  if (!Number.isFinite(x)) return 0
+  return Math.max(0, Math.min(ROLLOVER_TIMES_MAX, Math.round(x * 1000) / 1000))
+}
+
+/** Valor a somar em rolloverPendente: arred(amount × times, 2). times 0 = sem rollover. */
+function rolloverIncrementFrom(amount, times) {
+  const a = Number(amount) || 0
+  const t = clampRolloverTimes(times)
+  if (a <= 0 || t <= 0) return 0
+  return Math.round(a * t * 100) / 100
+}
+
+/** Lê multiplicador guardado em settings; se a chave não existir, usa missingDefault. */
+function storedRolloverTimes(v, key, missingDefault) {
+  const raw = v[key]
+  if (raw === undefined || raw === null) return missingDefault
+  const n = Number(raw)
+  if (!Number.isFinite(n)) return missingDefault
+  return clampRolloverTimes(n)
 }
 
 /** Confirma depósito PIX e credita saldo (usado por polling, webhook e reconciliação).
@@ -993,6 +1031,7 @@ async function confirmarDepositoPix(deposit, bonusExtra = 0) {
     ? (cfg.bonusPrimeiroDep ?? 0) + (depRow.valor * (cfg.bonusPrimeiroDepPercent ?? 0) / 100)
     : 0
   const balanceIncrement = depRow.valor + bonusPrimeiro + (Number(bonusExtra) || 0)
+  const rolloverDepositoAdd = rolloverIncrementFrom(balanceIncrement, cfg.rolloverDepositoTimes ?? 0)
   const rebate = depRow.valor * 0.05
   const niveisVip = [
     { nivel: 0, aposta: 0, bonus: 0 },
@@ -1045,6 +1084,7 @@ async function confirmarDepositoPix(deposit, bonusExtra = 0) {
         valorDeposito: { increment: depRow.valor },
         numDepositos: { increment: 1 },
         balance: { increment: balanceIncrement },
+        ...(rolloverDepositoAdd > 0 ? { rolloverPendente: { increment: rolloverDepositoAdd } } : {}),
         coletavelRebate: { increment: rebate },
         comissaoPendente: { increment: rebate },
         comissaoHoje: { increment: rebate },
@@ -1897,6 +1937,7 @@ app.post('/api/deposito', authMiddleware, async (req, res) => {
       ? (cfg.bonusPrimeiroDep ?? 0) + (v * (cfg.bonusPrimeiroDepPercent ?? 0) / 100)
       : 0
     const balanceIncrement = v + bonusPrimeiro
+    const rolloverLegadoAdd = rolloverIncrementFrom(balanceIncrement, cfg.rolloverDepositoTimes ?? 0)
     const rebate = v * 0.05
     const niveisVip = [
       { nivel: 0, aposta: 0, bonus: 0 },
@@ -1923,6 +1964,7 @@ app.post('/api/deposito', authMiddleware, async (req, res) => {
           valorDeposito: { increment: v },
           numDepositos: { increment: 1 },
           balance: { increment: balanceIncrement },
+          ...(rolloverLegadoAdd > 0 ? { rolloverPendente: { increment: rolloverLegadoAdd } } : {}),
           coletavelRebate: { increment: rebate },
           comissaoPendente: { increment: rebate },
           comissaoHoje: { increment: rebate },
@@ -2004,13 +2046,15 @@ app.post('/api/afiliado/reclamar-promo', authMiddleware, async (req, res) => {
       return res.json({ error: { message: 'Este baú já foi resgatado' } })
     }
     const valor = tier.valor
+    const cfgPromo = await getAppConfig()
+    const rollPromo = rolloverIncrementFrom(valor, cfgPromo.rolloverPromoBaixTimes ?? 1)
     reclamados.push({ chestIndex: tier.index, pessoas: tier.people, valor })
     await prisma.afiliadoData.update({
       where: { userId: req.userId },
       data: {
         bonusPromoReclamados: JSON.stringify(reclamados),
         balance: { increment: valor },
-        rolloverPendente: { increment: valor },
+        ...(rollPromo > 0 ? { rolloverPendente: { increment: rollPromo } } : {}),
         updatedAt: new Date()
       }
     })
@@ -2064,12 +2108,14 @@ app.post('/api/afiliado/reclamar-misterioso', authMiddleware, async (req, res) =
     const min = faixa ? faixa.premioMin : 0.3
     const max = faixa ? faixa.premioMax : 88
     const premio = Math.round((min + Math.random() * (max - min)) * 100) / 100
+    const cfgMist = await getAppConfig()
+    const rollMist = rolloverIncrementFrom(premio, cfgMist.rolloverMisteriosoTimes ?? 1)
     await prisma.afiliadoData.update({
       where: { userId: req.userId },
       data: {
         misteriosoReclamado: true,
         balance: { increment: premio },
-        rolloverPendente: { increment: premio }, // 1x rollover antes de sacar
+        ...(rollMist > 0 ? { rolloverPendente: { increment: rollMist } } : {}),
         updatedAt: new Date()
       }
     })
@@ -2086,6 +2132,8 @@ app.post('/api/afiliado/coletar-vip', authMiddleware, async (req, res) => {
     const af = await ensureAfiliado(req.userId, (await prisma.user.findUnique({ where: { id: req.userId } }))?.account || '')
     if (af.bonusVipReclamar <= 0) return res.json({ error: { message: 'Nenhum bônus disponível' } })
     const valor = af.bonusVipReclamar
+    const cfgVipAcc = await getAppConfig()
+    const rollVipAcc = rolloverIncrementFrom(valor, cfgVipAcc.rolloverVipAcumuladoTimes ?? 0)
     const coletados = Array.isArray(af.bonusVipColetados) ? af.bonusVipColetados : []
     coletados.push({ nivel: af.nivelVip, valor })
     await prisma.afiliadoData.update({
@@ -2094,6 +2142,7 @@ app.post('/api/afiliado/coletar-vip', authMiddleware, async (req, res) => {
         bonusVipReclamar: 0,
         bonusVipColetados: coletados,
         balance: { increment: valor },
+        ...(rollVipAcc > 0 ? { rolloverPendente: { increment: rollVipAcc } } : {}),
         updatedAt: new Date()
       }
     })
@@ -2114,9 +2163,16 @@ app.post('/api/afiliado/coletar-vip-diario', authMiddleware, async (req, res) =>
       return res.json({ error: { message: 'Bônus diário já coletado hoje' } })
     }
     const valor = BONUS_VIP_DIARIO[Math.min(af.nivelVip, 15)]
+    const cfgVipR = await getAppConfig()
+    const rollVipR = rolloverIncrementFrom(valor, cfgVipR.rolloverVipRotinaTimes ?? 1)
     await prisma.afiliadoData.update({
       where: { userId: req.userId },
-      data: { balance: { increment: valor }, rolloverPendente: { increment: valor }, vipDiarioColetadoEm: agora, updatedAt: agora }
+      data: {
+        balance: { increment: valor },
+        ...(rollVipR > 0 ? { rolloverPendente: { increment: rollVipR } } : {}),
+        vipDiarioColetadoEm: agora,
+        updatedAt: agora
+      }
     })
     return res.json({ result: { data: { json: { ok: true, valor } } } })
   } catch (e) {
@@ -2135,9 +2191,16 @@ app.post('/api/afiliado/coletar-vip-semanal', authMiddleware, async (req, res) =
       return res.json({ error: { message: 'Bônus semanal já coletado esta semana' } })
     }
     const valor = BONUS_VIP_SEMANAL[Math.min(af.nivelVip, 15)]
+    const cfgVipS = await getAppConfig()
+    const rollVipS = rolloverIncrementFrom(valor, cfgVipS.rolloverVipRotinaTimes ?? 1)
     await prisma.afiliadoData.update({
       where: { userId: req.userId },
-      data: { balance: { increment: valor }, rolloverPendente: { increment: valor }, vipSemanalColetadoEm: agora, updatedAt: agora }
+      data: {
+        balance: { increment: valor },
+        ...(rollVipS > 0 ? { rolloverPendente: { increment: rollVipS } } : {}),
+        vipSemanalColetadoEm: agora,
+        updatedAt: agora
+      }
     })
     return res.json({ result: { data: { json: { ok: true, valor } } } })
   } catch (e) {
@@ -2156,9 +2219,16 @@ app.post('/api/afiliado/coletar-vip-mensal', authMiddleware, async (req, res) =>
       return res.json({ error: { message: 'Bônus mensal já coletado este mês' } })
     }
     const valor = BONUS_VIP_MENSAL[Math.min(af.nivelVip, 15)]
+    const cfgVipM = await getAppConfig()
+    const rollVipM = rolloverIncrementFrom(valor, cfgVipM.rolloverVipRotinaTimes ?? 1)
     await prisma.afiliadoData.update({
       where: { userId: req.userId },
-      data: { balance: { increment: valor }, rolloverPendente: { increment: valor }, vipMensalColetadoEm: agora, updatedAt: agora }
+      data: {
+        balance: { increment: valor },
+        ...(rollVipM > 0 ? { rolloverPendente: { increment: rollVipM } } : {}),
+        vipMensalColetadoEm: agora,
+        updatedAt: agora
+      }
     })
     return res.json({ result: { data: { json: { ok: true, valor } } } })
   } catch (e) {
@@ -3005,7 +3075,7 @@ app.get('/api/roleta/config', async (req, res) => {
       dailySpins: Number(cfg.roletaDailySpins) || 1,
       bonusDays: Number(cfg.roletaBonusDays) || 3,
       minWithdraw: Number(cfg.roletaMinWithdraw) || 100,
-      bonusRolloverTimes: Number(cfg.roletaBonusRolloverTimes) || 0
+      bonusRolloverTimes: clampRolloverTimes(cfg.roletaBonusRolloverTimes ?? 1)
     })
   } catch (e) {
     return res.json({
@@ -3013,7 +3083,7 @@ app.get('/api/roleta/config', async (req, res) => {
       dailySpins: 1,
       bonusDays: 3,
       minWithdraw: 100,
-      bonusRolloverTimes: 0
+      bonusRolloverTimes: 1
     })
   }
 })
@@ -3166,6 +3236,7 @@ app.get('/api/roleta', authMiddleware, async (req, res) => {
       (!r.bonusExpiresAt || now < r.bonusExpiresAt)
     if (canCollect) {
       const amount = r.bonusBalance
+      const rollRoleta = rolloverIncrementFrom(amount, cfg.roletaBonusRolloverTimes ?? 1)
       const u = await prisma.user.findUnique({ where: { id: req.userId } })
       await ensureAfiliado(req.userId, u?.account || '')
       await prisma.$transaction([
@@ -3177,7 +3248,7 @@ app.get('/api/roleta', authMiddleware, async (req, res) => {
           where: { userId: req.userId },
           data: {
             balance: { increment: amount },
-            rolloverPendente: { increment: amount }, // 1x rollover antes de sacar
+            ...(rollRoleta > 0 ? { rolloverPendente: { increment: rollRoleta } } : {}),
             updatedAt: now
           }
         })
@@ -3822,7 +3893,13 @@ app.get('/api/admin/config', adminAuthMiddleware, async (req, res) => {
     const cfg = await getAppConfig()
     return res.json(cfg)
   } catch (e) {
-    const fb = { depositoMin: 10, saqueMin: 20, saqueMax: 40000, roletaMinWithdraw: 100, roletaBonusDays: 3, roletaDailySpins: 1, bonusPrimeiroDep: 0, bonusPrimeiroDepPercent: 0, roletaSegments: DEFAULT_ROLETA_SEGMENTS, paymentProvider: 'gatebox', gateboxEnabled: true, cyberEnabled: true, sarrixpayEnabled: false, appUiTheme: '' }
+    const fb = {
+      depositoMin: 10, saqueMin: 20, saqueMax: 40000, roletaMinWithdraw: 100, roletaBonusDays: 3, roletaDailySpins: 1,
+      roletaBonusRolloverTimes: 1, rolloverDepositoTimes: 0, rolloverVipRotinaTimes: 1, rolloverVipAcumuladoTimes: 0,
+      rolloverMisteriosoTimes: 1, rolloverPromoBaixTimes: 1,
+      bonusPrimeiroDep: 0, bonusPrimeiroDepPercent: 0, roletaSegments: DEFAULT_ROLETA_SEGMENTS, paymentProvider: 'gatebox',
+      gateboxEnabled: true, cyberEnabled: true, sarrixpayEnabled: false, appUiTheme: ''
+    }
     fb.activePixProvider = getActivePixProvider(fb)
     fb.pixEnabled = fb.activePixProvider !== 'none'
     return res.json(fb)
@@ -3903,8 +3980,31 @@ app.post('/api/admin/config', adminAuthMiddleware, async (req, res) => {
       appUiTheme = APP_UI_THEME_IDS.has(raw) ? raw : ''
     }
 
+    const pickRolloverField = (key, defaultVal) => {
+      if (body[key] !== undefined && body[key] !== null && String(body[key]).trim() !== '') {
+        const n = parseFloat(String(body[key]).replace(',', '.'))
+        if (!Number.isFinite(n)) return defaultVal
+        return Math.max(0, Math.min(ROLLOVER_TIMES_MAX, n))
+      }
+      const p = prev[key]
+      if (p !== undefined && p !== null && String(p).trim() !== '') {
+        const pn = Number(p)
+        if (Number.isFinite(pn)) return Math.max(0, Math.min(ROLLOVER_TIMES_MAX, pn))
+      }
+      return defaultVal
+    }
+
+    const roletaBonusRolloverTimes = pickRolloverField('roletaBonusRolloverTimes', 1)
+    const rolloverDepositoTimes = pickRolloverField('rolloverDepositoTimes', 0)
+    const rolloverVipRotinaTimes = pickRolloverField('rolloverVipRotinaTimes', 1)
+    const rolloverVipAcumuladoTimes = pickRolloverField('rolloverVipAcumuladoTimes', 0)
+    const rolloverMisteriosoTimes = pickRolloverField('rolloverMisteriosoTimes', 1)
+    const rolloverPromoBaixTimes = pickRolloverField('rolloverPromoBaixTimes', 1)
+
     const value = {
       depositoMin, saqueMin, saqueMax, roletaMinWithdraw, roletaBonusDays, roletaDailySpins,
+      roletaBonusRolloverTimes, rolloverDepositoTimes, rolloverVipRotinaTimes, rolloverVipAcumuladoTimes,
+      rolloverMisteriosoTimes, rolloverPromoBaixTimes,
       bonusPrimeiroDep, bonusPrimeiroDepPercent, roletaSegments, whatsappUrl,
       paymentProvider, gateboxEnabled, cyberEnabled, sarrixpayEnabled,
       appUiTheme

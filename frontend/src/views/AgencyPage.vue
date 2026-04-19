@@ -370,6 +370,7 @@ async function fetchShareUrl() {
   try {
     const data = await trpcQuery('agent.shareUrl', {})
     if (data?.url) shareUrl.value = data.url
+    else if (data?.shareUrl) shareUrl.value = data.shareUrl
     else if (typeof data === 'string') shareUrl.value = data
   } catch {}
 }

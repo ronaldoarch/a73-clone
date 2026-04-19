@@ -42,6 +42,37 @@ function errJson(message, code = 'INTERNAL_SERVER_ERROR') {
   }
 }
 
+/** Mesma regra que server.js — pid único por conta */
+function generatePidFromAccount(account) {
+  const s = String(account)
+  let h = 0
+  for (let i = 0; i < s.length; i++) {
+    h = Math.imul(31, h) + s.charCodeAt(i) | 0
+  }
+  return '4' + String(Math.abs(h) % 1000000000).padStart(9, '0')
+}
+
+async function ensureAfiliadoForBridge(prisma, userId, account) {
+  let af = await prisma.afiliadoData.findUnique({ where: { userId } })
+  if (!af) {
+    let pid = generatePidFromAccount(account || userId)
+    const clash = await prisma.afiliadoData.findUnique({ where: { pid } })
+    if (clash) pid = '4' + String(Date.now() % 1000000000).padStart(9, '0')
+    af = await prisma.afiliadoData.create({
+      data: { userId, pid, horaRegisto: new Date(), updatedAt: new Date() }
+    })
+  }
+  return af
+}
+
+function publicOriginFromRequest(req) {
+  const xfProto = (req?.headers?.['x-forwarded-proto'] || '').split(',')[0].trim()
+  const proto = xfProto || (req?.protocol === 'https' ? 'https' : 'http') || 'https'
+  const xfHost = (req?.headers?.['x-forwarded-host'] || '').split(',')[0].trim()
+  const host = xfHost || req?.headers?.host || 'localhost'
+  return `${proto}://${host}`
+}
+
 const DEMO_TOKEN = 'a73-local-demo-token'
 
 const fallbacks = {
@@ -217,8 +248,59 @@ async function resolveOne(procPath, input, ctx) {
 
   if (key === 'authLogout' || key === 'authlogout') return okJson({ ok: true })
 
-  // ── Activity list (public) ───────────────────────────────
+  // ── Agent / afiliado (Centro de Agência, link de convite) ───────────────────────────────
   const u = key.toLowerCase()
+
+  if (u === 'agentmyagentinfo') {
+    if (!ctx.userId) return errJson('Não autenticado', 'UNAUTHORIZED')
+    const user = await prisma.user.findUnique({ where: { id: ctx.userId } })
+    if (!user) return errJson('Usuário não encontrado', 'NOT_FOUND')
+    const af = await ensureAfiliadoForBridge(prisma, ctx.userId, user.account)
+    const c = (v) => Math.round((Number(v) || 0) * 100)
+    return okJson({
+      userId: user.id,
+      parentId: user.indicatorId || 0,
+      commission: c(af.comissaoPendente ?? 0),
+      unclaimedCommission: c(af.comissaoPendente ?? 0),
+      claimedCommission: c(af.comissaoRecebida ?? 0),
+      lastCommission: 0,
+      teamCount: af.subOutros ?? 0,
+      directCount: af.subDiretos ?? 0,
+      directAchievement: c(af.valorDeposito ?? 0),
+      teamAchievement: 0,
+      dayCommission: 0,
+      dayDirectAdd: 0,
+      dayTeamAdd: 0,
+      histComm: c(af.comissaoRecebida ?? 0),
+      weekComm: 0,
+      yesterdayComm: 0,
+      histDirectCnt: af.subDiretos ?? 0,
+      histTeamCnt: af.subOutros ?? 0,
+      agencyLevel: Math.min(15, Math.max(1, af.nivelVip ?? 1)),
+      dayDirectRechargeCnt: 0,
+      dayDirectRechargeAmt: 0,
+      dayDirectFirstRechargeCnt: 0,
+      dayTeamRechargeCnt: 0,
+      dayTeamRechargeAmt: 0,
+      dayTeamFirstRechargeCnt: 0
+    })
+  }
+
+  if (u === 'agentshareurl') {
+    if (!ctx.userId) return errJson('Não autenticado', 'UNAUTHORIZED')
+    const user = await prisma.user.findUnique({ where: { id: ctx.userId }, select: { account: true } })
+    if (!user) return errJson('Usuário não encontrado', 'NOT_FOUND')
+    const af = await ensureAfiliadoForBridge(prisma, ctx.userId, user.account)
+    const origin = publicOriginFromRequest(ctx.req)
+    const link = `${origin}/register?pid=${encodeURIComponent(af.pid)}`
+    return okJson({ url: link, shareUrl: link })
+  }
+
+  if (u === 'agentconfig') {
+    return okJson({ agencyMode: 'normal' })
+  }
+
+  // ── Activity list (public) ───────────────────────────────
 
   if (u === 'activitylistpublic' || u === 'activitylist') {
     try {

@@ -89,6 +89,7 @@ export const useAgentStore = defineStore('agent', () => {
     try {
       const data = await trpcQuery('agent.shareUrl').catch(() => null)
       if (data?.shareUrl) inviteLink.value = data.shareUrl
+      else if (data?.url) inviteLink.value = data.url
       else if (typeof data === 'string') inviteLink.value = data
       if (!inviteLink.value) {
         inviteLink.value = window.location.origin + '/?ref=' + (agentData.value?.userId || '')

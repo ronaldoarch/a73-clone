@@ -258,6 +258,37 @@
     .link-cell { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.8rem; color: var(--text-muted); }
     .quick-links { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.35rem; }
     .quick-links button { font-size: 0.75rem; padding: 0.25rem 0.45rem; }
+    .cms-carousel-rows { display: flex; flex-direction: column; gap: 0.85rem; }
+    .cms-carousel-row {
+      display: grid;
+      grid-template-columns: 108px 1fr;
+      gap: 0.75rem 1rem;
+      align-items: start;
+      padding: 0.85rem 1rem;
+      background: rgba(0,0,0,0.2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+    }
+    .cms-carousel-row .cms-c-thumb-wrap {
+      width: 108px;
+      aspect-ratio: 2 / 1;
+      border-radius: 8px;
+      overflow: hidden;
+      background: var(--bg-dark);
+      border: 1px solid var(--border);
+    }
+    .cms-carousel-row .cms-c-thumb {
+      width: 100%; height: 100%; object-fit: cover; display: block;
+    }
+    .cms-carousel-row .cms-c-main { min-width: 0; display: flex; flex-direction: column; gap: 0.65rem; }
+    .cms-carousel-row .cms-c-actions {
+      display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: center;
+    }
+    .cms-carousel-row .cms-c-actions .btn { padding: 0.35rem 0.65rem; font-size: 0.8rem; }
+    @media (max-width: 640px) {
+      .cms-carousel-row { grid-template-columns: 1fr; }
+      .cms-carousel-row .cms-c-thumb-wrap { width: 100%; max-width: 220px; }
+    }
     .toggle-row { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; }
     .toggle-row label { margin-bottom: 0; color: var(--text); }
     @media (max-width: 768px) {
@@ -379,8 +410,8 @@
       <div class="card">
         <div class="card-header"><span class="card-title">Lista de Jogadores</span></div>
         <div class="table-wrap">
-          <table><thead><tr><th>ID</th><th>Conta</th><th>Saldo</th><th>Depósitos</th><th>Apostas</th><th>Cadastro</th><th>Ações</th></tr></thead>
-          <tbody id="playersTableBody"><tr><td colspan="7" style="text-align:center;color:var(--text-muted)">Carregando...</td></tr></tbody></table>
+          <table><thead><tr><th>ID</th><th>Conta</th><th>Saldo</th><th>Depósitos</th><th>Apostas</th><th>Demo iGW</th><th>Cadastro</th><th>Ações</th></tr></thead>
+          <tbody id="playersTableBody"><tr><td colspan="8" style="text-align:center;color:var(--text-muted)">Carregando...</td></tr></tbody></table>
         </div>
       </div>
     </section>
@@ -447,14 +478,15 @@
     <section id="site-home" class="section">
       <div class="header"><h1>Site / Home</h1><button class="btn btn-outline" id="btnReloadCms">↻ Recarregar</button></div>
       <p style="color:var(--text-muted);font-size:0.88rem;margin-bottom:1rem;max-width:52rem">
-        <strong>Carrossel:</strong> JSON com slides <code>imageUrl</code>, <code>link</code> (rota ou https://), <code>title</code>, <code>order</code>.
-        Opcional <code>startsAt</code> / <code>endsAt</code> (ISO). <strong>Popup:</strong> modal na app; mude <strong>Chave dismiss</strong> para voltar a mostrar a quem já fechou.
+        <strong>Carrossel:</strong> adicione slides com imagem (URL ou upload), destino ao clicar e título opcional. Ordem = ordem na app. Agendamento início/fim (ISO) é opcional.
+        <strong>Popup:</strong> modal na app; mude <strong>Chave dismiss</strong> para voltar a mostrar a quem já fechou.
         <strong>Marquee:</strong> texto da faixa na home (substitui marquee remoto se preenchido).
       </p>
       <div class="card">
-        <div class="card-header"><span class="card-title">Carrossel (JSON)</span></div>
+        <div class="card-header"><span class="card-title">Carrossel da home</span></div>
         <div style="padding:1.25rem">
-          <textarea id="cmsCarouselJson" class="search-box" style="max-width:100%;width:100%;min-height:180px;font-family:monospace;font-size:12px" placeholder='[{"imageUrl":"/uploads/banner.png","link":"/main/promo","title":"Bônus","order":0}]'></textarea>
+          <div id="cmsCarouselRows" class="cms-carousel-rows"></div>
+          <button type="button" class="btn btn-outline" id="btnCmsCarouselAdd" style="margin-top:0.25rem">+ Adicionar slide</button>
         </div>
       </div>
       <div class="card">
@@ -828,7 +860,8 @@
             <div></div>
           </div>
           <div class="toggle-row"><input type="checkbox" id="igwSandbox"><label for="igwSandbox">Sandbox (ambiente de teste)</label></div>
-          <div class="toggle-row"><input type="checkbox" id="igwDemo"><label for="igwDemo">Modo Demo (catálogo fallback se API falhar)</label></div>
+          <div class="toggle-row"><input type="checkbox" id="igwDemo"><label for="igwDemo">Modo demo global (todos os jogadores + guest no iGameWin; também catálogo fallback)</label></div>
+          <p style="font-size:0.8rem;color:var(--text-muted);margin:-0.5rem 0 0.75rem">Demo só para contas escolhidas: <strong>Jogadores</strong> → botão «Demo ON/OFF» (só afeta quem já existe no teu BD; se o iGameWin já criou o user como real, pode ser preciso contactar o suporte deles).</p>
           <div class="form-group" style="margin-top:1rem">
             <label>Provedores na home (códigos, um por linha ou vírgula)</label>
             <textarea id="igwHomeProviders" class="search-box" style="max-width:100%;width:100%;min-height:100px;font-family:monospace;font-size:12px" placeholder="PGSOFT&#10;PRAGMATIC"></textarea>
@@ -934,6 +967,190 @@
     };
     const fmtMoney = v => 'R$ ' + Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
     const showToast = (msg, type = 'info') => { const el = document.createElement('div'); el.className = 'toast ' + type; el.textContent = msg; document.getElementById('toastContainer').appendChild(el); setTimeout(() => el.remove(), 3500); };
+
+    /** Editor visual do carrossel da home (CMS) */
+    let cmsCarouselBuilderSlides = [];
+    function escHtml(s) {
+      return String(s ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/"/g, '&quot;');
+    }
+    function syncCmsCarouselBuilderFromApi(slides) {
+      const raw = Array.isArray(slides) ? slides : [];
+      cmsCarouselBuilderSlides = raw.map((s, i) => ({
+        id: String(s && s.id != null ? s.id : 'slide-' + i),
+        title: String(s && s.title != null ? s.title : ''),
+        imageUrl: String(s && (s.imageUrl || s.img) ? (s.imageUrl || s.img) : ''),
+        link: String(s && (s.link || s.route) ? (s.link || s.route) : '/main/promo'),
+        startsAt: s && s.startsAt ? String(s.startsAt) : '',
+        endsAt: s && s.endsAt ? String(s.endsAt) : ''
+      }));
+      renderCmsCarouselBuilder();
+    }
+    function renderCmsCarouselBuilder() {
+      const host = document.getElementById('cmsCarouselRows');
+      if (!host) return;
+      if (!cmsCarouselBuilderSlides.length) {
+        host.innerHTML = '<p style="color:var(--text-muted);font-size:0.88rem;margin:0">Nenhum banner. Clique em «Adicionar slide».</p>';
+        return;
+      }
+      const PLACEHOLDER = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+      host.innerHTML = cmsCarouselBuilderSlides.map((s, i) => {
+        const img = escHtml(s.imageUrl);
+        const title = escHtml(s.title);
+        const link = escHtml(s.link);
+        const sa = escHtml(s.startsAt);
+        const ea = escHtml(s.endsAt);
+        const last = cmsCarouselBuilderSlides.length - 1;
+        return '<div class="cms-carousel-row" data-idx="' + i + '">' +
+          '<div class="cms-c-thumb-wrap"><img class="cms-c-thumb" alt="" src="' + (img || PLACEHOLDER) + '"></div>' +
+          '<div class="cms-c-main">' +
+          '<div class="cms-c-fields">' +
+          '<div class="form-group" style="margin-bottom:0.5rem"><label>URL da imagem</label>' +
+          '<input type="text" class="search-box cms-c-inp" data-field="imageUrl" value="' + img + '" style="max-width:100%;font-family:monospace;font-size:11px" placeholder="/uploads/... ou https://..."></div>' +
+          '<div class="form-row">' +
+          '<div class="form-group" style="margin-bottom:0.5rem"><label>Título (opcional)</label>' +
+          '<input type="text" class="search-box cms-c-inp" data-field="title" value="' + title + '" style="max-width:100%"></div>' +
+          '<div class="form-group" style="margin-bottom:0.5rem"><label>Link ao clicar</label>' +
+          '<input type="text" class="search-box cms-c-inp" data-field="link" value="' + link + '" style="max-width:100%;font-family:monospace;font-size:11px" placeholder="/main/promo"></div></div>' +
+          '<details style="margin-top:0.35rem"><summary style="cursor:pointer;font-size:0.8rem;color:var(--text-muted)">Agendar (opcional, datas ISO)</summary>' +
+          '<div class="form-row" style="margin-top:0.5rem">' +
+          '<div class="form-group"><label>Visível a partir de</label><input type="text" class="search-box cms-c-inp" data-field="startsAt" value="' + sa + '" placeholder="2026-01-01T12:00:00-03:00" style="max-width:100%"></div>' +
+          '<div class="form-group"><label>Visível até</label><input type="text" class="search-box cms-c-inp" data-field="endsAt" value="' + ea + '" style="max-width:100%"></div></div></details></div>' +
+          '<div class="cms-c-actions">' +
+          '<input type="file" accept="image/*" class="cms-c-file" style="display:none">' +
+          '<button type="button" class="btn btn-outline cms-c-upload-btn">Enviar imagem</button>' +
+          '<button type="button" class="btn btn-outline cms-c-quick" data-link="/main/promo">Promo</button>' +
+          '<button type="button" class="btn btn-outline cms-c-quick" data-link="/main/deposito">Depósito</button>' +
+          '<button type="button" class="btn btn-outline cms-c-quick" data-link="/spread">Convidar</button>' +
+          '<button type="button" class="btn btn-outline cms-c-quick" data-link="/activity/vip">VIP</button>' +
+          '<button type="button" class="btn btn-outline cms-c-btn-up"' + (i === 0 ? ' disabled' : '') + '>↑</button>' +
+          '<button type="button" class="btn btn-outline cms-c-btn-down"' + (i === last ? ' disabled' : '') + '>↓</button>' +
+          '<button type="button" class="btn btn-danger cms-c-btn-remove">Remover</button></div></div></div>';
+      }).join('');
+    }
+    function collectCmsCarouselSlidesForSave() {
+      return cmsCarouselBuilderSlides
+        .map((s, order) => {
+          const imageUrl = String(s.imageUrl || '').trim();
+          if (!imageUrl) return null;
+          const o = {
+            id: (String(s.id || 'slide-' + order).trim() || 'slide-' + order),
+            title: String(s.title || '').trim().slice(0, 200),
+            imageUrl,
+            link: (String(s.link || '/main/promo').trim().slice(0, 500) || '/main/promo'),
+            order
+          };
+          const st = String(s.startsAt || '').trim();
+          const en = String(s.endsAt || '').trim();
+          if (st) o.startsAt = st;
+          if (en) o.endsAt = en;
+          return o;
+        })
+        .filter(Boolean);
+    }
+    (function setupCmsCarouselBuilder() {
+      const host = document.getElementById('cmsCarouselRows');
+      if (!host) return;
+      host.addEventListener('input', (e) => {
+        const t = e.target;
+        if (!t.classList.contains('cms-c-inp')) return;
+        const row = t.closest('.cms-carousel-row');
+        if (!row) return;
+        const i = parseInt(row.dataset.idx, 10);
+        const field = t.getAttribute('data-field');
+        if (!Number.isFinite(i) || !field || !cmsCarouselBuilderSlides[i]) return;
+        cmsCarouselBuilderSlides[i][field] = t.value;
+        if (field === 'imageUrl') {
+          const im = row.querySelector('.cms-c-thumb');
+          const PLACEHOLDER = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+          if (im) im.src = (t.value.trim() || PLACEHOLDER);
+        }
+      });
+      host.addEventListener('click', (e) => {
+        const quick = e.target.closest('.cms-c-quick');
+        if (quick) {
+          const row = quick.closest('.cms-carousel-row');
+          const inp = row && row.querySelector('input[data-field="link"]');
+          if (inp) {
+            inp.value = quick.getAttribute('data-link') || '';
+            const i = parseInt(row.dataset.idx, 10);
+            if (cmsCarouselBuilderSlides[i]) cmsCarouselBuilderSlides[i].link = inp.value;
+          }
+          return;
+        }
+        if (e.target.closest('.cms-c-upload-btn')) {
+          const row = e.target.closest('.cms-carousel-row');
+          const fi = row && row.querySelector('.cms-c-file');
+          if (fi) fi.click();
+          return;
+        }
+        if (e.target.closest('.cms-c-btn-up')) {
+          const row = e.target.closest('.cms-carousel-row');
+          const i = parseInt(row.dataset.idx, 10);
+          if (i > 0) {
+            const tmp = cmsCarouselBuilderSlides[i - 1];
+            cmsCarouselBuilderSlides[i - 1] = cmsCarouselBuilderSlides[i];
+            cmsCarouselBuilderSlides[i] = tmp;
+            renderCmsCarouselBuilder();
+          }
+          return;
+        }
+        if (e.target.closest('.cms-c-btn-down')) {
+          const row = e.target.closest('.cms-carousel-row');
+          const i = parseInt(row.dataset.idx, 10);
+          if (i < cmsCarouselBuilderSlides.length - 1) {
+            const tmp = cmsCarouselBuilderSlides[i + 1];
+            cmsCarouselBuilderSlides[i + 1] = cmsCarouselBuilderSlides[i];
+            cmsCarouselBuilderSlides[i] = tmp;
+            renderCmsCarouselBuilder();
+          }
+          return;
+        }
+        if (e.target.closest('.cms-c-btn-remove')) {
+          const row = e.target.closest('.cms-carousel-row');
+          const i = parseInt(row.dataset.idx, 10);
+          if (Number.isFinite(i)) {
+            cmsCarouselBuilderSlides.splice(i, 1);
+            renderCmsCarouselBuilder();
+          }
+        }
+      });
+      host.addEventListener('change', async (e) => {
+        const t = e.target;
+        if (!t.classList.contains('cms-c-file')) return;
+        const row = t.closest('.cms-carousel-row');
+        const i = parseInt(row.dataset.idx, 10);
+        const f = t.files && t.files[0];
+        t.value = '';
+        if (!f || !Number.isFinite(i) || !cmsCarouselBuilderSlides[i]) return;
+        try {
+          const r = await apiUpload('/api/upload/cms-asset', f, 'file');
+          if (r.url) {
+            cmsCarouselBuilderSlides[i].imageUrl = r.url;
+            renderCmsCarouselBuilder();
+            showToast('Imagem do carrossel enviada.', 'success');
+          } else showToast(r.error || 'Upload falhou', 'error');
+        } catch (err) {
+          showToast('Erro no upload.', 'error');
+        }
+      });
+    })();
+    const btnCmsCarouselAdd = document.getElementById('btnCmsCarouselAdd');
+    if (btnCmsCarouselAdd) {
+      btnCmsCarouselAdd.addEventListener('click', () => {
+        cmsCarouselBuilderSlides.push({
+          id: 'slide-' + Date.now(),
+          title: '',
+          imageUrl: '',
+          link: '/main/promo',
+          startsAt: '',
+          endsAt: ''
+        });
+        renderCmsCarouselBuilder();
+      });
+    }
 
     const APP_UI_THEMES = [
       { id: 'amber-purple', label: 'Âmbar e roxo' },
@@ -1090,9 +1307,11 @@
         const tb = document.getElementById('playersTableBody');
         let rows = '';
         (d.list || []).forEach(u => {
-          rows += '<tr><td title="' + u.id + '">' + u.id.slice(0, 8) + '…</td><td>' + (u.account || u.phone) + '</td><td>' + fmtMoney(u.balance) + '</td><td>' + fmtMoney(u.valorDeposito) + '</td><td>' + fmtMoney(u.apostaAcumulada) + '</td><td>' + (u.createdAt || '') + '</td><td><button class="btn btn-outline btn-add-bonus" style="padding:0.2rem 0.5rem;font-size:0.8rem" data-id="' + u.id + '" data-account="' + (u.account || '') + '">+ Bônus</button></td></tr>';
+          const demo = u.igamewinDemo ? '1' : '0';
+          const demoLabel = u.igamewinDemo ? 'Demo ON' : 'Demo OFF';
+          rows += '<tr><td title="' + u.id + '">' + u.id.slice(0, 8) + '…</td><td>' + (u.account || u.phone) + '</td><td>' + fmtMoney(u.balance) + '</td><td>' + fmtMoney(u.valorDeposito) + '</td><td>' + fmtMoney(u.apostaAcumulada) + '</td><td><button type="button" class="btn btn-outline btn-toggle-igw-demo" style="padding:0.2rem 0.5rem;font-size:0.75rem" data-id="' + u.id + '" data-demo="' + demo + '">' + demoLabel + '</button></td><td>' + (u.createdAt || '') + '</td><td><button class="btn btn-outline btn-add-bonus" style="padding:0.2rem 0.5rem;font-size:0.8rem" data-id="' + u.id + '" data-account="' + (u.account || '') + '">+ Bônus</button></td></tr>';
         });
-        tb.innerHTML = rows || '<tr><td colspan="7" style="text-align:center;color:var(--text-muted)">Nenhum jogador</td></tr>';
+        tb.innerHTML = rows || '<tr><td colspan="8" style="text-align:center;color:var(--text-muted)">Nenhum jogador</td></tr>';
       } catch (e) { console.error('players', e); }
     };
     let pTimer; document.getElementById('searchPlayers').addEventListener('input', e => { clearTimeout(pTimer); pTimer = setTimeout(() => loadPlayers(e.target.value), 400); });
@@ -1622,7 +1841,7 @@
     const loadSiteHome = async () => {
       try {
         const d = await api('/api/admin/cms');
-        document.getElementById('cmsCarouselJson').value = JSON.stringify(d.carouselSlides || [], null, 2);
+        syncCmsCarouselBuilderFromApi(d.carouselSlides || []);
         document.getElementById('cmsPopupEnabled').checked = !!d.sitePopup?.enabled;
         document.getElementById('cmsPopupTitle').value = d.sitePopup?.title || '';
         document.getElementById('cmsPopupContent').value = d.sitePopup?.content || '';
@@ -1634,11 +1853,7 @@
     };
     document.getElementById('btnReloadCms').addEventListener('click', loadSiteHome);
     document.getElementById('btnSaveCms').addEventListener('click', async () => {
-      let slides;
-      try { slides = JSON.parse(document.getElementById('cmsCarouselJson').value || '[]'); } catch (e) {
-        showToast('JSON do carrossel inválido.', 'error'); return;
-      }
-      if (!Array.isArray(slides)) { showToast('Carrossel: use um array JSON [...]', 'error'); return; }
+      const slides = collectCmsCarouselSlidesForSave();
       const body = {
         carouselSlides: slides,
         sitePopup: {
@@ -1750,6 +1965,21 @@
             .then(r => { if (r.ok) { showToast('Bônus adicionado.', 'success'); loadPlayers(); loadDashboard(); } else showToast(r.error || 'Erro', 'error'); })
             .catch(() => showToast('Erro.', 'error'));
         }
+        return;
+      }
+      if (btn.classList.contains('btn-toggle-igw-demo')) {
+        const userId = btn.dataset.id;
+        const cur = btn.dataset.demo === '1';
+        const next = !cur;
+        const q = document.getElementById('searchPlayers')?.value || '';
+        api('/api/admin/usuarios/' + userId, { method: 'PATCH', body: JSON.stringify({ igamewinDemo: next }) })
+          .then(r => {
+            if (r.ok) {
+              showToast(next ? 'Conta marcada como demo iGameWin.' : 'Demo iGameWin desligado para esta conta.', 'success');
+              loadPlayers(q);
+            } else showToast(r.error || 'Erro', 'error');
+          })
+          .catch(() => showToast('Erro.', 'error'));
         return;
       }
       if (btn.classList.contains('btn-approve-dep')) {

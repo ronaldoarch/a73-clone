@@ -1518,6 +1518,20 @@ app.post('/api/upload/banner', uploadLogoHandler, adminAuthMiddleware, async (re
   }
 })
 
+/** Upload só para ficheiros do CMS (ex.: slides do carrossel) — não altera logo/banner principal em `main`. */
+app.post('/api/upload/cms-asset', uploadLogoHandler, adminAuthMiddleware, async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.json({ ok: false, error: 'Nenhum arquivo enviado' })
+    }
+    const url = `/uploads/${req.file.filename}`
+    return res.json({ ok: true, url })
+  } catch (e) {
+    console.error('upload cms-asset:', e)
+    return res.json({ ok: false, error: e.message })
+  }
+})
+
 // ========== Afiliado / Bônus (requer auth) ==========
 
 const MISTERIOSO_CICLO_DIAS = 32
@@ -2311,10 +2325,11 @@ const handleSeamless = async (req, res) => {
     }
 
     const fmt = (v) => Math.round(Number(v) * 100) / 100
-    const isDemo = Boolean(stored?.is_demo)
+    const afDemoCtx = await findAfiliadoForIgameUserCode(user_code)
+    const isDemo = Boolean(stored?.is_demo) || Boolean(afDemoCtx?.user?.igamewinDemo)
 
     if (method === 'user_balance') {
-      const af = await findAfiliadoForIgameUserCode(user_code)
+      const af = afDemoCtx
       const balance = af?.balance ?? 0
       return res.json({ status: 1, user_balance: fmt(balance) })
     }
@@ -2704,7 +2719,8 @@ app.post('/api/igamewin/launch-game', async (req, res) => {
     }
     const raw = resolvedRaw === '' ? 'guest' : resolvedRaw
     const userCode = raw.toLowerCase() === 'guest' ? 'guest' : (normalizeAccount(raw) || raw)
-    const isDemo = Boolean(stored.is_demo)
+    const afLaunch = userCode === 'guest' ? null : await findAfiliadoForIgameUserCode(userCode)
+    const isDemo = Boolean(stored.is_demo) || Boolean(afLaunch?.user?.igamewinDemo)
     const apiMode = stored.api_mode || 'seamless'
 
     // 1. user_create (obrigatório antes de game_launch) - modo samples usa is_demo: true
@@ -3769,11 +3785,35 @@ app.get('/api/admin/usuarios', adminAuthMiddleware, async (req, res) => {
       balance: u.afiliado?.balance ?? 0,
       valorDeposito: u.afiliado?.valorDeposito ?? 0,
       apostaAcumulada: u.afiliado?.apostaAcumulada ?? 0,
+      igamewinDemo: !!u.igamewinDemo,
       createdAt: u.createdAt?.toISOString?.()?.slice(0, 19)?.replace('T', ' ') || null
     })) })
   } catch (e) {
     console.error('admin usuarios:', e)
     return res.status(500).json({ list: [], error: e.message })
+  }
+})
+
+app.patch('/api/admin/usuarios/:id', adminAuthMiddleware, async (req, res) => {
+  try {
+    const id = String(req.params.id || '').trim()
+    if (!id) return res.status(400).json({ ok: false, error: 'ID inválido' })
+    const body = req.body?.json || req.body || {}
+    if (body.igamewinDemo === undefined) {
+      return res.status(400).json({ ok: false, error: 'Envie igamewinDemo (boolean)' })
+    }
+    const igamewinDemo = !!body.igamewinDemo
+    await prisma.user.update({
+      where: { id },
+      data: { igamewinDemo }
+    })
+    return res.json({ ok: true, igamewinDemo })
+  } catch (e) {
+    if (e.code === 'P2025') {
+      return res.status(404).json({ ok: false, error: 'Utilizador não encontrado' })
+    }
+    console.error('admin usuario patch:', e)
+    return res.status(500).json({ ok: false, error: e.message })
   }
 })
 

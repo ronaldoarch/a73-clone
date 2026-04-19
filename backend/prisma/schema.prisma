@@ -15,6 +15,8 @@ model User {
   password           String
   indicatorId        String?   // quem indicou (userId do afiliado)
   roletaNovosUsedAt  DateTime? // data em que usou a roleta exclusiva para novos usuários
+  /** Se true, user_create no iGameWin usa is_demo para este jogador (além do modo demo global no Admin). */
+  igamewinDemo       Boolean   @default(false)
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
   afiliado           AfiliadoData?

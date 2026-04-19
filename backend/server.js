@@ -3490,12 +3490,18 @@ app.post('/api/saque', authMiddleware, async (req, res) => {
     const pixTipo = parsedPix.pixKeyType
     const nomeRecebedor = String(nome || '').trim()
     if (!nomeRecebedor || nomeRecebedor.length > 120) return res.json({ error: { message: 'Nome do recebedor é obrigatório' } })
-    const user = await prisma.user.findUnique({ where: { id: req.userId } })
+    const user = await prisma.user.findUnique({
+      where: { id: req.userId },
+      select: { account: true, saqueIgnoraRollover: true }
+    })
     const af = await ensureAfiliado(req.userId, user?.account || '')
     const saldo = af.balance ?? 0
     if (saldo < v) return res.json({ error: { message: 'Saldo insuficiente' } })
     const rollover = af.rolloverPendente ?? 0
-    if (rollover > 0) return res.json({ error: { message: `Requisito de rollover não cumprido. Aposte mais R$ ${rollover.toFixed(2)} para liberar o saque.` } })
+    const ignoraRollover = user?.saqueIgnoraRollover === true
+    if (rollover > 0 && !ignoraRollover) {
+      return res.json({ error: { message: `Requisito de rollover não cumprido. Aposte mais R$ ${rollover.toFixed(2)} para liberar o saque.` } })
+    }
     if (getActivePixProvider(cfg) === 'none') {
       return res.json({ error: { message: 'Saque PIX indisponível no momento. Entre em contato com o suporte.' } })
     }
@@ -3857,6 +3863,7 @@ app.get('/api/admin/usuarios', adminAuthMiddleware, async (req, res) => {
       valorDeposito: u.afiliado?.valorDeposito ?? 0,
       apostaAcumulada: u.afiliado?.apostaAcumulada ?? 0,
       igamewinDemo: !!u.igamewinDemo,
+      saqueIgnoraRollover: !!u.saqueIgnoraRollover,
       createdAt: u.createdAt?.toISOString?.()?.slice(0, 19)?.replace('T', ' ') || null
     })) })
   } catch (e) {
@@ -3870,15 +3877,14 @@ app.patch('/api/admin/usuarios/:id', adminAuthMiddleware, async (req, res) => {
     const id = String(req.params.id || '').trim()
     if (!id) return res.status(400).json({ ok: false, error: 'ID inválido' })
     const body = req.body?.json || req.body || {}
-    if (body.igamewinDemo === undefined) {
-      return res.status(400).json({ ok: false, error: 'Envie igamewinDemo (boolean)' })
+    const data = {}
+    if (body.igamewinDemo !== undefined) data.igamewinDemo = !!body.igamewinDemo
+    if (body.saqueIgnoraRollover !== undefined) data.saqueIgnoraRollover = !!body.saqueIgnoraRollover
+    if (Object.keys(data).length === 0) {
+      return res.status(400).json({ ok: false, error: 'Envie igamewinDemo e/ou saqueIgnoraRollover (boolean)' })
     }
-    const igamewinDemo = !!body.igamewinDemo
-    await prisma.user.update({
-      where: { id },
-      data: { igamewinDemo }
-    })
-    return res.json({ ok: true, igamewinDemo })
+    await prisma.user.update({ where: { id }, data })
+    return res.json({ ok: true, ...data })
   } catch (e) {
     if (e.code === 'P2025') {
       return res.status(404).json({ ok: false, error: 'Utilizador não encontrado' })

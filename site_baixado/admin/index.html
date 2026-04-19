@@ -410,8 +410,8 @@
       <div class="card">
         <div class="card-header"><span class="card-title">Lista de Jogadores</span></div>
         <div class="table-wrap">
-          <table><thead><tr><th>ID</th><th>Conta</th><th>Saldo</th><th>Depósitos</th><th>Apostas</th><th>Demo iGW</th><th>Cadastro</th><th>Ações</th></tr></thead>
-          <tbody id="playersTableBody"><tr><td colspan="8" style="text-align:center;color:var(--text-muted)">Carregando...</td></tr></tbody></table>
+          <table><thead><tr><th>ID</th><th>Conta</th><th>Saldo</th><th>Depósitos</th><th>Apostas</th><th>Demo iGW</th><th>Saque s/ rollover</th><th>Cadastro</th><th>Ações</th></tr></thead>
+          <tbody id="playersTableBody"><tr><td colspan="9" style="text-align:center;color:var(--text-muted)">Carregando...</td></tr></tbody></table>
         </div>
       </div>
     </section>
@@ -1325,9 +1325,11 @@
         (d.list || []).forEach(u => {
           const demo = u.igamewinDemo ? '1' : '0';
           const demoLabel = u.igamewinDemo ? 'Demo ON' : 'Demo OFF';
-          rows += '<tr><td title="' + u.id + '">' + u.id.slice(0, 8) + '…</td><td>' + (u.account || u.phone) + '</td><td>' + fmtMoney(u.balance) + '</td><td>' + fmtMoney(u.valorDeposito) + '</td><td>' + fmtMoney(u.apostaAcumulada) + '</td><td><button type="button" class="btn btn-outline btn-toggle-igw-demo" style="padding:0.2rem 0.5rem;font-size:0.75rem" data-id="' + u.id + '" data-demo="' + demo + '">' + demoLabel + '</button></td><td>' + (u.createdAt || '') + '</td><td><button class="btn btn-outline btn-add-bonus" style="padding:0.2rem 0.5rem;font-size:0.8rem" data-id="' + u.id + '" data-account="' + (u.account || '') + '">+ Bônus</button></td></tr>';
+          const igRol = u.saqueIgnoraRollover ? '1' : '0';
+          const igRolLabel = u.saqueIgnoraRollover ? 'Livre' : 'Normal';
+          rows += '<tr><td title="' + u.id + '">' + u.id.slice(0, 8) + '…</td><td>' + (u.account || u.phone) + '</td><td>' + fmtMoney(u.balance) + '</td><td>' + fmtMoney(u.valorDeposito) + '</td><td>' + fmtMoney(u.apostaAcumulada) + '</td><td><button type="button" class="btn btn-outline btn-toggle-igw-demo" style="padding:0.2rem 0.5rem;font-size:0.75rem" data-id="' + u.id + '" data-demo="' + demo + '">' + demoLabel + '</button></td><td><button type="button" class="btn btn-outline btn-toggle-saque-rollover" style="padding:0.2rem 0.5rem;font-size:0.75rem" data-id="' + u.id + '" data-igrol="' + igRol + '" title="Permite saque PIX mesmo com rollover pendente">' + igRolLabel + '</button></td><td>' + (u.createdAt || '') + '</td><td><button class="btn btn-outline btn-add-bonus" style="padding:0.2rem 0.5rem;font-size:0.8rem" data-id="' + u.id + '" data-account="' + (u.account || '') + '">+ Bônus</button></td></tr>';
         });
-        tb.innerHTML = rows || '<tr><td colspan="8" style="text-align:center;color:var(--text-muted)">Nenhum jogador</td></tr>';
+        tb.innerHTML = rows || '<tr><td colspan="9" style="text-align:center;color:var(--text-muted)">Nenhum jogador</td></tr>';
       } catch (e) { console.error('players', e); }
     };
     let pTimer; document.getElementById('searchPlayers').addEventListener('input', e => { clearTimeout(pTimer); pTimer = setTimeout(() => loadPlayers(e.target.value), 400); });
@@ -2009,6 +2011,21 @@
           .then(r => {
             if (r.ok) {
               showToast(next ? 'Conta marcada como demo iGameWin.' : 'Demo iGameWin desligado para esta conta.', 'success');
+              loadPlayers(q);
+            } else showToast(r.error || 'Erro', 'error');
+          })
+          .catch(() => showToast('Erro.', 'error'));
+        return;
+      }
+      if (btn.classList.contains('btn-toggle-saque-rollover')) {
+        const userId = btn.dataset.id;
+        const cur = btn.dataset.igrol === '1';
+        const next = !cur;
+        const q = document.getElementById('searchPlayers')?.value || '';
+        api('/api/admin/usuarios/' + userId, { method: 'PATCH', body: JSON.stringify({ saqueIgnoraRollover: next }) })
+          .then(r => {
+            if (r.ok) {
+              showToast(next ? 'Este jogador pode sacar sem cumprir rollover.' : 'Rollover voltou a ser exigido para o saque.', 'success');
               loadPlayers(q);
             } else showToast(r.error || 'Erro', 'error');
           })

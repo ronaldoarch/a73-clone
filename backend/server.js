@@ -57,6 +57,10 @@ const DEFAULT_MYSTERY_BAUS = Object.freeze({
   cpaNivel3: 0,
   /** Chance 0–100% de ganhar o CPA em cada nível (1, 2 e 3) — sorteio independente por nível */
   cpaWinChancePct: 100,
+  /** % do valor do depósito PIX creditado como «rebate» nas linhas de comissão do próprio depositante (coletavel/comissao). */
+  rebateDepositoSubPct: 5,
+  /** % do valor do depósito PIX creditado em saldo ao indicador (quem convidou), por cada depósito confirmado do indicado. */
+  rebateDepositoIndicadorPct: 5,
   /** Manipulação de indicações (ex.: sistema 3/1): dar N, depois roubar M */
   indicacaoManipEnabled: false,
   indicacaoDar: 3,
@@ -137,6 +141,16 @@ function normalizeMysteryBaus(stored) {
       if (!Number.isFinite(x)) return DEFAULT_MYSTERY_BAUS.cpaWinChancePct
       return Math.min(100, Math.max(0, x))
     })(),
+    rebateDepositoSubPct: (() => {
+      const x = parseFloat(o.rebateDepositoSubPct)
+      if (!Number.isFinite(x)) return DEFAULT_MYSTERY_BAUS.rebateDepositoSubPct
+      return Math.min(100, Math.max(0, x))
+    })(),
+    rebateDepositoIndicadorPct: (() => {
+      const x = parseFloat(o.rebateDepositoIndicadorPct)
+      if (!Number.isFinite(x)) return DEFAULT_MYSTERY_BAUS.rebateDepositoIndicadorPct
+      return Math.min(100, Math.max(0, x))
+    })(),
     indicacaoManipEnabled: o.indicacaoManipEnabled === true,
     indicacaoDar: (() => {
       const n = parseInt(o.indicacaoDar, 10)
@@ -170,6 +184,17 @@ async function getMysteryBaus() {
     return normalizeMysteryBaus(v)
   } catch {
     return normalizeMysteryBaus({})
+  }
+}
+
+/** Percentuais de rebate sobre o valor principal do depósito (config «Baús misterioso»). */
+function rebatePercentsFromMysteryBaus(mb) {
+  const m = mb && typeof mb === 'object' ? mb : normalizeMysteryBaus({})
+  const pctSub = Math.min(100, Math.max(0, Number(m.rebateDepositoSubPct)))
+  const pctInd = Math.min(100, Math.max(0, Number(m.rebateDepositoIndicadorPct)))
+  return {
+    pctSub: Number.isFinite(pctSub) ? pctSub : DEFAULT_MYSTERY_BAUS.rebateDepositoSubPct,
+    pctInd: Number.isFinite(pctInd) ? pctInd : DEFAULT_MYSTERY_BAUS.rebateDepositoIndicadorPct
   }
 }
 
@@ -1032,7 +1057,9 @@ async function confirmarDepositoPix(deposit, bonusExtra = 0) {
     : 0
   const balanceIncrement = depRow.valor + bonusPrimeiro + (Number(bonusExtra) || 0)
   const rolloverDepositoAdd = rolloverIncrementFrom(balanceIncrement, cfg.rolloverDepositoTimes ?? 0)
-  const rebate = depRow.valor * 0.05
+  const mbRebate = await getMysteryBaus()
+  const { pctSub, pctInd } = rebatePercentsFromMysteryBaus(mbRebate)
+  const rebateSelf = Math.round(depRow.valor * (pctSub / 100) * 100) / 100
   const niveisVip = [
     { nivel: 0, aposta: 0, bonus: 0 },
     { nivel: 1, aposta: 100, bonus: 1 }, { nivel: 2, aposta: 1000, bonus: 3 }, { nivel: 3, aposta: 3000, bonus: 10 },
@@ -1054,17 +1081,20 @@ async function confirmarDepositoPix(deposit, bonusExtra = 0) {
   }
   const bonusVipDelta = nivelVipIncreased ? (bonusVipReclamar - oldBonusVipReclamar) : 0
   const indicator = (await prisma.user.findUnique({ where: { id: depRow.userId }, select: { indicatorId: true } }))?.indicatorId
+  const rebateIndicatorVal = indicator ? Math.round(depRow.valor * (pctInd / 100) * 100) / 100 : 0
   const creditSnapshot = {
     v: 1,
     balanceIncrement,
-    rebate,
+    rebate: rebateSelf,
+    rebateSub: rebateSelf,
+    rebateIndicador: rebateIndicatorVal,
     bonusPrimeiro,
     bonusExtra: Number(bonusExtra) || 0,
     apostaDelta: depRow.valor * 5,
     nivelVipIncreased,
     bonusVipDelta,
     indicatorId: indicator || null,
-    indicatorRebate: indicator ? rebate : 0,
+    indicatorRebate: rebateIndicatorVal,
     /** Rebate do indicador foi para saldo sacável (não comissaoPendente/coletavelRebate) */
     indicatorToBalance: !!indicator
   }
@@ -1085,22 +1115,22 @@ async function confirmarDepositoPix(deposit, bonusExtra = 0) {
         numDepositos: { increment: 1 },
         balance: { increment: balanceIncrement },
         ...(rolloverDepositoAdd > 0 ? { rolloverPendente: { increment: rolloverDepositoAdd } } : {}),
-        coletavelRebate: { increment: rebate },
-        comissaoPendente: { increment: rebate },
-        comissaoHoje: { increment: rebate },
+        coletavelRebate: { increment: rebateSelf },
+        comissaoPendente: { increment: rebateSelf },
+        comissaoHoje: { increment: rebateSelf },
         apostaAcumulada: apostaNova,
         nivelVip,
         bonusVipReclamar,
         updatedAt: new Date()
       }
     })
-    if (indicator) {
+    if (indicator && rebateIndicatorVal > 0) {
       await tx.afiliadoData.update({
         where: { userId: indicator },
         data: {
-          balance: { increment: rebate },
-          comissaoRecebida: { increment: rebate },
-          comissaoHoje: { increment: rebate },
+          balance: { increment: rebateIndicatorVal },
+          comissaoRecebida: { increment: rebateIndicatorVal },
+          comissaoHoje: { increment: rebateIndicatorVal },
           updatedAt: new Date()
         }
       })
@@ -1206,14 +1236,22 @@ function parseDepositCreditJson(raw) {
 function creditSnapshotForReversal(deposit, raw) {
   const parsed = parseDepositCreditJson(raw)
   if (parsed && parsed.v === 1) {
+    const rebateSubParsed = Number(parsed.rebateSub ?? parsed.rebate)
+    const rebateSelf = Number.isFinite(rebateSubParsed) && rebateSubParsed >= 0
+      ? rebateSubParsed
+      : deposit.valor * 0.05
+    const rebateIndParsed = Number(parsed.rebateIndicador ?? parsed.indicatorRebate)
+    const rebateInd = Number.isFinite(rebateIndParsed) && rebateIndParsed >= 0
+      ? rebateIndParsed
+      : Math.max(0, Number(parsed.indicatorRebate) || 0)
     return {
       balanceIncrement: Number(parsed.balanceIncrement) || deposit.valor,
-      rebate: Number(parsed.rebate) >= 0 ? Number(parsed.rebate) : deposit.valor * 0.05,
+      rebate: rebateSelf,
       apostaDelta: Number(parsed.apostaDelta) > 0 ? Number(parsed.apostaDelta) : deposit.valor * 5,
       nivelVipIncreased: !!parsed.nivelVipIncreased,
       bonusVipDelta: Math.max(0, Number(parsed.bonusVipDelta) || 0),
       indicatorId: parsed.indicatorId || null,
-      indicatorRebate: Math.max(0, Number(parsed.indicatorRebate) || 0),
+      indicatorRebate: rebateInd,
       indicatorToBalance: parsed.indicatorToBalance === true
     }
   }
@@ -1938,7 +1976,10 @@ app.post('/api/deposito', authMiddleware, async (req, res) => {
       : 0
     const balanceIncrement = v + bonusPrimeiro
     const rolloverLegadoAdd = rolloverIncrementFrom(balanceIncrement, cfg.rolloverDepositoTimes ?? 0)
-    const rebate = v * 0.05
+    const mbLeg = await getMysteryBaus()
+    const { pctSub: pctSubLeg, pctInd: pctIndLeg } = rebatePercentsFromMysteryBaus(mbLeg)
+    const rebateSelf = Math.round(v * (pctSubLeg / 100) * 100) / 100
+    const rebateIndLeg = user.indicatorId ? Math.round(v * (pctIndLeg / 100) * 100) / 100 : 0
     const niveisVip = [
       { nivel: 0, aposta: 0, bonus: 0 },
       { nivel: 1, aposta: 100, bonus: 1 }, { nivel: 2, aposta: 1000, bonus: 3 }, { nivel: 3, aposta: 3000, bonus: 10 },
@@ -1965,9 +2006,9 @@ app.post('/api/deposito', authMiddleware, async (req, res) => {
           numDepositos: { increment: 1 },
           balance: { increment: balanceIncrement },
           ...(rolloverLegadoAdd > 0 ? { rolloverPendente: { increment: rolloverLegadoAdd } } : {}),
-          coletavelRebate: { increment: rebate },
-          comissaoPendente: { increment: rebate },
-          comissaoHoje: { increment: rebate },
+          coletavelRebate: { increment: rebateSelf },
+          comissaoPendente: { increment: rebateSelf },
+          comissaoHoje: { increment: rebateSelf },
           apostaAcumulada: apostaNova,
           nivelVip,
           bonusVipReclamar,
@@ -1975,13 +2016,13 @@ app.post('/api/deposito', authMiddleware, async (req, res) => {
         }
       })
     ])
-    if (user.indicatorId) {
+    if (user.indicatorId && rebateIndLeg > 0) {
       await prisma.afiliadoData.update({
         where: { userId: user.indicatorId },
         data: {
-          balance: { increment: rebate },
-          comissaoRecebida: { increment: rebate },
-          comissaoHoje: { increment: rebate },
+          balance: { increment: rebateIndLeg },
+          comissaoRecebida: { increment: rebateIndLeg },
+          comissaoHoje: { increment: rebateIndLeg },
           updatedAt: new Date()
         }
       })
@@ -4434,6 +4475,8 @@ app.get('/api/settings', async (req, res) => {
         cpaNivel2: mb.cpaNivel2,
         cpaNivel3: mb.cpaNivel3,
         cpaWinChancePct: mb.cpaWinChancePct,
+        rebateDepositoSubPct: mb.rebateDepositoSubPct,
+        rebateDepositoIndicadorPct: mb.rebateDepositoIndicadorPct,
         indicacaoManipEnabled: mb.indicacaoManipEnabled,
         indicacaoDar: mb.indicacaoDar,
         indicacaoRoubar: mb.indicacaoRoubar,
@@ -4445,7 +4488,7 @@ app.get('/api/settings', async (req, res) => {
     })
   } catch (e) {
     const fbMb = normalizeMysteryBaus({})
-    return res.json({ logo: '', banner: '/s5/1770954153806/9999.jpg', loadingBanner: '/s5/app-icon/1222508/LOGO.jpg', siteName: '35m', pageTitle: '35m', depositoMin: 10, saqueMin: 20, saqueMax: 40000, whatsappUrl: '', pixEnabled: true, activePixProvider: 'gatebox', appUiTheme: '', featuredGames: [], carouselSlides: [], sitePopup: { enabled: false }, homeMarquee: '', mysteryBaus: { reclamarMinDep: fbMb.reclamarMinDep, reclamarTabela: fbMb.reclamarTabela, minDeposit2dReais: fbMb.minDeposit2dReais, minValidBetReais: fbMb.minValidBetReais, headlinePrize: fbMb.headlinePrize, cpaNivel1: fbMb.cpaNivel1, cpaNivel2: fbMb.cpaNivel2, cpaNivel3: fbMb.cpaNivel3, cpaWinChancePct: fbMb.cpaWinChancePct, indicacaoManipEnabled: fbMb.indicacaoManipEnabled, indicacaoDar: fbMb.indicacaoDar, indicacaoRoubar: fbMb.indicacaoRoubar, afiliadoBausQtd: fbMb.afiliadoBausQtd, afiliadoBausValoresCsv: fbMb.afiliadoBausValoresCsv, afiliadoBausPessoasCsv: fbMb.afiliadoBausPessoasCsv, boxes: fbMb.boxes } })
+    return res.json({ logo: '', banner: '/s5/1770954153806/9999.jpg', loadingBanner: '/s5/app-icon/1222508/LOGO.jpg', siteName: '35m', pageTitle: '35m', depositoMin: 10, saqueMin: 20, saqueMax: 40000, whatsappUrl: '', pixEnabled: true, activePixProvider: 'gatebox', appUiTheme: '', featuredGames: [], carouselSlides: [], sitePopup: { enabled: false }, homeMarquee: '', mysteryBaus: { reclamarMinDep: fbMb.reclamarMinDep, reclamarTabela: fbMb.reclamarTabela, minDeposit2dReais: fbMb.minDeposit2dReais, minValidBetReais: fbMb.minValidBetReais, headlinePrize: fbMb.headlinePrize, cpaNivel1: fbMb.cpaNivel1, cpaNivel2: fbMb.cpaNivel2, cpaNivel3: fbMb.cpaNivel3, cpaWinChancePct: fbMb.cpaWinChancePct, rebateDepositoSubPct: fbMb.rebateDepositoSubPct, rebateDepositoIndicadorPct: fbMb.rebateDepositoIndicadorPct, indicacaoManipEnabled: fbMb.indicacaoManipEnabled, indicacaoDar: fbMb.indicacaoDar, indicacaoRoubar: fbMb.indicacaoRoubar, afiliadoBausQtd: fbMb.afiliadoBausQtd, afiliadoBausValoresCsv: fbMb.afiliadoBausValoresCsv, afiliadoBausPessoasCsv: fbMb.afiliadoBausPessoasCsv, boxes: fbMb.boxes } })
   }
 })
 

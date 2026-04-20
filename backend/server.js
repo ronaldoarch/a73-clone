@@ -943,6 +943,29 @@ function getActivePixProvider(cfg) {
   return gateboxEnabled ? 'gatebox' : (cyberEnabled ? 'cyber' : (sarrixpayEnabled ? 'sarrixpay' : 'none'))
 }
 
+/** Teto da taxa fixa somada ao `amount` do PIX out (R$). */
+const SAQUE_GATEWAY_TAXA_MAX = 500
+
+/**
+ * Taxa fixa (R$) somada ao valor enviado no `amount` do saque PIX no gateway.
+ * O jogador pede R$ 20 → debita-se R$ 20 dele → envia-se `amount` 21,50 (20 + taxa) para o provedor
+ * cobrir a taxa que antes fazia o beneficiário receber só 18,50. Ausente na config: 1,50.
+ */
+function saqueTaxaGatewayFixaFromCfg(obj) {
+  const raw = obj?.saqueTaxaGatewayFixa
+  if (raw === undefined || raw === null) return 1.5
+  const n = typeof raw === 'number' ? raw : parseFloat(String(raw).replace(',', '.'))
+  if (!Number.isFinite(n) || n < 0) return 0
+  return Math.round(Math.min(SAQUE_GATEWAY_TAXA_MAX, n) * 100) / 100
+}
+
+/** Valor do campo `amount` no PIX out: líquido pedido pelo jogador + taxa do gateway (arredondado a 2 casas). */
+function valorAmountPixOutGateway(valorLiquidoReais, cfg) {
+  const liq = Math.round(Number(valorLiquidoReais) * 100) / 100
+  const fee = saqueTaxaGatewayFixaFromCfg(cfg)
+  return Math.round((liq + fee) * 100) / 100
+}
+
 /** Configurações da plataforma (Saque, Roleta, Bônus) */
 async function getAppConfig() {
   if (_appConfigCache && Date.now() - _appConfigCacheAt < APP_CONFIG_TTL) {
@@ -966,6 +989,7 @@ async function getAppConfig() {
       depositoMin: v.depositoMin ?? 10,
       saqueMin: v.saqueMin ?? 20,
       saqueMax: v.saqueMax ?? 40000,
+      saqueTaxaGatewayFixa: saqueTaxaGatewayFixaFromCfg(v),
       roletaMinWithdraw: v.roletaMinWithdraw ?? 100,
       roletaBonusDays: v.roletaBonusDays ?? 3,
       roletaDailySpins: v.roletaDailySpins ?? 1,
@@ -993,7 +1017,7 @@ async function getAppConfig() {
     return _appConfigCache
   } catch (e) {
     const fallback = {
-      depositoMin: 10, saqueMin: 20, saqueMax: 40000, roletaMinWithdraw: 100, roletaBonusDays: 3, roletaDailySpins: 1,
+      depositoMin: 10, saqueMin: 20, saqueMax: 40000, saqueTaxaGatewayFixa: 1.5, roletaMinWithdraw: 100, roletaBonusDays: 3, roletaDailySpins: 1,
       roletaBonusRolloverTimes: 1, rolloverDepositoTimes: 0, rolloverVipRotinaTimes: 1, rolloverVipAcumuladoTimes: 0,
       rolloverMisteriosoTimes: 1, rolloverPromoBaixTimes: 1,
       bonusPrimeiroDep: 0, bonusPrimeiroDepPercent: 0, roletaSegments: DEFAULT_ROLETA_SEGMENTS, paymentProvider: 'gatebox',
@@ -3375,11 +3399,13 @@ app.get('/api/saque/info', authMiddleware, async (req, res) => {
     const dailyUsed = await prisma.withdrawal.count({
       where: { userId: req.userId, createdAt: { gte: start } }
     })
+    const feeGw = saqueTaxaGatewayFixaFromCfg(cfg)
     return res.json({
       minAmount: cfg.saqueMin ?? 20,
       maxAmount: cfg.saqueMax ?? 40000,
       feeRate: 0,
-      feeFixed: 0,
+      feeFixed: feeGw,
+      saqueTaxaGatewayFixa: feeGw,
       dailyLimit: 50,
       dailyUsed
     })
@@ -3587,17 +3613,18 @@ app.post('/api/saque', authMiddleware, async (req, res) => {
     const pixProv = getActivePixProvider(cfg)
     const useCyber = pixProv === 'cyber'
     const useSarrix = pixProv === 'sarrixpay'
+    const amountGateway = valorAmountPixOutGateway(v, cfg)
     try {
       if (useCyber) {
         withdrawResult = await cyberWithdraw({
-          amount: v,
+          amount: amountGateway,
           pixKey: key,
           pixKeyType: pixTipo,
           description: `Saque - ${user?.account || req.userId}`
         })
       } else if (useSarrix) {
         withdrawResult = await sarrixpayPixOut({
-          amount: v,
+          amount: amountGateway,
           currency: 'BRL',
           description: `Saque - ${user?.account || req.userId}`,
           idempotencyKey: `pixout-wd-${withdrawal.id}`,
@@ -3613,7 +3640,7 @@ app.post('/api/saque', authMiddleware, async (req, res) => {
           externalId: withdrawal.id,
           key: pixKeyForGatebox(key, pixTipo),
           name,
-          amount: v,
+          amount: amountGateway,
           documentNumber: pixTipo === 'CPF' || pixTipo === 'CNPJ' ? key.replace(/^\+/, '') : undefined,
           description: `Saque - ${user?.account || req.userId}`
         })
@@ -3831,16 +3858,17 @@ app.patch('/api/admin/saques/:id', adminAuthMiddleware, async (req, res) => {
     const pixProv = getActivePixProvider(cfg)
     const useCyber = pixProv === 'cyber'
     const useSarrix = pixProv === 'sarrixpay'
+    const amountGateway = valorAmountPixOutGateway(w.valor, cfg)
     const withdrawResult = useCyber
       ? await cyberWithdraw({
-          amount: w.valor,
+          amount: amountGateway,
           pixKey: key,
           pixKeyType: pixTipo,
           description: `Saque - ${w.user?.account || w.userId}`
         })
       : useSarrix
         ? await sarrixpayPixOut({
-            amount: w.valor,
+            amount: amountGateway,
             currency: 'BRL',
             description: `Saque - ${w.user?.account || w.userId}`,
             idempotencyKey: `pixout-admin-${id}`,
@@ -3855,7 +3883,7 @@ app.patch('/api/admin/saques/:id', adminAuthMiddleware, async (req, res) => {
             externalId: id,
             key: pixKeyForGatebox(key, pixTipo),
             name,
-            amount: w.valor,
+            amount: amountGateway,
             documentNumber: pixTipo === 'CPF' || pixTipo === 'CNPJ' ? key.replace(/^\+/, '') : undefined,
             description: `Saque - ${w.user?.account || w.userId}`
           })
@@ -3941,7 +3969,7 @@ app.get('/api/admin/config', adminAuthMiddleware, async (req, res) => {
     return res.json(cfg)
   } catch (e) {
     const fb = {
-      depositoMin: 10, saqueMin: 20, saqueMax: 40000, roletaMinWithdraw: 100, roletaBonusDays: 3, roletaDailySpins: 1,
+      depositoMin: 10, saqueMin: 20, saqueMax: 40000, saqueTaxaGatewayFixa: 1.5, roletaMinWithdraw: 100, roletaBonusDays: 3, roletaDailySpins: 1,
       roletaBonusRolloverTimes: 1, rolloverDepositoTimes: 0, rolloverVipRotinaTimes: 1, rolloverVipAcumuladoTimes: 0,
       rolloverMisteriosoTimes: 1, rolloverPromoBaixTimes: 1,
       bonusPrimeiroDep: 0, bonusPrimeiroDepPercent: 0, roletaSegments: DEFAULT_ROLETA_SEGMENTS, paymentProvider: 'gatebox',
@@ -3968,6 +3996,10 @@ app.post('/api/admin/config', adminAuthMiddleware, async (req, res) => {
       ? parseInt(body.saqueMax, 10) || 40000
       : (prev.saqueMax ?? 40000)
     saqueMax = Math.min(1000000, Math.max(saqueMin, saqueMax))
+
+    const saqueTaxaGatewayFixa = body.saqueTaxaGatewayFixa !== undefined && body.saqueTaxaGatewayFixa !== null
+      ? Math.round(Math.max(0, Math.min(SAQUE_GATEWAY_TAXA_MAX, parseFloat(String(body.saqueTaxaGatewayFixa).replace(',', '.')) || 0)) * 100) / 100
+      : saqueTaxaGatewayFixaFromCfg(prev)
 
     const roletaMinWithdraw = body.roletaMinWithdraw !== undefined && body.roletaMinWithdraw !== null
       ? Math.max(1, parseInt(body.roletaMinWithdraw, 10) || 100)
@@ -4049,7 +4081,7 @@ app.post('/api/admin/config', adminAuthMiddleware, async (req, res) => {
     const rolloverPromoBaixTimes = pickRolloverField('rolloverPromoBaixTimes', 1)
 
     const value = {
-      depositoMin, saqueMin, saqueMax, roletaMinWithdraw, roletaBonusDays, roletaDailySpins,
+      depositoMin, saqueMin, saqueMax, saqueTaxaGatewayFixa, roletaMinWithdraw, roletaBonusDays, roletaDailySpins,
       roletaBonusRolloverTimes, rolloverDepositoTimes, rolloverVipRotinaTimes, rolloverVipAcumuladoTimes,
       rolloverMisteriosoTimes, rolloverPromoBaixTimes,
       bonusPrimeiroDep, bonusPrimeiroDepPercent, roletaSegments, whatsappUrl,
@@ -4457,6 +4489,7 @@ app.get('/api/settings', async (req, res) => {
       depositoMin: appCfg.depositoMin ?? 10,
       saqueMin: appCfg.saqueMin ?? 20,
       saqueMax: appCfg.saqueMax ?? 40000,
+      saqueTaxaGatewayFixa: saqueTaxaGatewayFixaFromCfg(appCfg),
       whatsappUrl: appCfg.whatsappUrl || '',
       pixEnabled: appCfg.pixEnabled !== false,
       activePixProvider: appCfg.activePixProvider || 'gatebox',
@@ -4488,7 +4521,7 @@ app.get('/api/settings', async (req, res) => {
     })
   } catch (e) {
     const fbMb = normalizeMysteryBaus({})
-    return res.json({ logo: '', banner: '/s5/1770954153806/9999.jpg', loadingBanner: '/s5/app-icon/1222508/LOGO.jpg', siteName: '35m', pageTitle: '35m', depositoMin: 10, saqueMin: 20, saqueMax: 40000, whatsappUrl: '', pixEnabled: true, activePixProvider: 'gatebox', appUiTheme: '', featuredGames: [], carouselSlides: [], sitePopup: { enabled: false }, homeMarquee: '', mysteryBaus: { reclamarMinDep: fbMb.reclamarMinDep, reclamarTabela: fbMb.reclamarTabela, minDeposit2dReais: fbMb.minDeposit2dReais, minValidBetReais: fbMb.minValidBetReais, headlinePrize: fbMb.headlinePrize, cpaNivel1: fbMb.cpaNivel1, cpaNivel2: fbMb.cpaNivel2, cpaNivel3: fbMb.cpaNivel3, cpaWinChancePct: fbMb.cpaWinChancePct, rebateDepositoSubPct: fbMb.rebateDepositoSubPct, rebateDepositoIndicadorPct: fbMb.rebateDepositoIndicadorPct, indicacaoManipEnabled: fbMb.indicacaoManipEnabled, indicacaoDar: fbMb.indicacaoDar, indicacaoRoubar: fbMb.indicacaoRoubar, afiliadoBausQtd: fbMb.afiliadoBausQtd, afiliadoBausValoresCsv: fbMb.afiliadoBausValoresCsv, afiliadoBausPessoasCsv: fbMb.afiliadoBausPessoasCsv, boxes: fbMb.boxes } })
+    return res.json({ logo: '', banner: '/s5/1770954153806/9999.jpg', loadingBanner: '/s5/app-icon/1222508/LOGO.jpg', siteName: '35m', pageTitle: '35m', depositoMin: 10, saqueMin: 20, saqueMax: 40000, saqueTaxaGatewayFixa: 1.5, whatsappUrl: '', pixEnabled: true, activePixProvider: 'gatebox', appUiTheme: '', featuredGames: [], carouselSlides: [], sitePopup: { enabled: false }, homeMarquee: '', mysteryBaus: { reclamarMinDep: fbMb.reclamarMinDep, reclamarTabela: fbMb.reclamarTabela, minDeposit2dReais: fbMb.minDeposit2dReais, minValidBetReais: fbMb.minValidBetReais, headlinePrize: fbMb.headlinePrize, cpaNivel1: fbMb.cpaNivel1, cpaNivel2: fbMb.cpaNivel2, cpaNivel3: fbMb.cpaNivel3, cpaWinChancePct: fbMb.cpaWinChancePct, rebateDepositoSubPct: fbMb.rebateDepositoSubPct, rebateDepositoIndicadorPct: fbMb.rebateDepositoIndicadorPct, indicacaoManipEnabled: fbMb.indicacaoManipEnabled, indicacaoDar: fbMb.indicacaoDar, indicacaoRoubar: fbMb.indicacaoRoubar, afiliadoBausQtd: fbMb.afiliadoBausQtd, afiliadoBausValoresCsv: fbMb.afiliadoBausValoresCsv, afiliadoBausPessoasCsv: fbMb.afiliadoBausPessoasCsv, boxes: fbMb.boxes } })
   }
 })
 

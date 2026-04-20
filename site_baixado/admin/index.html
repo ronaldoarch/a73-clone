@@ -762,6 +762,11 @@
               <div class="form-group"><label>Saque Máximo (R$)</label><input type="number" id="cfgSaqueMax" class="search-box" style="max-width:100%"></div>
               <div class="form-group"><label>URL WhatsApp</label><input type="text" id="cfgWhatsapp" class="search-box" placeholder="https://wa.me/..." style="max-width:100%"></div>
             </div>
+            <div class="form-group" style="margin-top:0.5rem">
+              <label>Taxa fixa somada ao <code>amount</code> do saque PIX (R$)</label>
+              <input type="number" id="cfgSaqueTaxaGateway" class="search-box" step="0.01" min="0" style="max-width:100%">
+              <p style="color:var(--text-muted);font-size:0.82rem;margin:0.4rem 0 0;line-height:1.45">O jogador pede R$ 20: debita-se <strong>R$ 20</strong> da conta dele; o backend envia <strong>amount = 20 + taxa</strong> (ex.: 1,50 → R$ 21,50) ao gateway, para compensar a taxa que antes deixava o PIX em R$ 18,50. Padrão 1,50; use 0 para desativar. Confirme com o teu provedor se o <code>amount</code> é mesmo valor bruto assim.</p>
+            </div>
           </div>
         </div>
         <div class="card">
@@ -1785,6 +1790,7 @@
         document.getElementById('cfgDepositoMin').value = cfg.depositoMin ?? 10;
         document.getElementById('cfgSaqueMin').value = cfg.saqueMin ?? 20;
         document.getElementById('cfgSaqueMax').value = cfg.saqueMax ?? 40000;
+        document.getElementById('cfgSaqueTaxaGateway').value = cfg.saqueTaxaGatewayFixa != null ? cfg.saqueTaxaGatewayFixa : 1.5;
         document.getElementById('cfgWhatsapp').value = cfg.whatsappUrl || '';
         document.getElementById('cfgBonusDep').value = cfg.bonusPrimeiroDep ?? 0;
         document.getElementById('cfgBonusDepPct').value = cfg.bonusPrimeiroDepPercent ?? 0;
@@ -1819,6 +1825,7 @@
         depositoMin: parseInt(document.getElementById('cfgDepositoMin').value) || 10,
         saqueMin: parseInt(document.getElementById('cfgSaqueMin').value) || 20,
         saqueMax: parseInt(document.getElementById('cfgSaqueMax').value) || 40000,
+        saqueTaxaGatewayFixa: Math.max(0, Math.min(500, parseFloat(String(document.getElementById('cfgSaqueTaxaGateway').value).replace(',', '.')) || 0)),
         whatsappUrl: document.getElementById('cfgWhatsapp').value,
         bonusPrimeiroDep: parseFloat(document.getElementById('cfgBonusDep').value) || 0,
         bonusPrimeiroDepPercent: parseFloat(document.getElementById('cfgBonusDepPct').value) || 0,

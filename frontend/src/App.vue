@@ -20,6 +20,7 @@
     <AnnouncementModal :announcements="announcements" />
 
     <MysteryMineFloat v-if="showFloat" />
+    <SportbookFloat v-if="showFloat" />
     <PromoCarouselFloat v-if="showFloat" />
     <SupportFloat v-if="showFloat" />
   </div>
@@ -34,6 +35,7 @@ import DrawerMenu from './components/DrawerMenu.vue'
 import AnnouncementModal from './components/AnnouncementModal.vue'
 import PwaInstallBanner from './components/PwaInstallBanner.vue'
 import MysteryMineFloat from './components/MysteryMineFloat.vue'
+import SportbookFloat from './components/SportbookFloat.vue'
 import PromoCarouselFloat from './components/PromoCarouselFloat.vue'
 import SupportFloat from './components/SupportFloat.vue'
 import { useSystemStore } from './stores/system'
@@ -57,7 +59,7 @@ const currentTheme = computed(() => {
 const hiddenTabRoutes = ['Login', 'Register', 'Launch', 'GameAction']
 
 const showTabBar = computed(() => !hiddenTabRoutes.includes(route.name))
-/** Flutuantes (mina, carrossel promo, suporte) só na página inicial */
+/** Flutuantes (mina, sportbook, carrossel promo, suporte) só na página inicial */
 const showFloat = computed(() => route.name === 'Home')
 
 watch(

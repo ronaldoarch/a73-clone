@@ -117,15 +117,14 @@ onMounted(() => {
 
 <style scoped>
 /*
- * Direita, acima do flutuante da mina (evita 40rem no top — ficava fora do ecrã).
- * TabBar ~5.5rem; mina ~5–6rem → base do carrossel ~12rem do fundo.
+ * Direita, acima do flutuante sportbook e da mina (espaço para 3 flutuantes empilhados).
  */
 .pcf-float {
   position: fixed;
   top: auto;
   right: calc((100vw - min(100vw, var(--max-width, 480px))) / 2 + 0.5rem + env(safe-area-inset-right, 0px));
   left: auto;
-  bottom: calc(12rem + env(safe-area-inset-bottom, 0px));
+  bottom: calc(19rem + env(safe-area-inset-bottom, 0px));
   --pcf-w: 4.15rem;
   width: var(--pcf-w);
   z-index: 10019;

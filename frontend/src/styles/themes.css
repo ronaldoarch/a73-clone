@@ -693,3 +693,47 @@
   --color-home-lower-bg: var(--ep-color-background-fill-body-default);
   --color-brand-purple-original: var(--ep-color-background-fill-surface-raised-L1);
 }
+
+/* ── custom (cores injetadas via JS a partir de /api/settings) ── */
+[data-theme="custom"] {
+  --ep-color-background-fill-body-default:       var(--custom-bg, #181C1D);
+  --ep-color-background-fill-surface-raised-L1:  var(--custom-surface1, #222829);
+  --ep-color-background-fill-surface-raised-L2:  var(--custom-surface2, #292E30);
+  --ep-color-background-fill-surface-lowered:    var(--custom-surface-low, #141718);
+  --ep-color-background-fill-active-primary:     var(--custom-primary, #D34704);
+  --ep-color-background-fill-active-disabled:    var(--custom-primary-40, rgba(211,71,4,.4));
+  --ep-color-background-fill-active-active:      var(--custom-secondary, #F68D01);
+  --ep-color-background-fill-gradients-primary-a: var(--custom-primary, #D34704);
+  --ep-color-background-fill-gradients-primary-b: var(--custom-secondary, #F68D01);
+  --ep-color-text-default:      var(--custom-text, #F0EAE4);
+  --ep-color-text-selected:     var(--custom-primary, #D34704);
+  --ep-color-text-brand-primary: var(--custom-primary, #D34704);
+  --ep-color-text-inverse:      var(--custom-bg, #181C1D);
+  --ep-color-border-default:    var(--custom-border, rgba(240,234,228,.1));
+  --ep-color-border-selected:   var(--custom-primary, #D34704);
+  --ep-color-border-brand:      var(--custom-secondary, #F68D01);
+  --ep-color-icon-brand-primary:   var(--custom-primary, #D34704);
+  --ep-color-icon-brand-secondary: var(--custom-secondary, #F68D01);
+  --ep-color-icon-selected:        var(--custom-primary, #D34704);
+
+  --color-bg-100:    var(--custom-bg, #181C1D);
+  --color-bg-300:    var(--custom-surface1, #222829);
+  --color-bg-400:    var(--custom-surface2, #292E30);
+  --color-bg-input:  var(--custom-surface-low, #141718);
+  --color-bg-second: var(--custom-surface1, #222829);
+  --color-screen-bg: var(--custom-bg, #181C1D);
+  --color-primary-600: var(--custom-primary, #D34704);
+  --color-primary-700: var(--custom-secondary, #F68D01);
+  --theme-color-600: var(--custom-primary, #D34704);
+  --theme-color-700: var(--custom-secondary, #F68D01);
+  --theme-color-800: var(--custom-primary, #D34704);
+  --ion-color-primary: var(--custom-primary, #D34704);
+  --gradient-primary: linear-gradient(90deg, var(--custom-primary, #D34704) -27.5%, var(--custom-secondary, #F68D01) 127.5%);
+  --color-btn-gradient-basic: linear-gradient(90deg, var(--custom-primary, #D34704) 0%, var(--custom-secondary, #F68D01) 100%);
+  --header-dynamic-bg: var(--custom-surface-low, #141718);
+  --footer-dynamic-bg: var(--custom-surface1, #222829);
+  --shadow-glow: 0 4px 20px var(--custom-primary-30, rgba(211,71,4,.3));
+
+  --color-home-lower-bg: var(--custom-bg, #181C1D);
+  --color-brand-purple-original: var(--custom-surface1, #222829);
+}

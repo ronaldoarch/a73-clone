@@ -21,7 +21,8 @@ export const APP_UI_THEMES = Object.freeze([
   { id: 'forest-green', label: 'Verde floresta' },
   { id: 'supreme-green', label: 'Verde supremo' },
   { id: 'auroral-yellow', label: 'Amarelo aurora' },
-  { id: 'malt-green', label: 'Verde malte' }
+  { id: 'malt-green', label: 'Verde malte' },
+  { id: 'custom', label: 'Personalizado' }
 ])
 
 export const APP_UI_THEME_IDS = new Set(APP_UI_THEMES.map((t) => t.id))

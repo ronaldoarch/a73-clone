@@ -56,6 +56,65 @@ const currentTheme = computed(() => {
   return systemStore.themeConfig?.theme || 'amber-purple'
 })
 
+function hexToRgb(hex) {
+  const r = parseInt(hex.slice(1, 3), 16)
+  const g = parseInt(hex.slice(3, 5), 16)
+  const b = parseInt(hex.slice(5, 7), 16)
+  return [r, g, b]
+}
+
+function lightenHex(hex, pct) {
+  const [r, g, b] = hexToRgb(hex)
+  const f = pct / 100
+  const nr = Math.min(255, Math.round(r + (255 - r) * f))
+  const ng = Math.min(255, Math.round(g + (255 - g) * f))
+  const nb = Math.min(255, Math.round(b + (255 - b) * f))
+  return '#' + [nr, ng, nb].map((c) => c.toString(16).padStart(2, '0')).join('')
+}
+
+function darkenHex(hex, pct) {
+  const [r, g, b] = hexToRgb(hex)
+  const f = 1 - pct / 100
+  const nr = Math.round(r * f)
+  const ng = Math.round(g * f)
+  const nb = Math.round(b * f)
+  return '#' + [nr, ng, nb].map((c) => c.toString(16).padStart(2, '0')).join('')
+}
+
+function applyCustomThemeVars(settings) {
+  const primary = settings?.customThemePrimary || '#D34704'
+  const secondary = settings?.customThemeSecondary || '#F68D01'
+  const bg = settings?.customThemeBg || '#181C1D'
+  const [pr, pg, pb] = hexToRgb(primary)
+  const surface1 = lightenHex(bg, 8)
+  const surface2 = lightenHex(bg, 15)
+  const surfaceLow = darkenHex(bg, 15)
+  const vars = [
+    `--custom-bg:${bg}`,
+    `--custom-primary:${primary}`,
+    `--custom-secondary:${secondary}`,
+    `--custom-surface1:${surface1}`,
+    `--custom-surface2:${surface2}`,
+    `--custom-surface-low:${surfaceLow}`,
+    `--custom-primary-40:rgba(${pr},${pg},${pb},.4)`,
+    `--custom-primary-30:rgba(${pr},${pg},${pb},.3)`,
+    `--custom-text:${lightenHex(bg, 85)}`,
+    `--custom-border:rgba(${pr},${pg},${pb},.15)`,
+  ].join(';')
+  let styleEl = document.getElementById('__custom-theme-vars__')
+  if (!styleEl) {
+    styleEl = document.createElement('style')
+    styleEl.id = '__custom-theme-vars__'
+    document.head.appendChild(styleEl)
+  }
+  styleEl.textContent = `:root{${vars}}`
+}
+
+function removeCustomThemeVars() {
+  const el = document.getElementById('__custom-theme-vars__')
+  if (el) el.remove()
+}
+
 const hiddenTabRoutes = ['Login', 'Register', 'Launch', 'GameAction']
 
 const showTabBar = computed(() => !hiddenTabRoutes.includes(route.name))
@@ -66,11 +125,24 @@ watch(
   currentTheme,
   (val) => {
     document.documentElement.setAttribute('data-theme', val)
+    if (val === 'custom') {
+      applyCustomThemeVars(systemStore.settings)
+    } else {
+      removeCustomThemeVars()
+    }
     try {
       localStorage.setItem('app_theme', val)
     } catch (_) {}
   },
   { immediate: true }
+)
+
+watch(
+  () => systemStore.settings,
+  (s) => {
+    if (currentTheme.value === 'custom') applyCustomThemeVars(s)
+  },
+  { deep: true }
 )
 
 watch(

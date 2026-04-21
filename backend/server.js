@@ -38,8 +38,12 @@ const APP_UI_THEME_IDS = new Set([
   'amber-purple', 'blue-default', 'green-default', 'green-dark', 'phantom-blue', 'neo-blue',
   'midnight-purple', 'mystlight-blue', 'goldshine-green', 'golden-emerald', 'deep-sea-teal',
   'stellar-dusk', 'prosperity-red', 'yellow-dark', 'purple-light', 'forest-green',
-  'supreme-green', 'auroral-yellow', 'malt-green'
+  'supreme-green', 'auroral-yellow', 'malt-green', 'custom'
 ])
+
+function isValidHex(s) {
+  return typeof s === 'string' && /^#[0-9A-Fa-f]{6}$/.test(s.trim())
+}
 
 const DEFAULT_MYSTERY_BAUS = Object.freeze({
   reclamarMinDep: 30,
@@ -1008,7 +1012,10 @@ async function getAppConfig() {
       gateboxEnabled,
       cyberEnabled,
       sarrixpayEnabled,
-      appUiTheme
+      appUiTheme,
+      customThemePrimary: v.customThemePrimary || '',
+      customThemeSecondary: v.customThemeSecondary || '',
+      customThemeBg: v.customThemeBg || ''
     }
     base.activePixProvider = getActivePixProvider(base)
     base.pixEnabled = base.activePixProvider !== 'none'
@@ -4059,6 +4066,16 @@ app.post('/api/admin/config', adminAuthMiddleware, async (req, res) => {
       appUiTheme = APP_UI_THEME_IDS.has(raw) ? raw : ''
     }
 
+    const customThemePrimary = body.customThemePrimary !== undefined
+      ? (isValidHex(body.customThemePrimary) ? String(body.customThemePrimary).trim().toUpperCase() : (prev.customThemePrimary || ''))
+      : (prev.customThemePrimary || '')
+    const customThemeSecondary = body.customThemeSecondary !== undefined
+      ? (isValidHex(body.customThemeSecondary) ? String(body.customThemeSecondary).trim().toUpperCase() : (prev.customThemeSecondary || ''))
+      : (prev.customThemeSecondary || '')
+    const customThemeBg = body.customThemeBg !== undefined
+      ? (isValidHex(body.customThemeBg) ? String(body.customThemeBg).trim().toUpperCase() : (prev.customThemeBg || ''))
+      : (prev.customThemeBg || '')
+
     const pickRolloverField = (key, defaultVal) => {
       if (body[key] !== undefined && body[key] !== null && String(body[key]).trim() !== '') {
         const n = parseFloat(String(body[key]).replace(',', '.'))
@@ -4086,7 +4103,7 @@ app.post('/api/admin/config', adminAuthMiddleware, async (req, res) => {
       rolloverMisteriosoTimes, rolloverPromoBaixTimes,
       bonusPrimeiroDep, bonusPrimeiroDepPercent, roletaSegments, whatsappUrl,
       paymentProvider, gateboxEnabled, cyberEnabled, sarrixpayEnabled,
-      appUiTheme
+      appUiTheme, customThemePrimary, customThemeSecondary, customThemeBg
     }
     await settingUpsert('config', value)
     invalidateAppConfigCache()
@@ -4494,6 +4511,9 @@ app.get('/api/settings', async (req, res) => {
       pixEnabled: appCfg.pixEnabled !== false,
       activePixProvider: appCfg.activePixProvider || 'gatebox',
       appUiTheme: appCfg.appUiTheme || '',
+      customThemePrimary: appCfg.customThemePrimary || '',
+      customThemeSecondary: appCfg.customThemeSecondary || '',
+      customThemeBg: appCfg.customThemeBg || '',
       featuredGames,
       carouselSlides: slides,
       sitePopup,

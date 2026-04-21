@@ -356,6 +356,45 @@
       margin: 1rem 0 0.4rem;
     }
     .theme-picker-section-label:first-child { margin-top: 0; }
+    /* ── Custom Theme Panel ── */
+    .custom-theme-panel {
+      display: none;
+      margin-top: 1.1rem;
+      padding: 1rem 1.1rem;
+      background: rgba(0,0,0,0.25);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+    }
+    .custom-theme-panel.open { display: block; }
+    .custom-theme-panel h4 { margin: 0 0 0.85rem; font-size: 0.88rem; font-weight: 700; color: var(--text); }
+    .color-picker-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 0.85rem;
+      margin-bottom: 1rem;
+    }
+    .color-picker-field label { display: block; font-size: 0.78rem; color: var(--text-muted); margin-bottom: 0.35rem; }
+    .color-picker-field .color-input-wrap {
+      display: flex; align-items: center; gap: 0.5rem;
+      border: 1px solid var(--border); border-radius: 8px;
+      background: rgba(0,0,0,0.2); overflow: hidden; padding: 0.3rem 0.5rem;
+    }
+    .color-picker-field input[type=color] {
+      width: 32px; height: 32px; border: none; background: none;
+      cursor: pointer; padding: 0; border-radius: 4px; flex-shrink: 0;
+    }
+    .color-picker-field input[type=text] {
+      background: none; border: none; color: var(--text);
+      font-size: 0.85rem; font-family: monospace; width: 80px;
+      outline: none; text-transform: uppercase;
+    }
+    .custom-theme-preview {
+      height: 48px; border-radius: 8px; margin-bottom: 0.85rem;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.82rem; font-weight: 600; letter-spacing: 0.04em;
+      transition: background 0.2s;
+      border: 1px solid rgba(255,255,255,0.08);
+    }
   </style>
   <style id="themeOverride"></style>
 </head>
@@ -800,6 +839,37 @@
           </select>
           <p class="theme-picker-section-label">Selecione o tema</p>
           <div id="brandThemePickerGrid" class="theme-picker-grid"></div>
+
+          <!-- Painel de cores personalizadas -->
+          <div id="customThemePanel" class="custom-theme-panel">
+            <h4>🎨 Cores personalizadas</h4>
+            <div id="customThemePreview" class="custom-theme-preview">Pré-visualização do gradiente</div>
+            <div class="color-picker-row">
+              <div class="color-picker-field">
+                <label>Cor primária</label>
+                <div class="color-input-wrap">
+                  <input type="color" id="cpPrimary" value="#D34704">
+                  <input type="text" id="cpPrimaryHex" value="#D34704" maxlength="7" placeholder="#D34704">
+                </div>
+              </div>
+              <div class="color-picker-field">
+                <label>Cor secundária (gradiente)</label>
+                <div class="color-input-wrap">
+                  <input type="color" id="cpSecondary" value="#F68D01">
+                  <input type="text" id="cpSecondaryHex" value="#F68D01" maxlength="7" placeholder="#F68D01">
+                </div>
+              </div>
+              <div class="color-picker-field">
+                <label>Fundo</label>
+                <div class="color-input-wrap">
+                  <input type="color" id="cpBg" value="#181C1D">
+                  <input type="text" id="cpBgHex" value="#181C1D" maxlength="7" placeholder="#181C1D">
+                </div>
+              </div>
+            </div>
+            <button class="btn btn-primary" id="btnSaveCustomTheme" style="width:100%">Aplicar tema personalizado</button>
+          </div>
+
           <p id="brandAppUiThemeNote" style="display:none;margin:0.85rem 0 0;font-size:0.82rem;padding:0.6rem 0.85rem;background:var(--accent-fade-08);border-radius:8px;border-left:3px solid var(--accent);color:var(--accent)">✓ Tema fixo ativo. Clique em <strong>Padrão do site</strong> para usar as cores da skin do operador.</p>
         </div>
       </div>
@@ -1270,7 +1340,11 @@
       { id: 'prosperity-red',  label: 'Vermelho Prosperidade',   bg: '#1A0D0D', primary: '#DC2626', gradA: '#EF4444', gradB: '#B91C1C', gradDir: '90deg',  group: 'Quentes & Dourados' },
     ];
 
-    function buildThemePickerGrid(selectedId) {
+    function isValidHexColor(s) {
+      return typeof s === 'string' && /^#[0-9A-Fa-f]{6}$/.test(s.trim());
+    }
+
+    function buildThemePickerGrid(selectedId, customColors) {
       const grid = document.getElementById('brandThemePickerGrid');
       if (!grid) return;
       grid.innerHTML = '';
@@ -1282,6 +1356,31 @@
       resetCard.innerHTML = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.51"/></svg><span>Padrão<br>do site</span>`;
       resetCard.addEventListener('click', () => selectThemeCard(''));
       grid.appendChild(resetCard);
+
+      // Card "Personalizado"
+      const cp = customColors || {};
+      const cpPrimary = isValidHexColor(cp.primary) ? cp.primary : '#D34704';
+      const cpSecondary = isValidHexColor(cp.secondary) ? cp.secondary : '#F68D01';
+      const cpBg = isValidHexColor(cp.bg) ? cp.bg : '#181C1D';
+      const customCard = document.createElement('div');
+      customCard.className = 'theme-card' + (selectedId === 'custom' ? ' selected' : '');
+      customCard.dataset.themeId = 'custom';
+      customCard.innerHTML = `
+        <div class="theme-card__bg" style="background:${cpBg}">
+          <div class="theme-card__dot" style="background:linear-gradient(90deg,${cpPrimary},${cpSecondary})"></div>
+          <div class="theme-card__gradient-bar" style="background:linear-gradient(90deg,${cpPrimary},${cpSecondary})"></div>
+          <div class="theme-card__check">✓</div>
+        </div>
+        <div class="theme-card__label">🎨 Personalizado</div>`;
+      customCard.addEventListener('click', () => {
+        // só abre o painel, não salva ainda
+        document.querySelectorAll('#brandThemePickerGrid .theme-card').forEach((c) => c.classList.remove('selected'));
+        customCard.classList.add('selected');
+        document.getElementById('customThemePanel').classList.add('open');
+        const sel = document.getElementById('brandAppUiTheme');
+        if (sel) sel.value = 'custom';
+      });
+      grid.appendChild(customCard);
 
       // Group cards
       let lastGroup = null;
@@ -1307,7 +1406,77 @@
         card.addEventListener('click', () => selectThemeCard(t.id));
         grid.appendChild(card);
       });
+
+      // Show/hide custom panel based on current selection
+      const panel = document.getElementById('customThemePanel');
+      if (panel) panel.classList.toggle('open', selectedId === 'custom');
+      syncCustomColorPickers(cpPrimary, cpSecondary, cpBg);
     }
+
+    function updateCustomPreview() {
+      const p = document.getElementById('cpPrimary')?.value || '#D34704';
+      const s = document.getElementById('cpSecondary')?.value || '#F68D01';
+      const prev = document.getElementById('customThemePreview');
+      if (prev) {
+        prev.style.background = `linear-gradient(90deg, ${p}, ${s})`;
+        prev.style.color = '#fff';
+        prev.style.textShadow = '0 1px 3px rgba(0,0,0,0.6)';
+      }
+    }
+
+    function syncCustomColorPickers(primary, secondary, bg) {
+      const set = (colorId, hexId, val) => {
+        const ci = document.getElementById(colorId);
+        const hi = document.getElementById(hexId);
+        if (ci) ci.value = val;
+        if (hi) hi.value = val;
+      };
+      set('cpPrimary', 'cpPrimaryHex', primary);
+      set('cpSecondary', 'cpSecondaryHex', secondary);
+      set('cpBg', 'cpBgHex', bg);
+      updateCustomPreview();
+    }
+
+    function wireColorPicker(colorId, hexId) {
+      const ci = document.getElementById(colorId);
+      const hi = document.getElementById(hexId);
+      if (!ci || !hi) return;
+      ci.addEventListener('input', () => {
+        hi.value = ci.value.toUpperCase();
+        updateCustomPreview();
+      });
+      hi.addEventListener('input', () => {
+        const v = hi.value.trim();
+        if (/^#[0-9A-Fa-f]{6}$/.test(v)) ci.value = v;
+        updateCustomPreview();
+      });
+    }
+    wireColorPicker('cpPrimary', 'cpPrimaryHex');
+    wireColorPicker('cpSecondary', 'cpSecondaryHex');
+    wireColorPicker('cpBg', 'cpBgHex');
+
+    document.getElementById('btnSaveCustomTheme')?.addEventListener('click', async () => {
+      const primary = document.getElementById('cpPrimaryHex')?.value?.trim() || '#D34704';
+      const secondary = document.getElementById('cpSecondaryHex')?.value?.trim() || '#F68D01';
+      const bg = document.getElementById('cpBgHex')?.value?.trim() || '#181C1D';
+      if (!isValidHexColor(primary) || !isValidHexColor(secondary) || !isValidHexColor(bg)) {
+        return showToast('Cores inválidas. Use formato #RRGGBB.', 'error');
+      }
+      try {
+        const r = await api('/api/admin/config', { method: 'POST', body: JSON.stringify({
+          appUiTheme: 'custom',
+          customThemePrimary: primary.toUpperCase(),
+          customThemeSecondary: secondary.toUpperCase(),
+          customThemeBg: bg.toUpperCase()
+        })});
+        showToast(r.ok ? 'Tema personalizado salvo! Jogadores: atualizar a página.' : (r.error || 'Erro'), r.ok ? 'success' : 'error');
+        if (r.ok) {
+          updateBrandAppUiThemeNote();
+          // rebuild card to reflect new colors
+          buildThemePickerGrid('custom', { primary, secondary, bg });
+        }
+      } catch (e) { showToast('Erro ao salvar.', 'error'); }
+    });
 
     async function selectThemeCard(themeId) {
       const sel = document.getElementById('brandAppUiTheme');
@@ -1316,7 +1485,11 @@
       document.querySelectorAll('#brandThemePickerGrid .theme-card').forEach((c) => {
         c.classList.toggle('selected', c.dataset.themeId === themeId);
       });
+      // Hide custom panel if not custom
+      const panel = document.getElementById('customThemePanel');
+      if (panel) panel.classList.toggle('open', themeId === 'custom');
       updateBrandAppUiThemeNote();
+      if (themeId === 'custom') return; // saved separately via btnSaveCustomTheme
       try {
         const r = await api('/api/admin/config', { method: 'POST', body: JSON.stringify({ appUiTheme: themeId }) });
         const themeName = themeId ? (APP_UI_THEMES.find(t => t.id === themeId)?.label || themeId) : 'Padrão do site';
@@ -1828,7 +2001,12 @@
         const selTheme = document.getElementById('brandAppUiTheme');
         const activeTheme = (cfg && typeof cfg === 'object' && cfg.appUiTheme && String(cfg.appUiTheme).trim()) || '';
         if (selTheme) selTheme.value = activeTheme;
-        buildThemePickerGrid(activeTheme);
+        const customColors = cfg && typeof cfg === 'object' ? {
+          primary: cfg.customThemePrimary || '#D34704',
+          secondary: cfg.customThemeSecondary || '#F68D01',
+          bg: cfg.customThemeBg || '#181C1D'
+        } : null;
+        buildThemePickerGrid(activeTheme, customColors);
         updateBrandAppUiThemeNote();
         const setPrev = (imgId, url) => {
           const el = document.getElementById(imgId);

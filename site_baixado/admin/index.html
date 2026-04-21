@@ -298,6 +298,64 @@
       .grid-2 { grid-template-columns: 1fr; }
       .form-row { grid-template-columns: 1fr; }
     }
+    /* ── Theme Picker ── */
+    .theme-picker-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+      gap: 0.65rem;
+      margin-top: 0.75rem;
+    }
+    .theme-card {
+      position: relative;
+      border-radius: 10px;
+      overflow: hidden;
+      cursor: pointer;
+      border: 2px solid rgba(255,255,255,0.08);
+      transition: border-color 0.18s, transform 0.15s, box-shadow 0.18s;
+      user-select: none;
+      flex-shrink: 0;
+    }
+    .theme-card:hover { transform: translateY(-2px); border-color: rgba(255,255,255,0.3); box-shadow: 0 4px 14px rgba(0,0,0,0.4); }
+    .theme-card.selected { border-color: #fff; box-shadow: 0 0 0 1px rgba(255,255,255,0.5), 0 6px 20px rgba(0,0,0,0.5); transform: translateY(-1px); }
+    .theme-card__bg { height: 58px; position: relative; display: flex; align-items: center; justify-content: center; }
+    .theme-card__dot { width: 28px; height: 28px; border-radius: 50%; box-shadow: 0 2px 8px rgba(0,0,0,0.5); border: 2px solid rgba(255,255,255,0.25); }
+    .theme-card__gradient-bar { position: absolute; bottom: 0; left: 0; right: 0; height: 8px; }
+    .theme-card__check {
+      position: absolute; top: 5px; right: 5px;
+      width: 18px; height: 18px; border-radius: 50%;
+      background: #fff; color: #000;
+      font-size: 11px; font-weight: 800;
+      display: none; align-items: center; justify-content: center;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+    }
+    .theme-card.selected .theme-card__check { display: flex; }
+    .theme-card__label {
+      padding: 0.35rem 0.5rem;
+      font-size: 0.72rem;
+      font-weight: 600;
+      line-height: 1.3;
+      background: rgba(0,0,0,0.6);
+      color: #e2e8f0;
+      backdrop-filter: blur(4px);
+    }
+    .theme-card.selected .theme-card__label { color: #fff; }
+    .theme-card--reset {
+      background: rgba(255,255,255,0.04);
+      border: 2px dashed rgba(255,255,255,0.15);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 0.65rem 0.5rem; min-height: 88px;
+      color: var(--text-muted); font-size: 0.75rem;
+      text-align: center; gap: 0.3rem;
+    }
+    .theme-card--reset:hover { border-color: var(--accent); color: var(--accent); }
+    .theme-card--reset.selected { border-style: solid; border-color: var(--accent); color: var(--accent); background: var(--accent-fade-08); }
+    .theme-picker-section-label {
+      font-size: 0.78rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.07em; color: var(--text-muted);
+      margin: 1rem 0 0.4rem;
+    }
+    .theme-picker-section-label:first-child { margin-top: 0; }
   </style>
   <style id="themeOverride"></style>
 </head>
@@ -736,13 +794,13 @@
         <div class="card-header"><span class="card-title">Aparência da aplicação (PWA)</span></div>
         <div style="padding:1.25rem">
           <p style="color:var(--text-muted);font-size:0.88rem;line-height:1.55;margin:0 0 1rem">Tema de cores em toda a app dos jogadores (mudança imediata após recarregarem a página ou voltarem à app). O painel admin tem cores separadas (menu <strong>Temas</strong>).</p>
-          <div class="form-group">
-            <label for="brandAppUiTheme">Tema</label>
-            <select id="brandAppUiTheme" class="search-box" style="max-width:100%;cursor:pointer">
-              <option value="">Seguir tema do site (skin)</option>
-            </select>
-          </div>
-          <p id="brandAppUiThemeNote" style="display:none;margin:0.75rem 0 0;font-size:0.82rem;color:var(--accent)">Tema fixo ativo para a app. Escolha «Seguir tema do site (skin)» para voltar ao padrão do operador.</p>
+          <!-- hidden select mantido para compatibilidade com o JS de save -->
+          <select id="brandAppUiTheme" style="display:none" aria-hidden="true">
+            <option value="">Seguir tema do site (skin)</option>
+          </select>
+          <p class="theme-picker-section-label">Selecione o tema</p>
+          <div id="brandThemePickerGrid" class="theme-picker-grid"></div>
+          <p id="brandAppUiThemeNote" style="display:none;margin:0.85rem 0 0;font-size:0.82rem;padding:0.6rem 0.85rem;background:var(--accent-fade-08);border-radius:8px;border-left:3px solid var(--accent);color:var(--accent)">✓ Tema fixo ativo. Clique em <strong>Padrão do site</strong> para usar as cores da skin do operador.</p>
         </div>
       </div>
     </section>
@@ -1188,42 +1246,102 @@
     }
 
     const APP_UI_THEMES = [
-      { id: 'amber-purple', label: 'Âmbar e roxo' },
-      { id: 'blue-default', label: 'Azul clássico' },
-      { id: 'green-default', label: 'Verde vivo' },
-      { id: 'green-dark', label: 'Verde escuro' },
-      { id: 'phantom-blue', label: 'Phantom blue' },
-      { id: 'neo-blue', label: 'Neo blue' },
-      { id: 'midnight-purple', label: 'Roxo meia-noite' },
-      { id: 'mystlight-blue', label: 'Azul claro' },
-      { id: 'goldshine-green', label: 'Verde dourado' },
-      { id: 'golden-emerald', label: 'Esmeralda' },
-      { id: 'deep-sea-teal', label: 'Azul-petróleo' },
-      { id: 'stellar-dusk', label: 'Crepúsculo' },
-      { id: 'prosperity-red', label: 'Vermelho prosperidade' },
-      { id: 'yellow-dark', label: 'Dourado escuro' },
-      { id: 'purple-light', label: 'Roxo claro' },
-      { id: 'forest-green', label: 'Verde floresta' },
-      { id: 'supreme-green', label: 'Verde supremo' },
-      { id: 'auroral-yellow', label: 'Amarelo aurora' },
-      { id: 'malt-green', label: 'Verde malte' }
+      // Azuis
+      { id: 'blue-default',    label: 'Azul Clássico',          bg: '#0E1E3D', primary: '#18AAFF', gradA: '#18AAFF', gradB: '#0D6EDD', gradDir: '90deg',  group: 'Azuis & Roxos' },
+      { id: 'phantom-blue',    label: 'Phantom Blue',            bg: '#080E1F', primary: '#6366F1', gradA: '#818CF8', gradB: '#4F46E5', gradDir: '90deg',  group: 'Azuis & Roxos' },
+      { id: 'neo-blue',        label: 'Neo Blue',                bg: '#0A1628', primary: '#3B82F6', gradA: '#60A5FA', gradB: '#2563EB', gradDir: '90deg',  group: 'Azuis & Roxos' },
+      { id: 'mystlight-blue',  label: 'Azul Claro',              bg: '#0A0F1E', primary: '#38BDF8', gradA: '#7DD3FC', gradB: '#0284C7', gradDir: '90deg',  group: 'Azuis & Roxos' },
+      { id: 'deep-sea-teal',   label: 'Azul-Petróleo',           bg: '#0A1A1F', primary: '#14B8A6', gradA: '#2DD4BF', gradB: '#0D9488', gradDir: '90deg',  group: 'Azuis & Roxos' },
+      { id: 'midnight-purple', label: 'Roxo Meia-Noite',         bg: '#090F1F', primary: '#A855F7', gradA: '#A855F7', gradB: '#7C22CE', gradDir: '135deg', group: 'Azuis & Roxos' },
+      { id: 'purple-light',    label: 'Roxo Claro',              bg: '#12082A', primary: '#9333EA', gradA: '#A855F7', gradB: '#7E22CE', gradDir: '90deg',  group: 'Azuis & Roxos' },
+      { id: 'stellar-dusk',    label: 'Crepúsculo',              bg: '#1A0F1E', primary: '#E879F9', gradA: '#E879F9', gradB: '#A21CAF', gradDir: '90deg',  group: 'Azuis & Roxos' },
+      // Verdes
+      { id: 'green-default',   label: 'Verde Vivo',              bg: '#0A1F12', primary: '#1BD760', gradA: '#1BD760', gradB: '#15A650', gradDir: '90deg',  group: 'Verdes' },
+      { id: 'green-dark',      label: 'Verde Escuro',            bg: '#0D1A0F', primary: '#22C55E', gradA: '#22C55E', gradB: '#16A34A', gradDir: '90deg',  group: 'Verdes' },
+      { id: 'golden-emerald',  label: 'Esmeralda',               bg: '#0A1A0F', primary: '#10B981', gradA: '#34D399', gradB: '#059669', gradDir: '90deg',  group: 'Verdes' },
+      { id: 'forest-green',    label: 'Verde Floresta',          bg: '#0A160D', primary: '#16A34A', gradA: '#22C55E', gradB: '#15803D', gradDir: '90deg',  group: 'Verdes' },
+      { id: 'supreme-green',   label: 'Verde Supremo',           bg: '#071A0B', primary: '#15DF7F', gradA: '#15DF7F', gradB: '#0BAF5C', gradDir: '90deg',  group: 'Verdes' },
+      { id: 'malt-green',      label: 'Verde Malte',             bg: '#0D1A12', primary: '#4ADE80', gradA: '#4ADE80', gradB: '#16A34A', gradDir: '90deg',  group: 'Verdes' },
+      { id: 'goldshine-green', label: 'Verde Dourado',           bg: '#0D1A0F', primary: '#F59E0B', gradA: '#FBBF24', gradB: '#D97706', gradDir: '90deg',  group: 'Verdes' },
+      // Quentes
+      { id: 'amber-purple',    label: 'Âmbar & Roxo',           bg: '#1A0F2E', primary: '#F5C84C', gradA: '#7041F3', gradB: '#F5C84C', gradDir: '270deg', group: 'Quentes & Dourados' },
+      { id: 'yellow-dark',     label: 'Dourado Escuro',          bg: '#1A1500', primary: '#EAB308', gradA: '#FACC15', gradB: '#CA8A04', gradDir: '90deg',  group: 'Quentes & Dourados' },
+      { id: 'auroral-yellow',  label: 'Amarelo Aurora',          bg: '#1A150A', primary: '#FFD700', gradA: '#FFE500', gradB: '#D4A800', gradDir: '90deg',  group: 'Quentes & Dourados' },
+      { id: 'prosperity-red',  label: 'Vermelho Prosperidade',   bg: '#1A0D0D', primary: '#DC2626', gradA: '#EF4444', gradB: '#B91C1C', gradDir: '90deg',  group: 'Quentes & Dourados' },
     ];
+
+    function buildThemePickerGrid(selectedId) {
+      const grid = document.getElementById('brandThemePickerGrid');
+      if (!grid) return;
+      grid.innerHTML = '';
+
+      // Card "Padrão do site"
+      const resetCard = document.createElement('div');
+      resetCard.className = 'theme-card theme-card--reset' + (selectedId === '' ? ' selected' : '');
+      resetCard.dataset.themeId = '';
+      resetCard.innerHTML = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.51"/></svg><span>Padrão<br>do site</span>`;
+      resetCard.addEventListener('click', () => selectThemeCard(''));
+      grid.appendChild(resetCard);
+
+      // Group cards
+      let lastGroup = null;
+      APP_UI_THEMES.forEach((t) => {
+        if (t.group !== lastGroup) {
+          lastGroup = t.group;
+          const lbl = document.createElement('p');
+          lbl.className = 'theme-picker-section-label';
+          lbl.style.gridColumn = '1 / -1';
+          lbl.textContent = t.group;
+          grid.appendChild(lbl);
+        }
+        const card = document.createElement('div');
+        card.className = 'theme-card' + (selectedId === t.id ? ' selected' : '');
+        card.dataset.themeId = t.id;
+        card.innerHTML = `
+          <div class="theme-card__bg" style="background:${t.bg}">
+            <div class="theme-card__dot" style="background:${t.primary}"></div>
+            <div class="theme-card__gradient-bar" style="background:linear-gradient(${t.gradDir},${t.gradA},${t.gradB})"></div>
+            <div class="theme-card__check">✓</div>
+          </div>
+          <div class="theme-card__label">${t.label}</div>`;
+        card.addEventListener('click', () => selectThemeCard(t.id));
+        grid.appendChild(card);
+      });
+    }
+
+    async function selectThemeCard(themeId) {
+      const sel = document.getElementById('brandAppUiTheme');
+      if (sel) sel.value = themeId;
+      // Update visual selection
+      document.querySelectorAll('#brandThemePickerGrid .theme-card').forEach((c) => {
+        c.classList.toggle('selected', c.dataset.themeId === themeId);
+      });
+      updateBrandAppUiThemeNote();
+      try {
+        const r = await api('/api/admin/config', { method: 'POST', body: JSON.stringify({ appUiTheme: themeId }) });
+        const themeName = themeId ? (APP_UI_THEMES.find(t => t.id === themeId)?.label || themeId) : 'Padrão do site';
+        showToast(r.ok ? `Tema "${themeName}" salvo. Jogadores: atualizar a página.` : (r.error || 'Erro'), r.ok ? 'success' : 'error');
+      } catch (e) { showToast('Erro ao salvar tema.', 'error'); }
+    }
+
     function ensureAppThemeSelectPopulated() {
+      // Kept for backward compat — options no longer shown but select.value still used internally
       const sel = document.getElementById('brandAppUiTheme');
       if (!sel || sel.dataset.populated === '1') return;
       APP_UI_THEMES.forEach((t) => {
         const o = document.createElement('option');
-        o.value = t.id;
-        o.textContent = t.label;
+        o.value = t.id; o.textContent = t.label;
         sel.appendChild(o);
       });
       sel.dataset.populated = '1';
     }
+
     function updateBrandAppUiThemeNote() {
       const sel = document.getElementById('brandAppUiTheme');
       const note = document.getElementById('brandAppUiThemeNote');
-      if (!sel || !note) return;
-      note.style.display = sel.value ? 'block' : 'none';
+      if (!note) return;
+      const active = sel ? sel.value : '';
+      note.style.display = active ? 'block' : 'none';
     }
 
     /** Atualiza título do separador, sidebar e ecrã de login a partir de /api/settings (público). */
@@ -1708,10 +1826,10 @@
         document.getElementById('brandSiteName').value = d.siteName || '';
         document.getElementById('brandPageTitle').value = d.pageTitle || '';
         const selTheme = document.getElementById('brandAppUiTheme');
-        if (selTheme && cfg && typeof cfg === 'object') {
-          selTheme.value = (cfg.appUiTheme && String(cfg.appUiTheme).trim()) || '';
-          updateBrandAppUiThemeNote();
-        }
+        const activeTheme = (cfg && typeof cfg === 'object' && cfg.appUiTheme && String(cfg.appUiTheme).trim()) || '';
+        if (selTheme) selTheme.value = activeTheme;
+        buildThemePickerGrid(activeTheme);
+        updateBrandAppUiThemeNote();
         const setPrev = (imgId, url) => {
           const el = document.getElementById(imgId);
           if (!el) return;
@@ -1774,14 +1892,7 @@
         if (r.ok) loadBranding();
       } catch (e) { showToast('Erro.', 'error'); }
     });
-    document.getElementById('brandAppUiTheme').addEventListener('change', async function () {
-      const v = this.value;
-      try {
-        const r = await api('/api/admin/config', { method: 'POST', body: JSON.stringify({ appUiTheme: v }) });
-        showToast(r.ok ? 'Tema da app salvo. Jogadores: atualizar a página ou voltar à app.' : (r.error || 'Erro'), r.ok ? 'success' : 'error');
-        updateBrandAppUiThemeNote();
-      } catch (e) { showToast('Erro.', 'error'); }
-    });
+    // Theme selection is now handled by selectThemeCard() via the visual grid cards.
 
     // ── Configurações ──
     const loadConfig = async () => {

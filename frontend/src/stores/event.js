@@ -9,7 +9,7 @@ export const useEventStore = defineStore('event', () => {
     previousRoute.value = route
     try { sessionStorage.setItem('previousRoute', route) } catch {}
 
-    const sportPaths = ['/game/category/sport', '/main/inicio']
+    const sportPaths = ['/game/category/SPORTS', '/game/category/sport', '/main/inicio']
     if (sportPaths.includes(route)) {
       try { sessionStorage.setItem('sportPreviousRoute', route) } catch {}
     }

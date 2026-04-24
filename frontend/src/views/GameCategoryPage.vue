@@ -82,8 +82,15 @@ const route = useRoute()
 const store = useGamesStore()
 const { providers, allGames, gamesByProvider, loading } = storeToRefs(store)
 
+function normalizeCategoryGameTypeParam(val) {
+  if (val == null || val === '') return 'all'
+  const s = String(val)
+  if (s.toLowerCase() === 'sport') return 'SPORTS'
+  return s
+}
+
 const selectedProvider = ref(route.params.platformId || 'all')
-const activeType = ref(route.params.gameType || 'all')
+const activeType = ref(normalizeCategoryGameTypeParam(route.params.gameType))
 
 const title = computed(() => {
   const type = route.params.gameType
@@ -123,6 +130,13 @@ const filteredGames = computed(() => {
 watch(() => route.params.platformId, (val) => {
   if (val) selectedProvider.value = val
 })
+
+watch(
+  () => route.params.gameType,
+  (val) => {
+    activeType.value = normalizeCategoryGameTypeParam(val)
+  }
+)
 
 onMounted(() => { store.fetchCatalog() })
 </script>

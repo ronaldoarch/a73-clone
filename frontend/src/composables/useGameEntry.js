@@ -59,7 +59,7 @@ export function useGameEntry() {
     const platformId = game.platformId || game.id
 
     if (game.gameType === 'SPORTS') {
-      router.push(`/game/category/sport`)
+      router.push('/game/category/SPORTS')
       return
     }
 

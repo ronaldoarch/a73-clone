@@ -21,10 +21,16 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { storeToRefs } from 'pinia'
+import { useGamesStore } from '../stores/games'
+import { useAuthStore } from '../stores/auth'
 
 const DISMISS_KEY = 'a73_sportbook_float_dismissed'
 
 const router = useRouter()
+const gamesStore = useGamesStore()
+const authStore = useAuthStore()
+const { allGames } = storeToRefs(gamesStore)
 const visible = ref(false)
 
 function dismiss() {
@@ -32,12 +38,51 @@ function dismiss() {
   sessionStorage.setItem(DISMISS_KEY, '1')
 }
 
-function openSports() {
-  router.push('/game/category/sport')
+/** Jogo de esportes a abrir: prefer hall SPORTS (como no resto do app) */
+function findSportsEntryGame() {
+  const list = allGames.value || []
+  const isSports = (g) =>
+    String(g.gameType || g.game_type || '')
+      .toUpperCase() === 'SPORTS'
+  const hall = list.find((g) => isSports(g) && g.target === 'hall')
+  if (hall) return hall
+  return list.find((g) => isSports(g)) || null
+}
+
+async function openSports() {
+  if (!allGames.value?.length) {
+    try {
+      await gamesStore.fetchCatalog()
+    } catch {
+      /* continua: fallback de rota abaixo */
+    }
+  }
+  const game = findSportsEntryGame()
+  if (!game) {
+    router.push('/game/category/SPORTS')
+    return
+  }
+  const code = game.game_code || game.gameCode || game.code || game.id
+  const provider = String(game.providerCode || game.platformCode || game.platformId || '')
+  if (code == null || code === '') {
+    router.push('/game/category/SPORTS')
+    return
+  }
+  const gameStr = String(code)
+  if (!authStore.isLoggedIn) {
+    const redirect = router.resolve({
+      path: '/launch',
+      query: { game: gameStr, provider }
+    }).fullPath
+    router.push({ name: 'Login', query: { redirect } })
+    return
+  }
+  router.push({ path: '/launch', query: { game: gameStr, provider } })
 }
 
 onMounted(() => {
   if (!sessionStorage.getItem(DISMISS_KEY)) visible.value = true
+  gamesStore.fetchCatalog().catch(() => {})
 })
 </script>
 
@@ -54,7 +99,8 @@ onMounted(() => {
   bottom: calc(12.5rem + env(safe-area-inset-bottom, 0px));
   --sbf-w: 4.15rem;
   width: var(--sbf-w);
-  z-index: 10018;
+  /* Acima do carrossel de promo (10019) para o toque ir ao sportbook, não ao slide de promo */
+  z-index: 10025;
   filter: drop-shadow(0 4px 14px rgba(0, 0, 0, 0.45));
 }
 

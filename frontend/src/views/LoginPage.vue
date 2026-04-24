@@ -58,12 +58,13 @@
 
 <script setup>
 import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { fetchRoletaNovosStatus } from '../utils/roletaApi'
 import { PENDING_NOVOS_ROULETTE_WELCOME_KEY } from '../utils/novosRouletteWelcome'
 
 const router = useRouter()
+const route = useRoute()
 const auth = useAuthStore()
 
 const account = ref('')
@@ -93,7 +94,13 @@ async function handleLogin() {
     } catch {
       /* ignore */
     }
-    router.push('/main/inicio')
+    const raw = route.query.redirect
+    const r = typeof raw === 'string' ? raw.trim() : ''
+    if (r && r.startsWith('/') && !r.startsWith('//')) {
+      router.push(r)
+    } else {
+      router.push('/main/inicio')
+    }
   } else {
     error.value = result.error || 'Falha no login'
   }

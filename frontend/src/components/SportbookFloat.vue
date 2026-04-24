@@ -27,6 +27,15 @@ import { useAuthStore } from '../stores/auth'
 
 const DISMISS_KEY = 'a73_sportbook_float_dismissed'
 
+/**
+ * Entrada de apostas esportivas no iGameWin / painel (Sport Betting).
+ * Se o catálogo não trouxer o registo, o launch usa mesmo assim estes valores.
+ */
+const SPORTBOOK_ENTRY = Object.freeze({
+  gameCode: '3000',
+  providerCode: 'SPORTBOOK'
+})
+
 const router = useRouter()
 const gamesStore = useGamesStore()
 const authStore = useAuthStore()
@@ -38,15 +47,71 @@ function dismiss() {
   sessionStorage.setItem(DISMISS_KEY, '1')
 }
 
-/** Jogo de esportes a abrir: prefer hall SPORTS (como no resto do app) */
+function normProvider(g) {
+  return String(g.providerCode || g.platformCode || g.platformName || '')
+    .trim()
+    .toUpperCase()
+}
+
+function normGameCode(g) {
+  return String(g.game_code ?? g.gameCode ?? g.code ?? g.id ?? '').trim()
+}
+
+function isSportbookProvider(p) {
+  return p === 'SPORTBOOK' || p.includes('SPORTBOOK')
+}
+
+function isSportBetMobileCode(c) {
+  return c === '3000' || Number(c) === 3000
+}
+
+function nameLooksLikeSportBetMobile(g) {
+  const n = String(g.name || g.gameName || g.game_name || '')
+  return /sport\s*bet/i.test(n) && /mobile/i.test(n)
+}
+
+/** Prioridade: SPORTBOOK + 3000 (Sport Bet Mobile) → nome → hall SPORTS → qualquer SPORTS */
 function findSportsEntryGame() {
   const list = allGames.value || []
   const isSports = (g) =>
     String(g.gameType || g.game_type || '')
       .toUpperCase() === 'SPORTS'
+
+  const sportbookMobile = list.find((g) => {
+    const p = normProvider(g)
+    const c = normGameCode(g)
+    return isSportbookProvider(p) && isSportBetMobileCode(c)
+  })
+  if (sportbookMobile) return sportbookMobile
+
+  const byName = list.find((g) => isSports(g) && nameLooksLikeSportBetMobile(g))
+  if (byName) return byName
+
+  const sportbookAny = list.find((g) => isSports(g) && isSportbookProvider(normProvider(g)))
+  if (sportbookAny) return sportbookAny
+
   const hall = list.find((g) => isSports(g) && g.target === 'hall')
   if (hall) return hall
+
   return list.find((g) => isSports(g)) || null
+}
+
+function resolveLaunchQuery() {
+  const game = findSportsEntryGame()
+  if (game) {
+    const code = normGameCode(game)
+    const provider = String(game.providerCode || game.platformCode || game.platformId || '').trim()
+    if (code !== '' && provider !== '') {
+      return { game: code, provider }
+    }
+    if (code !== '') {
+      return { game: code, provider: provider || SPORTBOOK_ENTRY.providerCode }
+    }
+  }
+  return {
+    game: SPORTBOOK_ENTRY.gameCode,
+    provider: SPORTBOOK_ENTRY.providerCode
+  }
 }
 
 async function openSports() {
@@ -54,21 +119,14 @@ async function openSports() {
     try {
       await gamesStore.fetchCatalog()
     } catch {
-      /* continua: fallback de rota abaixo */
+      /* continua com SPORTBOOK_ENTRY */
     }
   }
-  const game = findSportsEntryGame()
-  if (!game) {
+  const { game: gameStr, provider } = resolveLaunchQuery()
+  if (!gameStr) {
     router.push('/game/category/SPORTS')
     return
   }
-  const code = game.game_code || game.gameCode || game.code || game.id
-  const provider = String(game.providerCode || game.platformCode || game.platformId || '')
-  if (code == null || code === '') {
-    router.push('/game/category/SPORTS')
-    return
-  }
-  const gameStr = String(code)
   if (!authStore.isLoggedIn) {
     const redirect = router.resolve({
       path: '/launch',

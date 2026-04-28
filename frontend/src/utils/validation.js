@@ -11,7 +11,7 @@ export const zodSchemas = {
   }),
   register: z.object({
     phone: z.string().min(10).max(15).regex(/^\d+$/),
-    password: z.string().min(8).max(16).regex(/^(?=.*[a-zA-Z])(?=.*\d)[a-zA-Z]/),
+    password: z.string().min(8).max(16).regex(/^(?=.*[a-zA-Z])(?=.*\d)[a-zA-Z][a-zA-Z0-9]{7,15}$/),
     confirmPassword: z.string()
   }).refine(d => d.password === d.confirmPassword, {
     message: 'Senhas não coincidem',
@@ -156,7 +156,32 @@ export function validateCNPJ(cnpj) {
   if (cleaned.length !== 14) {
     throw new ValidationError('CNPJ', 'CNPJ deve ter 14 dígitos')
   }
+  if (/^(\d)\1{13}$/.test(cleaned)) {
+    throw new ValidationError('CNPJ', 'CNPJ inválido')
+  }
+  const w1 = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]
+  let sum = 0
+  for (let i = 0; i < 12; i++) sum += parseInt(cleaned[i], 10) * w1[i]
+  let d = sum % 11
+  const dig1 = d < 2 ? 0 : 11 - d
+  if (parseInt(cleaned[12], 10) !== dig1) {
+    throw new ValidationError('CNPJ', 'CNPJ inválido')
+  }
+  const w2 = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]
+  sum = 0
+  for (let i = 0; i < 13; i++) sum += parseInt(cleaned[i], 10) * w2[i]
+  d = sum % 11
+  const dig2 = d < 2 ? 0 : 11 - d
+  if (parseInt(cleaned[13], 10) !== dig2) {
+    throw new ValidationError('CNPJ', 'CNPJ inválido')
+  }
   return true
+}
+
+function normalizeBrazilPixPhone(raw) {
+  let d = String(raw).replace(/\D/g, '')
+  if (d.length >= 12 && d.startsWith('55')) d = d.slice(2)
+  return d
 }
 
 export function validateAmount(amount, min = 0, max = Infinity) {
@@ -176,13 +201,41 @@ export function validatePixKey(key, type = 'cpf') {
       return validateCNPJ(key)
     case 'email':
       return validateEmail(key)
-    case 'phone':
-      return validatePhone(key)
-    case 'random':
-      matchesPattern(key, /^[a-zA-Z0-9-]{32,36}$/, 'Chave PIX', 'Chave aleatória inválida')
-      return true
+    case 'phone': {
+      const n = normalizeBrazilPixPhone(key)
+      return validatePhoneByCountry(n, 'BR')
+    }
+    case 'random': {
+      const compact = String(key).replace(/-/g, '').trim()
+      if (/^[0-9a-f]{32}$/i.test(compact)) return true
+      throw new ValidationError('Chave PIX', 'Chave aleatória inválida (esperado UUID em hex)')
+    }
     default:
       return true
+  }
+}
+
+const PIX_UI_TO_TYPE = {
+  CPF: 'cpf',
+  CNPJ: 'cnpj',
+  Email: 'email',
+  Telefone: 'phone',
+  'Aleatória': 'random'
+}
+
+/**
+ * Valida chave PIX a partir dos rótulos da UI (WithdrawBindPage).
+ * @returns {string} mensagem de erro ou string vazia se válido
+ */
+export function validatePixKeyByUiType(key, uiType) {
+  const internal = PIX_UI_TO_TYPE[uiType]
+  if (!internal) return 'Tipo de chave inválido'
+  try {
+    validatePixKey(key, internal)
+    return ''
+  } catch (e) {
+    if (e instanceof ValidationError) return e.message
+    throw e
   }
 }
 

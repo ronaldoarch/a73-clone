@@ -165,6 +165,7 @@
 <script setup>
 import { ref, computed, onMounted, nextTick } from 'vue'
 import { useWithdrawStore } from '../stores/withdraw'
+import { validateWithdrawAmount } from '../utils/withdrawValidation'
 import { useUserStore } from '../stores/user'
 import { useSystemStore } from '../stores/system'
 import { storeToRefs } from 'pinia'
@@ -203,6 +204,13 @@ const channelList = ref([
 ])
 const pwInput = ref(null)
 const quickAmounts = [50, 100, 200, 500, 1000, 2000]
+
+const WITHDRAW_AMOUNT_ERRORS = {
+  'toast.0003': 'Informe um valor válido para o saque',
+  'toast.insufficientAccountBalance': 'Saldo insuficiente para este valor',
+  'toast.withdrawalAmountTooSmall': 'Valor abaixo do mínimo permitido para saque',
+  'toast.withdrawalAmountTooLarge': 'Valor acima do máximo permitido para saque'
+}
 
 /** Saldo em reais (igual AppHeader / AfiliadoData.balance na API — não é centavos). */
 const balanceNum = computed(() => Number(assets.value?.balance ?? 0) || 0)
@@ -267,6 +275,17 @@ function onPasswordInput() {
 
 async function executeWithdraw() {
   try {
+    const amt = Number(amountInput.value)
+    const amountCheck = validateWithdrawAmount(amt, {
+      balance: balanceNum.value,
+      minAmount: minAmount.value,
+      maxAmount: maxAmount.value
+    })
+    if (!amountCheck.valid) {
+      toast(WITHDRAW_AMOUNT_ERRORS[amountCheck.errorKey] || 'Valor inválido', 'error')
+      return
+    }
+
     const accounts = withdrawStore.bankAccounts || []
     const acct = accounts[0]
     await withdrawStore.submitWithdraw({

@@ -43,6 +43,7 @@
             class="field-input"
           />
         </div>
+        <span v-if="holderError" class="field-error">{{ holderError }}</span>
       </div>
 
       <!-- PIX fields -->
@@ -125,6 +126,7 @@
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useWithdrawStore } from '../stores/withdraw'
+import { validatePixKeyByUiType, validateRealName } from '../utils/validation'
 
 const router = useRouter()
 const store = useWithdrawStore()
@@ -187,30 +189,44 @@ const pixPlaceholder = computed(() => {
     CPF: '000.000.000-00',
     CNPJ: '00.000.000/0000-00',
     Email: 'email@exemplo.com',
-    Telefone: '+5511999999999',
-    'Aleatória': 'Chave aleatória'
+    Telefone: '(11) 99999-9999 ou +5511999999999',
+    'Aleatória': 'UUID da chave PIX (32 caracteres hex)'
   }
   return map[pixKeyType.value] || ''
 })
 
+const holderError = computed(() => {
+  const n = form.value.realName.trim()
+  if (!n) return ''
+  try {
+    validateRealName(form.value.realName)
+    return ''
+  } catch (e) {
+    return e?.message || ''
+  }
+})
+
 const pixError = computed(() => {
-  if (!form.value.pixKey) return ''
-  if (pixKeyType.value === 'CPF' && !/^\d{3}\.?\d{3}\.?\d{3}-?\d{2}$/.test(form.value.pixKey)) {
-    return 'CPF inválido'
-  }
-  if (pixKeyType.value === 'Email' && !form.value.pixKey.includes('@')) {
-    return 'Email inválido'
-  }
-  return ''
+  if (selectedType.value !== 'PIX' || !form.value.pixKey.trim()) return ''
+  return validatePixKeyByUiType(form.value.pixKey, pixKeyType.value)
 })
 
 const canSubmit = computed(() => {
-  if (!form.value.realName.trim()) return false
+  const nameOk = form.value.realName.trim()
+  if (!nameOk || holderError.value) return false
+  try {
+    validateRealName(form.value.realName)
+  } catch {
+    return false
+  }
   if (selectedType.value === 'PIX') {
-    return form.value.pixKey.trim().length > 0 && !pixError.value
+    const key = form.value.pixKey.trim()
+    if (!key) return false
+    return validatePixKeyByUiType(key, pixKeyType.value) === ''
   }
   if (selectedType.value === 'BANK') {
-    return form.value.bankAccount.trim().length > 0
+    const acct = form.value.bankAccount.trim()
+    return !!(form.value.bankCode && acct.length >= 4 && acct.length <= 64)
   }
   return false
 })
@@ -218,6 +234,9 @@ const canSubmit = computed(() => {
 function selectType(id) {
   selectedType.value = id
   showBankSelect.value = false
+  if (id === 'BANK' && !form.value.bankCode && bankList.value.length) {
+    form.value.bankCode = bankList.value[0].code
+  }
 }
 
 function selectBank(bank) {

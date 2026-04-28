@@ -14,31 +14,32 @@ export function centsToDecimal(cents) {
 
 /**
  * Validate a withdrawal amount against constraints.
- * @param {string|number} amount - The requested withdrawal amount
+ * Valores em reais (mesma unidade que saldo/min/max da API e da WithdrawPage).
+ * @param {string|number} amount - Valor solicitado (reais)
  * @param {Object} constraints
- * @param {number} constraints.balance - User's current balance (in cents)
- * @param {number} constraints.minAmount - Minimum withdrawal (in cents)
- * @param {number} constraints.maxAmount - Maximum withdrawal (in cents)
+ * @param {number} constraints.balance - Saldo atual (reais)
+ * @param {number} constraints.minAmount - Mínimo (reais)
+ * @param {number} constraints.maxAmount - Máximo (reais)
  * @returns {{ valid: boolean, errorKey?: string }}
  */
 export function validateWithdrawAmount(amount, constraints) {
   const { balance, minAmount, maxAmount } = constraints
+  const num = Number(amount)
 
-  if (!Number.isInteger(Number(amount))) {
+  if (!Number.isFinite(num) || num <= 0) {
     return { valid: false, errorKey: 'toast.0003' }
   }
 
-  const amountCents = centsToDecimal(amount)
-
-  if (!balance || balance < amountCents) {
+  const bal = Number(balance)
+  if (!Number.isFinite(bal) || bal < num) {
     return { valid: false, errorKey: 'toast.insufficientAccountBalance' }
   }
 
-  if (amountCents < minAmount) {
+  if (num < Number(minAmount)) {
     return { valid: false, errorKey: 'toast.withdrawalAmountTooSmall' }
   }
 
-  if (amountCents > maxAmount) {
+  if (num > Number(maxAmount)) {
     return { valid: false, errorKey: 'toast.withdrawalAmountTooLarge' }
   }
 

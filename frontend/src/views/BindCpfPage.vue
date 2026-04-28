@@ -43,6 +43,12 @@
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { apiPost } from '../utils/api'
+import {
+  validateCPF,
+  validateEmail,
+  validatePhoneByCountry,
+  validateRealName
+} from '../utils/validation'
 
 const router = useRouter()
 
@@ -53,7 +59,40 @@ const phoneVal = ref('')
 const error = ref('')
 const submitting = ref(false)
 
-const canSubmit = computed(() => fullName.value.length > 2 && cpf.value.length === 14)
+function validationFeedback() {
+  const errs = []
+  try {
+    validateRealName(fullName.value)
+  } catch (e) {
+    errs.push(e?.message || 'Nome inválido')
+  }
+  try {
+    validateCPF(cpf.value)
+  } catch (e) {
+    errs.push(e?.message || 'CPF inválido')
+  }
+  const em = emailVal.value.trim()
+  if (!em) errs.push('E-mail é obrigatório')
+  else {
+    try {
+      validateEmail(em)
+    } catch (e) {
+      errs.push(e?.message || 'E-mail inválido')
+    }
+  }
+  const phDigits = phoneVal.value.replace(/\D/g, '')
+  if (!phDigits) errs.push('Telefone é obrigatório')
+  else {
+    try {
+      validatePhoneByCountry(phoneVal.value, 'BR')
+    } catch (e) {
+      errs.push(e?.message || 'Telefone inválido')
+    }
+  }
+  return errs
+}
+
+const canSubmit = computed(() => validationFeedback().length === 0)
 
 function formatCpf(e) {
   let v = e.target.value.replace(/\D/g, '').slice(0, 11)
@@ -71,6 +110,11 @@ function formatPhone(e) {
 }
 
 async function handleSubmit() {
+  const errs = validationFeedback()
+  if (errs.length) {
+    error.value = errs[0]
+    return
+  }
   submitting.value = true
   error.value = ''
   try {

@@ -28,7 +28,7 @@
         <div class="input-group">
           <label>Senha</label>
           <div class="password-wrap">
-            <input v-model="password" :type="showPwd ? 'text' : 'password'" placeholder="Crie uma senha (mín. 6 caracteres)" autocomplete="new-password" />
+            <input v-model="password" :type="showPwd ? 'text' : 'password'" placeholder="8–16 caracteres: comece com letra, letras e números" autocomplete="new-password" />
             <button type="button" class="eye-btn" @click="showPwd = !showPwd">
               <svg v-if="showPwd" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
               <svg v-else width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
@@ -60,6 +60,7 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import { validateLoginPassword, validatePhoneByCountry } from '../utils/validation'
 import { setPendingNovosRouletteWelcome } from '../utils/novosRouletteWelcome'
 
 const router = useRouter()
@@ -82,16 +83,20 @@ async function handleRegister() {
     error.value = 'Preencha todos os campos'
     return
   }
-  if (phone.length < 10 || phone.length > 15) {
-    error.value = 'Telefone inválido (10-15 dígitos)'
+  try {
+    validatePhoneByCountry(phone, 'BR')
+  } catch (e) {
+    error.value = e?.message || 'Telefone inválido'
     return
   }
   if (password.value !== confirmPassword.value) {
     error.value = 'As senhas não coincidem'
     return
   }
-  if (password.value.length < 6) {
-    error.value = 'A senha deve ter pelo menos 6 caracteres'
+  try {
+    validateLoginPassword(password.value)
+  } catch (e) {
+    error.value = e?.message || 'Senha inválida'
     return
   }
   submitting.value = true

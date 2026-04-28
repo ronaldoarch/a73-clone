@@ -120,6 +120,7 @@ import { writeText } from 'clipboard-polyfill'
 import { useSystemStore } from '../stores/system'
 import { useAuthStore } from '../stores/auth'
 import { useUserStore } from '../stores/user'
+import { validateCPF, validateRealName } from '../utils/validation'
 
 const systemStore = useSystemStore()
 const authStore = useAuthStore()
@@ -141,10 +142,23 @@ const isPolling = ref(false)
 const statusText = ref('Aguardando pagamento...')
 let pollTimer = null
 
+function depositFieldErrors() {
+  const errs = []
+  try {
+    validateRealName(nome.value)
+  } catch (e) {
+    errs.push(e?.message || 'Nome inválido')
+  }
+  try {
+    validateCPF(cpf.value)
+  } catch (e) {
+    errs.push(e?.message || 'CPF inválido')
+  }
+  return errs
+}
+
 const canSubmit = computed(() => {
-  return amount.value >= minDeposit.value &&
-    nome.value.trim().length >= 3 &&
-    cpf.value.replace(/\D/g, '').length === 11
+  return amount.value >= minDeposit.value && depositFieldErrors().length === 0
 })
 
 function formatCpf() {
@@ -159,6 +173,11 @@ async function handleDeposit() {
   errorMsg.value = ''
   if (!authStore.isLoggedIn) {
     errorMsg.value = 'Faça login para depositar.'
+    return
+  }
+  const vErrs = depositFieldErrors()
+  if (vErrs.length) {
+    errorMsg.value = vErrs[0]
     return
   }
 

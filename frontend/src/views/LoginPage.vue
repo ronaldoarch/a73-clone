@@ -60,6 +60,7 @@
 import { ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import { validatePhoneByCountry } from '../utils/validation'
 import { fetchRoletaNovosStatus } from '../utils/roletaApi'
 import { PENDING_NOVOS_ROULETTE_WELCOME_KEY } from '../utils/novosRouletteWelcome'
 
@@ -81,6 +82,12 @@ async function handleLogin() {
   const phone = account.value.replace(/\D/g, '')
   if (!phone || !password.value) {
     error.value = 'Preencha todos os campos'
+    return
+  }
+  try {
+    validatePhoneByCountry(phone, 'BR')
+  } catch (e) {
+    error.value = e?.message || 'Telefone inválido'
     return
   }
   submitting.value = true

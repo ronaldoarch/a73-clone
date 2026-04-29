@@ -734,6 +734,7 @@
   --footer-dynamic-bg: var(--custom-surface1, #222829);
   --shadow-glow: 0 4px 20px var(--custom-primary-30, rgba(211,71,4,.3));
 
-  --color-home-lower-bg: var(--custom-bg, #181C1D);
-  --color-brand-purple-original: var(--custom-surface1, #222829);
+  /* Home (hero + lista) independente do «Fundo» geral (custom-bg): padrão roxo clássico; override só via Branding (customThemeHome*). */
+  --color-home-lower-bg: #200943;
+  --color-brand-purple-original: #650C96;
 }

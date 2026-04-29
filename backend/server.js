@@ -1015,7 +1015,9 @@ async function getAppConfig() {
       appUiTheme,
       customThemePrimary: v.customThemePrimary || '',
       customThemeSecondary: v.customThemeSecondary || '',
-      customThemeBg: v.customThemeBg || ''
+      customThemeBg: v.customThemeBg || '',
+      customThemeHomeHero: v.customThemeHomeHero || '',
+      customThemeHomeLower: v.customThemeHomeLower || ''
     }
     base.activePixProvider = getActivePixProvider(base)
     base.pixEnabled = base.activePixProvider !== 'none'
@@ -1028,7 +1030,8 @@ async function getAppConfig() {
       roletaBonusRolloverTimes: 1, rolloverDepositoTimes: 0, rolloverVipRotinaTimes: 1, rolloverVipAcumuladoTimes: 0,
       rolloverMisteriosoTimes: 1, rolloverPromoBaixTimes: 1,
       bonusPrimeiroDep: 0, bonusPrimeiroDepPercent: 0, roletaSegments: DEFAULT_ROLETA_SEGMENTS, paymentProvider: 'gatebox',
-      gateboxEnabled: true, cyberEnabled: true, sarrixpayEnabled: false, appUiTheme: ''
+      gateboxEnabled: true, cyberEnabled: true, sarrixpayEnabled: false, appUiTheme: '',
+      customThemeHomeHero: '', customThemeHomeLower: ''
     }
     fallback.activePixProvider = getActivePixProvider(fallback)
     fallback.pixEnabled = fallback.activePixProvider !== 'none'
@@ -3980,7 +3983,8 @@ app.get('/api/admin/config', adminAuthMiddleware, async (req, res) => {
       roletaBonusRolloverTimes: 1, rolloverDepositoTimes: 0, rolloverVipRotinaTimes: 1, rolloverVipAcumuladoTimes: 0,
       rolloverMisteriosoTimes: 1, rolloverPromoBaixTimes: 1,
       bonusPrimeiroDep: 0, bonusPrimeiroDepPercent: 0, roletaSegments: DEFAULT_ROLETA_SEGMENTS, paymentProvider: 'gatebox',
-      gateboxEnabled: true, cyberEnabled: true, sarrixpayEnabled: false, appUiTheme: ''
+      gateboxEnabled: true, cyberEnabled: true, sarrixpayEnabled: false, appUiTheme: '',
+      customThemeHomeHero: '', customThemeHomeLower: ''
     }
     fb.activePixProvider = getActivePixProvider(fb)
     fb.pixEnabled = fb.activePixProvider !== 'none'
@@ -4076,6 +4080,15 @@ app.post('/api/admin/config', adminAuthMiddleware, async (req, res) => {
       ? (isValidHex(body.customThemeBg) ? String(body.customThemeBg).trim().toUpperCase() : (prev.customThemeBg || ''))
       : (prev.customThemeBg || '')
 
+    function parseOptionalHomeHex(field) {
+      if (body[field] === undefined) return (prev[field] || '')
+      const raw = body[field]
+      if (raw === '' || raw === null) return ''
+      return isValidHex(raw) ? String(raw).trim().toUpperCase() : (prev[field] || '')
+    }
+    const customThemeHomeHero = parseOptionalHomeHex('customThemeHomeHero')
+    const customThemeHomeLower = parseOptionalHomeHex('customThemeHomeLower')
+
     const pickRolloverField = (key, defaultVal) => {
       if (body[key] !== undefined && body[key] !== null && String(body[key]).trim() !== '') {
         const n = parseFloat(String(body[key]).replace(',', '.'))
@@ -4103,7 +4116,8 @@ app.post('/api/admin/config', adminAuthMiddleware, async (req, res) => {
       rolloverMisteriosoTimes, rolloverPromoBaixTimes,
       bonusPrimeiroDep, bonusPrimeiroDepPercent, roletaSegments, whatsappUrl,
       paymentProvider, gateboxEnabled, cyberEnabled, sarrixpayEnabled,
-      appUiTheme, customThemePrimary, customThemeSecondary, customThemeBg
+      appUiTheme, customThemePrimary, customThemeSecondary, customThemeBg,
+      customThemeHomeHero, customThemeHomeLower
     }
     await settingUpsert('config', value)
     invalidateAppConfigCache()
@@ -4514,6 +4528,8 @@ app.get('/api/settings', async (req, res) => {
       customThemePrimary: appCfg.customThemePrimary || '',
       customThemeSecondary: appCfg.customThemeSecondary || '',
       customThemeBg: appCfg.customThemeBg || '',
+      customThemeHomeHero: appCfg.customThemeHomeHero || '',
+      customThemeHomeLower: appCfg.customThemeHomeLower || '',
       featuredGames,
       carouselSlides: slides,
       sitePopup,

@@ -115,6 +115,33 @@ function removeCustomThemeVars() {
   if (el) el.remove()
 }
 
+function removeHomeColorVars() {
+  const el = document.getElementById('__home-brand-vars__')
+  if (el) el.remove()
+}
+
+/** Cores específicas da Home (topo do carrossel / fundo) — independentes do tema «custom» de botões. */
+function applyHomeColorsFromSettings(settings) {
+  if (typeof document === 'undefined') return
+  const hero = String(settings?.customThemeHomeHero || '').trim()
+  const lower = String(settings?.customThemeHomeLower || '').trim()
+  const hexOk = (h) => /^#[0-9A-Fa-f]{6}$/.test(h)
+  const parts = []
+  if (hexOk(hero)) parts.push(`--color-brand-purple-original:${hero}`)
+  if (hexOk(lower)) parts.push(`--color-home-lower-bg:${lower}`)
+  if (!parts.length) {
+    removeHomeColorVars()
+    return
+  }
+  let styleEl = document.getElementById('__home-brand-vars__')
+  if (!styleEl) {
+    styleEl = document.createElement('style')
+    styleEl.id = '__home-brand-vars__'
+    document.head.appendChild(styleEl)
+  }
+  styleEl.textContent = `:root{${parts.join(';')}}`
+}
+
 const hiddenTabRoutes = ['Login', 'Register', 'Launch', 'GameAction']
 
 const showTabBar = computed(() => !hiddenTabRoutes.includes(route.name))
@@ -141,6 +168,7 @@ watch(
   () => systemStore.settings,
   (s) => {
     if (currentTheme.value === 'custom') applyCustomThemeVars(s)
+    applyHomeColorsFromSettings(s)
   },
   { deep: true }
 )

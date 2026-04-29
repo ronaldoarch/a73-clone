@@ -832,7 +832,7 @@
       <div class="card" style="margin-top:1.25rem;border-left:4px solid var(--accent)">
         <div class="card-header"><span class="card-title">Aparência da aplicação (PWA)</span></div>
         <div style="padding:1.25rem">
-          <p style="color:var(--text-muted);font-size:0.88rem;line-height:1.55;margin:0 0 1rem">Tema de cores em toda a app dos jogadores (mudança imediata após recarregarem a página ou voltarem à app). O painel admin tem cores separadas (menu <strong>Temas</strong>).</p>
+          <p style="color:var(--text-muted);font-size:0.88rem;line-height:1.55;margin:0 0 1rem">Tema de cores em toda a app dos jogadores (mudança imediata após recarregarem a página ou voltarem à app). Ao escolher <strong>Cores personalizadas</strong>, podes definir também o <strong>topo e o fundo da home no celular</strong>. O painel admin tem cores separadas (menu <strong>Temas</strong>).</p>
           <!-- hidden select mantido para compatibilidade com o JS de save -->
           <select id="brandAppUiTheme" style="display:none" aria-hidden="true">
             <option value="">Seguir tema do site (skin)</option>
@@ -867,32 +867,30 @@
                 </div>
               </div>
             </div>
-            <button class="btn btn-primary" id="btnSaveCustomTheme" style="width:100%">Aplicar tema personalizado</button>
-          </div>
-
-          <div class="home-colors-panel" style="margin-top:1.25rem;padding-top:1.25rem;border-top:1px solid var(--border)">
-            <h4 style="margin:0 0 0.5rem;font-size:1rem;color:var(--text)">Cores da página inicial (Home)</h4>
-            <p style="color:var(--text-muted);font-size:0.85rem;line-height:1.5;margin:0 0 1rem">Além do <strong>fundo</strong> do tema (botões/cartões). Aqui ajustas o <strong>topo</strong> (faixa do carrossel e categorias) e o <strong>fundo do corpo</strong> da home. Vazio = usar padrão do design (#650C96 / #200943).</p>
-            <div class="color-picker-row" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:1rem;margin-bottom:0.75rem">
-              <div class="color-picker-field">
-                <label>Topo da home</label>
-                <div class="color-input-wrap">
-                  <input type="color" id="cpHomeHero" value="#650C96">
-                  <input type="text" id="cpHomeHeroHex" class="search-box" style="max-width:100px;font-family:monospace" maxlength="7" placeholder="#650C96 ou vazio">
+            <div class="custom-home-colors" style="margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border)">
+              <p style="font-size:0.82rem;color:var(--text-muted);margin:0 0 0.85rem;line-height:1.45">
+                <strong>Home no celular (PWA):</strong> cor do <strong>topo</strong> (carrossel e categorias) e do <strong>fundo</strong> da lista de jogos.
+                Vazio = padrão visual (#650C96 / #200943). Incluído no botão abaixo com o resto do tema.
+              </p>
+              <div class="color-picker-row" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:1rem">
+                <div class="color-picker-field">
+                  <label>Topo da home</label>
+                  <div class="color-input-wrap">
+                    <input type="color" id="cpHomeHero" value="#650C96">
+                    <input type="text" id="cpHomeHeroHex" class="search-box" style="max-width:100px;font-family:monospace" maxlength="7" placeholder="opcional">
+                  </div>
+                </div>
+                <div class="color-picker-field">
+                  <label>Fundo da home</label>
+                  <div class="color-input-wrap">
+                    <input type="color" id="cpHomeLower" value="#200943">
+                    <input type="text" id="cpHomeLowerHex" class="search-box" style="max-width:100px;font-family:monospace" maxlength="7" placeholder="opcional">
+                  </div>
                 </div>
               </div>
-              <div class="color-picker-field">
-                <label>Fundo do corpo</label>
-                <div class="color-input-wrap">
-                  <input type="color" id="cpHomeLower" value="#200943">
-                  <input type="text" id="cpHomeLowerHex" class="search-box" style="max-width:100px;font-family:monospace" maxlength="7" placeholder="#200943 ou vazio">
-                </div>
-              </div>
+              <button type="button" class="btn btn-outline" id="btnClearHomeColors" style="width:100%;margin-top:0.65rem">Limpar cores da home (voltar ao padrão)</button>
             </div>
-            <div style="display:flex;flex-wrap:wrap;gap:0.5rem">
-              <button type="button" class="btn btn-primary" id="btnSaveHomeColors">Salvar cores da home</button>
-              <button type="button" class="btn btn-outline" id="btnClearHomeColors">Restaurar padrão</button>
-            </div>
+            <button class="btn btn-primary" id="btnSaveCustomTheme" style="width:100%;margin-top:1rem">Aplicar tema personalizado</button>
           </div>
 
           <p id="brandAppUiThemeNote" style="display:none;margin:0.85rem 0 0;font-size:0.82rem;padding:0.6rem 0.85rem;background:var(--accent-fade-08);border-radius:8px;border-left:3px solid var(--accent);color:var(--accent)">✓ Tema fixo ativo. Clique em <strong>Padrão do site</strong> para usar as cores da skin do operador.</p>
@@ -1486,20 +1484,25 @@
       const primary = document.getElementById('cpPrimaryHex')?.value?.trim() || '#D34704';
       const secondary = document.getElementById('cpSecondaryHex')?.value?.trim() || '#F68D01';
       const bg = document.getElementById('cpBgHex')?.value?.trim() || '#181C1D';
+      const hero = document.getElementById('cpHomeHeroHex')?.value?.trim() || '';
+      const lower = document.getElementById('cpHomeLowerHex')?.value?.trim() || '';
       if (!isValidHexColor(primary) || !isValidHexColor(secondary) || !isValidHexColor(bg)) {
         return showToast('Cores inválidas. Use formato #RRGGBB.', 'error');
       }
+      if (hero && !isValidHexColor(hero)) return showToast('Topo da home: #RRGGBB ou vazio.', 'error');
+      if (lower && !isValidHexColor(lower)) return showToast('Fundo da home: #RRGGBB ou vazio.', 'error');
       try {
         const r = await api('/api/admin/config', { method: 'POST', body: JSON.stringify({
           appUiTheme: 'custom',
           customThemePrimary: primary.toUpperCase(),
           customThemeSecondary: secondary.toUpperCase(),
-          customThemeBg: bg.toUpperCase()
+          customThemeBg: bg.toUpperCase(),
+          customThemeHomeHero: hero ? hero.toUpperCase() : '',
+          customThemeHomeLower: lower ? lower.toUpperCase() : ''
         })});
-        showToast(r.ok ? 'Tema personalizado salvo! Jogadores: atualizar a página.' : (r.error || 'Erro'), r.ok ? 'success' : 'error');
+        showToast(r.ok ? 'Tema e cores da home guardados. Jogadores: atualizar a página.' : (r.error || 'Erro'), r.ok ? 'success' : 'error');
         if (r.ok) {
           updateBrandAppUiThemeNote();
-          // rebuild card to reflect new colors
           buildThemePickerGrid('custom', { primary, secondary, bg });
         }
       } catch (e) { showToast('Erro ao salvar.', 'error'); }
@@ -1517,20 +1520,6 @@
       if (lHex) lHex.value = lower;
       if (lCol) lCol.value = /^#[0-9A-Fa-f]{6}$/i.test(lower) ? lower : '#200943';
     }
-
-    document.getElementById('btnSaveHomeColors')?.addEventListener('click', async () => {
-      const hero = document.getElementById('cpHomeHeroHex')?.value?.trim() || '';
-      const lower = document.getElementById('cpHomeLowerHex')?.value?.trim() || '';
-      if (hero && !isValidHexColor(hero)) return showToast('Topo da home: #RRGGBB ou vazio.', 'error');
-      if (lower && !isValidHexColor(lower)) return showToast('Fundo do corpo: #RRGGBB ou vazio.', 'error');
-      try {
-        const r = await api('/api/admin/config', { method: 'POST', body: JSON.stringify({
-          customThemeHomeHero: hero ? hero.toUpperCase() : '',
-          customThemeHomeLower: lower ? lower.toUpperCase() : ''
-        })});
-        showToast(r.ok ? 'Cores da home salvas. Jogadores: atualizar a página.' : (r.error || 'Erro'), r.ok ? 'success' : 'error');
-      } catch (e) { showToast('Erro ao salvar.', 'error'); }
-    });
 
     document.getElementById('btnClearHomeColors')?.addEventListener('click', async () => {
       fillHomeColorInputs('', '');

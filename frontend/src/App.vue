@@ -139,10 +139,10 @@ function applyHomeColorsFromSettings(settings) {
     styleEl.id = '__home-brand-vars__'
     document.head.appendChild(styleEl)
   }
-  /* themes.css usa [data-theme="custom"] com --color-home-* ligado ao custom-bg (especificidade > :root).
-   * html + !important garante que o Branding admin prevalece em qualquer tema. */
+  /* themes.css define --color-home-* em [data-theme] que também bate no .app-shell; isso sombreava
+   * herança desde html. Forçar no mesmo .app-shell onde o tema redeclara as variáveis. */
   const block = parts.map((p) => `${p} !important`).join(';')
-  styleEl.textContent = `html{${block}}`
+  styleEl.textContent = `.app-shell{${block}}`
 }
 
 const hiddenTabRoutes = ['Login', 'Register', 'Launch', 'GameAction']

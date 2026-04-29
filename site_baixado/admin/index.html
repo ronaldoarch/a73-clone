@@ -395,6 +395,23 @@
       transition: background 0.2s;
       border: 1px solid rgba(255,255,255,0.08);
     }
+    .home-region-colors-panel {
+      margin-top: 1.1rem;
+      padding: 1rem 1.1rem;
+      background: rgba(0,0,0,0.22);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      border-left: 4px solid #650C96;
+    }
+    .home-region-colors-panel h4 { margin: 0 0 0.65rem; font-size: 0.88rem; font-weight: 700; color: var(--text); }
+    .home-region-preview {
+      height: 56px; border-radius: 8px; margin-bottom: 0.85rem;
+      border: 1px solid rgba(255,255,255,0.08);
+      transition: background 0.2s;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.78rem; font-weight: 600; color: #fff;
+      text-shadow: 0 1px 3px rgba(0,0,0,0.55);
+    }
   </style>
   <style id="themeOverride"></style>
 </head>
@@ -832,7 +849,7 @@
       <div class="card" style="margin-top:1.25rem;border-left:4px solid var(--accent)">
         <div class="card-header"><span class="card-title">Aparência da aplicação (PWA)</span></div>
         <div style="padding:1.25rem">
-          <p style="color:var(--text-muted);font-size:0.88rem;line-height:1.55;margin:0 0 1rem">Tema de cores em toda a app dos jogadores (mudança imediata após recarregarem a página ou voltarem à app). Ao escolher <strong>Cores personalizadas</strong>, podes definir também o <strong>topo e o fundo da home no celular</strong>. O painel admin tem cores separadas (menu <strong>Temas</strong>).</p>
+          <p style="color:var(--text-muted);font-size:0.88rem;line-height:1.55;margin:0 0 1rem">Tema de cores na app dos jogadores. A secção <strong>Cores da região inicial (home)</strong> abaixo funciona com <strong>qualquer tema</strong> que escolheres (inclui PWA no telemóvel). «Cores personalizadas» é só para primária, secundária e fundo geral da app.</p>
           <!-- hidden select mantido para compatibilidade com o JS de save -->
           <select id="brandAppUiTheme" style="display:none" aria-hidden="true">
             <option value="">Seguir tema do site (skin)</option>
@@ -840,9 +857,39 @@
           <p class="theme-picker-section-label">Selecione o tema</p>
           <div id="brandThemePickerGrid" class="theme-picker-grid"></div>
 
-          <!-- Painel de cores personalizadas -->
+          <div id="homeRegionColorsPanel" class="home-region-colors-panel">
+            <h4>🏠 Cores da região inicial (home)</h4>
+            <p style="font-size:0.82rem;color:var(--text-muted);margin:0 0 0.85rem;line-height:1.45">
+              <strong>Topo:</strong> carrossel de banners e categorias. <strong>Fundo:</strong> resto da página inicial (lista de jogos, etc.).
+              Independentes do «Fundo da app» nas cores personalizadas. Vazio = tons roxos padrão da app. Clica em <strong>Guardar</strong> — não muda o tema que escolheste acima.
+            </p>
+            <div id="homeRegionPreview" class="home-region-preview" aria-hidden="true">Pré-visualização topo → fundo</div>
+            <div class="color-picker-row" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:1rem;margin-bottom:0">
+              <div class="color-picker-field">
+                <label>Topo da home</label>
+                <div class="color-input-wrap">
+                  <input type="color" id="cpHomeHero" value="#650C96">
+                  <input type="text" id="cpHomeHeroHex" class="search-box" style="max-width:100px;font-family:monospace" maxlength="7" placeholder="#RRGGBB ou vazio">
+                </div>
+              </div>
+              <div class="color-picker-field">
+                <label>Fundo da home</label>
+                <div class="color-input-wrap">
+                  <input type="color" id="cpHomeLower" value="#200943">
+                  <input type="text" id="cpHomeLowerHex" class="search-box" style="max-width:100px;font-family:monospace" maxlength="7" placeholder="#RRGGBB ou vazio">
+                </div>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:0.6rem;margin-top:1rem">
+              <button type="button" class="btn btn-primary" id="btnSaveHomeColors" style="width:100%">Guardar cores da home</button>
+              <button type="button" class="btn btn-outline" id="btnClearHomeColors" style="width:100%">Limpar (voltar ao padrão roxo)</button>
+            </div>
+          </div>
+
+          <!-- Painel de cores personalizadas (só tema custom) -->
           <div id="customThemePanel" class="custom-theme-panel">
             <h4>🎨 Cores personalizadas</h4>
+            <p style="font-size:0.8rem;color:var(--text-muted);margin:0 0 0.85rem;line-height:1.45">Primária, secundária e fundo geral. As cores da <strong>home</strong> estão na secção acima (qualquer tema).</p>
             <div id="customThemePreview" class="custom-theme-preview">Pré-visualização do gradiente</div>
             <div class="color-picker-row">
               <div class="color-picker-field">
@@ -865,31 +912,8 @@
                   <input type="color" id="cpBg" value="#181C1D">
                   <input type="text" id="cpBgHex" value="#181C1D" maxlength="7" placeholder="#181C1D">
                 </div>
-                <span style="display:block;font-size:0.72rem;color:var(--text-muted);margin-top:0.35rem;line-height:1.35">Não define a <strong>home</strong>; use «Home no celular» abaixo ou o padrão roxo.</span>
+                <span style="display:block;font-size:0.72rem;color:var(--text-muted);margin-top:0.35rem;line-height:1.35">Não altera a região da home (usa a secção <strong>Cores da região inicial</strong>).</span>
               </div>
-            </div>
-            <div class="custom-home-colors" style="margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border)">
-              <p style="font-size:0.82rem;color:var(--text-muted);margin:0 0 0.85rem;line-height:1.45">
-                <strong>Home no celular (PWA):</strong> separado do «Fundo da app» acima — <strong>topo</strong> (carrossel/categorias) e <strong>fundo</strong> da área de jogos.
-                Vazio = roxo padrão (#650C96 / #200943). Incluído em «Aplicar tema personalizado».
-              </p>
-              <div class="color-picker-row" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:1rem">
-                <div class="color-picker-field">
-                  <label>Topo da home</label>
-                  <div class="color-input-wrap">
-                    <input type="color" id="cpHomeHero" value="#650C96">
-                    <input type="text" id="cpHomeHeroHex" class="search-box" style="max-width:100px;font-family:monospace" maxlength="7" placeholder="opcional">
-                  </div>
-                </div>
-                <div class="color-picker-field">
-                  <label>Fundo da home</label>
-                  <div class="color-input-wrap">
-                    <input type="color" id="cpHomeLower" value="#200943">
-                    <input type="text" id="cpHomeLowerHex" class="search-box" style="max-width:100px;font-family:monospace" maxlength="7" placeholder="opcional">
-                  </div>
-                </div>
-              </div>
-              <button type="button" class="btn btn-outline" id="btnClearHomeColors" style="width:100%;margin-top:0.65rem">Limpar cores da home (voltar ao padrão)</button>
             </div>
             <button class="btn btn-primary" id="btnSaveCustomTheme" style="width:100%;margin-top:1rem">Aplicar tema personalizado</button>
           </div>
@@ -1437,6 +1461,15 @@
       syncCustomColorPickers(cpPrimary, cpSecondary, cpBg);
     }
 
+    function updateHomeRegionPreview() {
+      const hHex = document.getElementById('cpHomeHeroHex')?.value?.trim();
+      const lHex = document.getElementById('cpHomeLowerHex')?.value?.trim();
+      const hero = (hHex && /^#[0-9A-Fa-f]{6}$/i.test(hHex)) ? hHex : '#650C96';
+      const lower = (lHex && /^#[0-9A-Fa-f]{6}$/i.test(lHex)) ? lHex : '#200943';
+      const prev = document.getElementById('homeRegionPreview');
+      if (prev) prev.style.background = `linear-gradient(180deg, ${hero} 0%, ${lower} 52%, ${lower} 100%)`;
+    }
+
     function updateCustomPreview() {
       const p = document.getElementById('cpPrimary')?.value || '#D34704';
       const s = document.getElementById('cpSecondary')?.value || '#F68D01';
@@ -1480,6 +1513,24 @@
     wireColorPicker('cpBg', 'cpBgHex');
     wireColorPicker('cpHomeHero', 'cpHomeHeroHex');
     wireColorPicker('cpHomeLower', 'cpHomeLowerHex');
+    ['cpHomeHero', 'cpHomeHeroHex', 'cpHomeLower', 'cpHomeLowerHex'].forEach((id) => {
+      document.getElementById(id)?.addEventListener('input', updateHomeRegionPreview);
+    });
+    updateHomeRegionPreview();
+
+    document.getElementById('btnSaveHomeColors')?.addEventListener('click', async () => {
+      const hero = document.getElementById('cpHomeHeroHex')?.value?.trim() || '';
+      const lower = document.getElementById('cpHomeLowerHex')?.value?.trim() || '';
+      if (hero && !isValidHexColor(hero)) return showToast('Topo da home: #RRGGBB ou vazio.', 'error');
+      if (lower && !isValidHexColor(lower)) return showToast('Fundo da home: #RRGGBB ou vazio.', 'error');
+      try {
+        const r = await api('/api/admin/config', { method: 'POST', body: JSON.stringify({
+          customThemeHomeHero: hero ? hero.toUpperCase() : '',
+          customThemeHomeLower: lower ? lower.toUpperCase() : ''
+        })});
+        showToast(r.ok ? 'Cores da home guardadas. Jogadores: atualizar a página.' : (r.error || 'Erro'), r.ok ? 'success' : 'error');
+      } catch (e) { showToast('Erro ao salvar.', 'error'); }
+    });
 
     document.getElementById('btnSaveCustomTheme')?.addEventListener('click', async () => {
       const primary = document.getElementById('cpPrimaryHex')?.value?.trim() || '#D34704';
@@ -1520,6 +1571,7 @@
       if (hCol) hCol.value = /^#[0-9A-Fa-f]{6}$/i.test(hero) ? hero : '#650C96';
       if (lHex) lHex.value = lower;
       if (lCol) lCol.value = /^#[0-9A-Fa-f]{6}$/i.test(lower) ? lower : '#200943';
+      updateHomeRegionPreview();
     }
 
     document.getElementById('btnClearHomeColors')?.addEventListener('click', async () => {

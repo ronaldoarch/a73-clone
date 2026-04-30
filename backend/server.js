@@ -437,6 +437,11 @@ function isAllowedSeamlessOrigin(origin) {
   return allowed.some(u => origin === u || origin.startsWith(u.replace(/\/$/, '') + '/'))
 }
 
+const ADMIN_SECRET_MASK = '••••••'
+function isAdminSecretMask(v) {
+  return String(v || '').trim() === ADMIN_SECRET_MASK
+}
+
 app.use((req, res, next) => {
   if (req.path === '/gold_api' || req.path === '/api/games/seamless') {
     const origin = req.headers.origin
@@ -963,6 +968,20 @@ function saqueTaxaGatewayFixaFromCfg(obj) {
   return Math.round(Math.min(SAQUE_GATEWAY_TAXA_MAX, n) * 100) / 100
 }
 
+function normalizeSupportUrl(raw) {
+  const input = String(raw || '').trim().slice(0, 200)
+  if (!input) return ''
+  if (/^(https?:\/\/|whatsapp:\/\/|tg:\/\/)/i.test(input)) return input
+  if (/^(wa\.me|api\.whatsapp\.com|t\.me)\//i.test(input)) return `https://${input}`
+  if (input.startsWith('@')) return `https://t.me/${encodeURIComponent(input.slice(1).trim())}`
+  const digits = input.replace(/\D/g, '')
+  if (digits.length >= 10 && digits.length <= 15) {
+    const withCountry = digits.startsWith('55') ? digits : `55${digits}`
+    return `https://wa.me/${withCountry}`
+  }
+  return input
+}
+
 /** Valor do campo `amount` no PIX out: líquido pedido pelo jogador + taxa do gateway (arredondado a 2 casas). */
 function valorAmountPixOutGateway(valorLiquidoReais, cfg) {
   const liq = Math.round(Number(valorLiquidoReais) * 100) / 100
@@ -1007,7 +1026,7 @@ async function getAppConfig() {
       bonusPrimeiroDep: v.bonusPrimeiroDep ?? 0,
       bonusPrimeiroDepPercent: v.bonusPrimeiroDepPercent ?? 0,
       roletaSegments,
-      whatsappUrl: v.whatsappUrl || '',
+      whatsappUrl: normalizeSupportUrl(v.whatsappUrl),
       paymentProvider,
       gateboxEnabled,
       cyberEnabled,
@@ -1405,11 +1424,25 @@ const storage = multer.diskStorage({
     cb(null, dir)
   },
   filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname) || '.png'
+    const ext = path.extname(file.originalname).toLowerCase() || '.png'
     cb(null, `${file.fieldname}-${Date.now()}${ext}`)
   }
 })
-const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 } })
+const allowedUploadExts = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif', '.svg'])
+const allowedUploadMimes = new Set([
+  'image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/svg+xml'
+])
+const upload = multer({
+  storage,
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase()
+    if (!allowedUploadExts.has(ext) || !allowedUploadMimes.has(file.mimetype)) {
+      return cb(new Error('Formato inválido. Envie apenas imagens PNG, JPG, WEBP, GIF ou SVG.'))
+    }
+    cb(null, true)
+  }
+})
 
 // Normaliza telefone para só dígitos (evita "11 99999-9999" vs "11999999999")
 function normalizeAccount(v) {
@@ -1593,7 +1626,7 @@ function uploadLogoHandler(req, res, next) {
 }
 
 // Upload logo (requer admin)
-app.post('/api/upload/logo', uploadLogoHandler, adminAuthMiddleware, async (req, res) => {
+app.post('/api/upload/logo', adminAuthMiddleware, uploadLogoHandler, async (req, res) => {
   try {
     if (!req.file) {
       return res.json({ ok: false, error: 'Nenhum arquivo enviado' })
@@ -1612,7 +1645,7 @@ app.post('/api/upload/logo', uploadLogoHandler, adminAuthMiddleware, async (req,
 })
 
 // Upload banner (requer admin — mesmo limite de tamanho que a logo)
-app.post('/api/upload/banner', uploadLogoHandler, adminAuthMiddleware, async (req, res) => {
+app.post('/api/upload/banner', adminAuthMiddleware, uploadLogoHandler, async (req, res) => {
   try {
     if (!req.file) {
       return res.json({ ok: false, error: 'Nenhum arquivo enviado' })
@@ -1631,7 +1664,7 @@ app.post('/api/upload/banner', uploadLogoHandler, adminAuthMiddleware, async (re
 })
 
 /** Upload só para ficheiros do CMS (ex.: slides do carrossel) — não altera logo/banner principal em `main`. */
-app.post('/api/upload/cms-asset', uploadLogoHandler, adminAuthMiddleware, async (req, res) => {
+app.post('/api/upload/cms-asset', adminAuthMiddleware, uploadLogoHandler, async (req, res) => {
   try {
     if (!req.file) {
       return res.json({ ok: false, error: 'Nenhum arquivo enviado' })
@@ -1687,6 +1720,15 @@ function mesmasemana(a, b) {
 function mesmomes(a, b) {
   return a.getUTCFullYear() === b.getUTCFullYear() && a.getUTCMonth() === b.getUTCMonth()
 }
+function inicioDiaUtc(d = new Date()) {
+  const c = new Date(d); c.setUTCHours(0, 0, 0, 0); return c
+}
+function inicioSemanaUtc(d = new Date()) {
+  const c = inicioDiaUtc(d); c.setUTCDate(c.getUTCDate() - c.getUTCDay()); return c
+}
+function inicioMesUtc(d = new Date()) {
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1))
+}
 
 // GET afiliado - retorna dados completos
 app.get('/api/afiliado', authMiddleware, async (req, res) => {
@@ -1731,7 +1773,7 @@ app.get('/api/afiliado', authMiddleware, async (req, res) => {
       misteriosoReclamado: af.misteriosoReclamado,
       misteriosoDiasAtivos: af.misteriosoDiasAtivos,
       bonusPromoReclamados: parseBonusPromoReclamadosRaw(af.bonusPromoReclamados),
-      bonusVipColetados: Array.isArray(af.bonusVipColetados) ? af.bonusVipColetados : [],
+      bonusVipColetados: parseBonusPromoReclamadosRaw(af.bonusVipColetados),
       rolloverPendente: af.rolloverPendente ?? 0,
       vipDiarioColetadoEm: af.vipDiarioColetadoEm?.toISOString?.() || null,
       vipSemanalColetadoEm: af.vipSemanalColetadoEm?.toISOString?.() || null,
@@ -1994,78 +2036,11 @@ app.post('/api/coupon/redeem', authMiddleware, async (req, res) => {
 
 // POST depósito (legado - crédito imediato, sem PIX)
 app.post('/api/deposito', authMiddleware, async (req, res) => {
-  try {
-    const { valor } = req.body?.json || req.body || {}
-    const v = parseFloat(valor)
-    const cfg = await getAppConfig()
-    const minDep = cfg.depositoMin ?? 10
-    if (!v || v < minDep) {
-      return res.json({ error: { message: `Valor mínimo R$ ${minDep.toFixed(2)}` } })
+  return res.status(410).json({
+    error: {
+      message: 'Depósito manual desativado. Use /api/deposito/pix para criar uma cobrança PIX confirmada pelo gateway.'
     }
-    const user = await prisma.user.findUnique({ where: { id: req.userId }, include: { afiliado: true } })
-    if (!user) return res.status(401).json({ error: { message: 'Usuário não encontrado' } })
-    const af = await ensureAfiliado(req.userId, user.account)
-    const bonusPrimeiro = (af.numDepositos ?? 0) === 0
-      ? (cfg.bonusPrimeiroDep ?? 0) + (v * (cfg.bonusPrimeiroDepPercent ?? 0) / 100)
-      : 0
-    const balanceIncrement = v + bonusPrimeiro
-    const rolloverLegadoAdd = rolloverIncrementFrom(balanceIncrement, cfg.rolloverDepositoTimes ?? 0)
-    const mbLeg = await getMysteryBaus()
-    const { pctSub: pctSubLeg, pctInd: pctIndLeg } = rebatePercentsFromMysteryBaus(mbLeg)
-    const rebateSelf = Math.round(v * (pctSubLeg / 100) * 100) / 100
-    const rebateIndLeg = user.indicatorId ? Math.round(v * (pctIndLeg / 100) * 100) / 100 : 0
-    const niveisVip = [
-      { nivel: 0, aposta: 0, bonus: 0 },
-      { nivel: 1, aposta: 100, bonus: 1 }, { nivel: 2, aposta: 1000, bonus: 3 }, { nivel: 3, aposta: 3000, bonus: 10 },
-      { nivel: 4, aposta: 10000, bonus: 15 }, { nivel: 5, aposta: 30000, bonus: 30 }, { nivel: 6, aposta: 60000, bonus: 40 },
-      { nivel: 7, aposta: 100000, bonus: 55 }, { nivel: 8, aposta: 300000, bonus: 155 }, { nivel: 9, aposta: 600000, bonus: 255 },
-      { nivel: 10, aposta: 1000000, bonus: 355 }, { nivel: 11, aposta: 2000000, bonus: 555 }, { nivel: 12, aposta: 3000000, bonus: 755 },
-      { nivel: 13, aposta: 4000000, bonus: 855 }, { nivel: 14, aposta: 5000000, bonus: 955 }, { nivel: 15, aposta: 6000000, bonus: 1055 }
-    ]
-    const apostaNova = af.apostaAcumulada + v * 5
-    let nivelVip = af.nivelVip
-    let bonusVipReclamar = af.bonusVipReclamar
-    const prox = niveisVip[Math.min(nivelVip + 1, 15)]
-    if (apostaNova >= prox.aposta && nivelVip < 15) {
-      nivelVip++
-      bonusVipReclamar += prox.bonus
-    }
-    await prisma.$transaction([
-      prisma.deposit.create({ data: { userId: req.userId, valor: v } }),
-      prisma.afiliadoData.update({
-        where: { userId: req.userId },
-        data: {
-          depositoMisterioso: { increment: v },
-          valorDeposito: { increment: v },
-          numDepositos: { increment: 1 },
-          balance: { increment: balanceIncrement },
-          ...(rolloverLegadoAdd > 0 ? { rolloverPendente: { increment: rolloverLegadoAdd } } : {}),
-          coletavelRebate: { increment: rebateSelf },
-          comissaoPendente: { increment: rebateSelf },
-          comissaoHoje: { increment: rebateSelf },
-          apostaAcumulada: apostaNova,
-          nivelVip,
-          bonusVipReclamar,
-          updatedAt: new Date()
-        }
-      })
-    ])
-    if (user.indicatorId && rebateIndLeg > 0) {
-      await prisma.afiliadoData.update({
-        where: { userId: user.indicatorId },
-        data: {
-          balance: { increment: rebateIndLeg },
-          comissaoRecebida: { increment: rebateIndLeg },
-          comissaoHoje: { increment: rebateIndLeg },
-          updatedAt: new Date()
-        }
-      })
-    }
-    return res.json({ result: { data: { json: { ok: true } } } })
-  } catch (e) {
-    console.error('deposito:', e)
-    return res.status(500).json({ error: { message: e.message } })
-  }
+  })
 })
 
 const PROMO_EXPIRA_DIAS = 180 // bônus baús afiliado expira X dias após registro do afiliado
@@ -2123,9 +2098,10 @@ app.post('/api/afiliado/reclamar-promo', authMiddleware, async (req, res) => {
     const valor = tier.valor
     const cfgPromo = await getAppConfig()
     const rollPromo = rolloverIncrementFrom(valor, cfgPromo.rolloverPromoBaixTimes ?? 1)
+    const oldReclamadosRaw = af.bonusPromoReclamados
     reclamados.push({ chestIndex: tier.index, pessoas: tier.people, valor })
-    await prisma.afiliadoData.update({
-      where: { userId: req.userId },
+    const claimed = await prisma.afiliadoData.updateMany({
+      where: { userId: req.userId, bonusPromoReclamados: oldReclamadosRaw },
       data: {
         bonusPromoReclamados: JSON.stringify(reclamados),
         balance: { increment: valor },
@@ -2133,6 +2109,7 @@ app.post('/api/afiliado/reclamar-promo', authMiddleware, async (req, res) => {
         updatedAt: new Date()
       }
     })
+    if (claimed.count !== 1) return res.json({ error: { message: 'Este baú já foi resgatado' } })
     return res.json({ result: { data: { json: { ok: true, valor, chestIndex: tier.index } } } })
   } catch (e) {
     console.error('reclamar-promo:', e)
@@ -2148,19 +2125,30 @@ app.post('/api/afiliado/receber-comissao', authMiddleware, async (req, res) => {
     const disp = Math.max(af.comissaoPendente || 0, af.coletavelRebate || 0)
     const v = typeof valor === 'number' && valor > 0 ? Math.min(valor, disp) : disp
     if (v <= 0) return res.json({ error: { message: 'Nenhum valor disponível' } })
-    const pend = Math.max(0, (af.comissaoPendente || 0) - v)
-    const reb = Math.max(0, (af.coletavelRebate || 0) - v)
-    await prisma.afiliadoData.update({
-      where: { userId: req.userId },
-      data: {
-        comissaoRecebida: (af.comissaoRecebida || 0) + v,
-        comissaoPendente: pend,
-        coletavelRebate: reb,
-        balance: { increment: v },
-        updatedAt: new Date()
-      }
+    const result = await prisma.$transaction(async (tx) => {
+      const fresh = await tx.afiliadoData.findUnique({ where: { userId: req.userId } })
+      const available = Math.max(fresh?.comissaoPendente || 0, fresh?.coletavelRebate || 0)
+      const amount = typeof valor === 'number' && valor > 0 ? Math.min(valor, available) : available
+      if (amount <= 0) return { error: 'Nenhum valor disponível' }
+      const claimed = await tx.afiliadoData.updateMany({
+        where: {
+          userId: req.userId,
+          comissaoPendente: fresh.comissaoPendente,
+          coletavelRebate: fresh.coletavelRebate
+        },
+        data: {
+          comissaoRecebida: { increment: amount },
+          comissaoPendente: Math.max(0, (fresh.comissaoPendente || 0) - amount),
+          coletavelRebate: Math.max(0, (fresh.coletavelRebate || 0) - amount),
+          balance: { increment: amount },
+          updatedAt: new Date()
+        }
+      })
+      if (claimed.count !== 1) return { error: 'Comissão já atualizada. Tente novamente.' }
+      return { amount }
     })
-    return res.json({ result: { data: { json: { ok: true, valor: v } } } })
+    if (result.error) return res.json({ error: { message: result.error } })
+    return res.json({ result: { data: { json: { ok: true, valor: result.amount } } } })
   } catch (e) {
     console.error('receber-comissao:', e)
     return res.status(500).json({ error: { message: e.message } })
@@ -2185,8 +2173,12 @@ app.post('/api/afiliado/reclamar-misterioso', authMiddleware, async (req, res) =
     const premio = Math.round((min + Math.random() * (max - min)) * 100) / 100
     const cfgMist = await getAppConfig()
     const rollMist = rolloverIncrementFrom(premio, cfgMist.rolloverMisteriosoTimes ?? 1)
-    await prisma.afiliadoData.update({
-      where: { userId: req.userId },
+    const claimed = await prisma.afiliadoData.updateMany({
+      where: {
+        userId: req.userId,
+        misteriosoReclamado: false,
+        depositoMisterioso: { gte: minR }
+      },
       data: {
         misteriosoReclamado: true,
         balance: { increment: premio },
@@ -2194,6 +2186,7 @@ app.post('/api/afiliado/reclamar-misterioso', authMiddleware, async (req, res) =
         updatedAt: new Date()
       }
     })
+    if (claimed.count !== 1) return res.json({ error: { message: 'Já reclamado' } })
     return res.json({ result: { data: { json: { ok: true, valor: premio } } } })
   } catch (e) {
     console.error('reclamar-misterioso:', e)
@@ -2209,18 +2202,19 @@ app.post('/api/afiliado/coletar-vip', authMiddleware, async (req, res) => {
     const valor = af.bonusVipReclamar
     const cfgVipAcc = await getAppConfig()
     const rollVipAcc = rolloverIncrementFrom(valor, cfgVipAcc.rolloverVipAcumuladoTimes ?? 0)
-    const coletados = Array.isArray(af.bonusVipColetados) ? af.bonusVipColetados : []
+    const coletados = parseBonusPromoReclamadosRaw(af.bonusVipColetados)
     coletados.push({ nivel: af.nivelVip, valor })
-    await prisma.afiliadoData.update({
-      where: { userId: req.userId },
+    const claimed = await prisma.afiliadoData.updateMany({
+      where: { userId: req.userId, bonusVipReclamar: { gt: 0 } },
       data: {
         bonusVipReclamar: 0,
-        bonusVipColetados: coletados,
+        bonusVipColetados: JSON.stringify(coletados),
         balance: { increment: valor },
         ...(rollVipAcc > 0 ? { rolloverPendente: { increment: rollVipAcc } } : {}),
         updatedAt: new Date()
       }
     })
+    if (claimed.count !== 1) return res.json({ error: { message: 'Nenhum bônus disponível' } })
     return res.json({ result: { data: { json: { ok: true } } } })
   } catch (e) {
     console.error('coletar-vip:', e)
@@ -2240,8 +2234,15 @@ app.post('/api/afiliado/coletar-vip-diario', authMiddleware, async (req, res) =>
     const valor = BONUS_VIP_DIARIO[Math.min(af.nivelVip, 15)]
     const cfgVipR = await getAppConfig()
     const rollVipR = rolloverIncrementFrom(valor, cfgVipR.rolloverVipRotinaTimes ?? 1)
-    await prisma.afiliadoData.update({
-      where: { userId: req.userId },
+    const claimed = await prisma.afiliadoData.updateMany({
+      where: {
+        userId: req.userId,
+        nivelVip: { gt: 0 },
+        OR: [
+          { vipDiarioColetadoEm: null },
+          { vipDiarioColetadoEm: { lt: inicioDiaUtc(agora) } }
+        ]
+      },
       data: {
         balance: { increment: valor },
         ...(rollVipR > 0 ? { rolloverPendente: { increment: rollVipR } } : {}),
@@ -2249,6 +2250,7 @@ app.post('/api/afiliado/coletar-vip-diario', authMiddleware, async (req, res) =>
         updatedAt: agora
       }
     })
+    if (claimed.count !== 1) return res.json({ error: { message: 'Bônus diário já coletado hoje' } })
     return res.json({ result: { data: { json: { ok: true, valor } } } })
   } catch (e) {
     console.error('coletar-vip-diario:', e)
@@ -2268,8 +2270,15 @@ app.post('/api/afiliado/coletar-vip-semanal', authMiddleware, async (req, res) =
     const valor = BONUS_VIP_SEMANAL[Math.min(af.nivelVip, 15)]
     const cfgVipS = await getAppConfig()
     const rollVipS = rolloverIncrementFrom(valor, cfgVipS.rolloverVipRotinaTimes ?? 1)
-    await prisma.afiliadoData.update({
-      where: { userId: req.userId },
+    const claimed = await prisma.afiliadoData.updateMany({
+      where: {
+        userId: req.userId,
+        nivelVip: { gt: 0 },
+        OR: [
+          { vipSemanalColetadoEm: null },
+          { vipSemanalColetadoEm: { lt: inicioSemanaUtc(agora) } }
+        ]
+      },
       data: {
         balance: { increment: valor },
         ...(rollVipS > 0 ? { rolloverPendente: { increment: rollVipS } } : {}),
@@ -2277,6 +2286,7 @@ app.post('/api/afiliado/coletar-vip-semanal', authMiddleware, async (req, res) =
         updatedAt: agora
       }
     })
+    if (claimed.count !== 1) return res.json({ error: { message: 'Bônus semanal já coletado esta semana' } })
     return res.json({ result: { data: { json: { ok: true, valor } } } })
   } catch (e) {
     console.error('coletar-vip-semanal:', e)
@@ -2296,8 +2306,15 @@ app.post('/api/afiliado/coletar-vip-mensal', authMiddleware, async (req, res) =>
     const valor = BONUS_VIP_MENSAL[Math.min(af.nivelVip, 15)]
     const cfgVipM = await getAppConfig()
     const rollVipM = rolloverIncrementFrom(valor, cfgVipM.rolloverVipRotinaTimes ?? 1)
-    await prisma.afiliadoData.update({
-      where: { userId: req.userId },
+    const claimed = await prisma.afiliadoData.updateMany({
+      where: {
+        userId: req.userId,
+        nivelVip: { gt: 0 },
+        OR: [
+          { vipMensalColetadoEm: null },
+          { vipMensalColetadoEm: { lt: inicioMesUtc(agora) } }
+        ]
+      },
       data: {
         balance: { increment: valor },
         ...(rollVipM > 0 ? { rolloverPendente: { increment: rollVipM } } : {}),
@@ -2305,6 +2322,7 @@ app.post('/api/afiliado/coletar-vip-mensal', authMiddleware, async (req, res) =>
         updatedAt: agora
       }
     })
+    if (claimed.count !== 1) return res.json({ error: { message: 'Bônus mensal já coletado este mês' } })
     return res.json({ result: { data: { json: { ok: true, valor } } } })
   } catch (e) {
     console.error('coletar-vip-mensal:', e)
@@ -2509,40 +2527,80 @@ const handleSeamless = async (req, res) => {
         return res.json({ status: 0, msg: 'INVALID_USER', user_balance: 0 })
       }
 
-      const currentBalance = af.balance ?? 0
-      let newBalance = currentBalance + delta
-      if (!isDemo && newBalance < 0) {
-        console.warn('gold_api INSUFFICIENT_USER_FUNDS:', { user_code: user_code ? `${String(user_code).slice(0, 4)}***` : null, currentBalance, delta })
-        return res.json({ status: 0, msg: 'INSUFFICIENT_USER_FUNDS', user_balance: fmt(currentBalance) })
-      }
-      // Decrementa rollover pendente ao apostar (apenas débitos reais)
-      const rolloverDesconto = betReais > 0 && !isDemo ? Math.min(betReais, af.rolloverPendente ?? 0) : 0
-      await prisma.afiliadoData.update({
-        where: { id: af.id },
-        data: {
-          balance: newBalance,
-          rolloverPendente: rolloverDesconto > 0 ? { decrement: rolloverDesconto } : undefined,
-          updatedAt: new Date()
-        }
-      })
-
-      if (txnId) {
-        await prisma.gameTxnLog.create({
-          data: {
-            txnId,
-            userId: af.userId,
-            userCode: user_code,
-            gameType: game_type,
-            provider: slotData.provider_code,
-            gameCode: slotData.game_code,
-            txnType,
-            betReais,
-            winReais,
-            delta,
-            balanceBefore: currentBalance,
-            balanceAfter: newBalance
+      const deltaRounded = Math.round(delta * 100) / 100
+      let newBalance = 0
+      try {
+        const gameResult = await prisma.$transaction(async (tx) => {
+          if (txnId) {
+            await tx.gameTxnLog.create({
+              data: {
+                txnId,
+                userId: af.userId,
+                userCode: user_code,
+                gameType: game_type,
+                provider: slotData.provider_code,
+                gameCode: slotData.game_code,
+                txnType,
+                betReais,
+                winReais,
+                delta: deltaRounded,
+                balanceBefore: 0,
+                balanceAfter: 0
+              }
+            })
           }
+
+          const updated = (!isDemo && deltaRounded < 0)
+            ? await tx.$executeRaw`
+              UPDATE AfiliadoData
+              SET balance = balance + ${deltaRounded},
+                  rolloverPendente = CASE
+                    WHEN ${betReais} > 0 THEN GREATEST(0, rolloverPendente - ${betReais})
+                    ELSE rolloverPendente
+                  END,
+                  updatedAt = NOW()
+              WHERE id = ${af.id} AND balance >= ${Math.abs(deltaRounded)}
+            `
+            : await tx.$executeRaw`
+              UPDATE AfiliadoData
+              SET balance = balance + ${deltaRounded},
+                  rolloverPendente = CASE
+                    WHEN ${betReais} > 0 AND ${isDemo ? 1 : 0} = 0 THEN GREATEST(0, rolloverPendente - ${betReais})
+                    ELSE rolloverPendente
+                  END,
+                  updatedAt = NOW()
+              WHERE id = ${af.id}
+            `
+          if (Number(updated) !== 1) {
+            const cur = await tx.afiliadoData.findUnique({ where: { id: af.id }, select: { balance: true } })
+            const err = new Error('INSUFFICIENT_USER_FUNDS')
+            err.currentBalance = cur?.balance ?? 0
+            throw err
+          }
+
+          const after = await tx.afiliadoData.findUnique({ where: { id: af.id }, select: { balance: true } })
+          const balanceAfter = after?.balance ?? 0
+          const balanceBefore = Math.round((balanceAfter - deltaRounded) * 100) / 100
+          if (txnId) {
+            await tx.gameTxnLog.update({
+              where: { txnId },
+              data: { balanceBefore, balanceAfter }
+            })
+          }
+          return { balanceAfter }
         })
+        newBalance = gameResult.balanceAfter
+      } catch (e) {
+        if (e?.code === 'P2002' && txnId) {
+          const existing = await prisma.gameTxnLog.findUnique({ where: { txnId } })
+          if (existing) return res.json({ status: 1, user_balance: fmt(existing.balanceAfter) })
+        }
+        if (e?.message === 'INSUFFICIENT_USER_FUNDS') {
+          const cur = Number.isFinite(e.currentBalance) ? e.currentBalance : (af.balance ?? 0)
+          console.warn('gold_api INSUFFICIENT_USER_FUNDS:', { user_code: user_code ? `${String(user_code).slice(0, 4)}***` : null, currentBalance: cur, delta: deltaRounded })
+          return res.json({ status: 0, msg: 'INSUFFICIENT_USER_FUNDS', user_balance: fmt(cur) })
+        }
+        throw e
       }
       return res.json({ status: 1, user_balance: fmt(newBalance) })
     }
@@ -2567,6 +2625,8 @@ app.get('/api/settings/igamewin', adminAuthMiddleware, async (req, res) => {
     const base = cfg || { agent_code: '', agent_token: '', agent_secret: '', sandbox: true, is_demo: false, api_mode: 'seamless', site_endpoint: '' }
     const envBase = (process.env.API_PUBLIC_URL || process.env.BACKEND_PUBLIC_URL || '').replace(/\/$/, '')
     base.site_endpoint = (cfg?.site_endpoint || envBase || '').replace(/\/$/, '')
+    base.agent_token = base.agent_token ? ADMIN_SECRET_MASK : ''
+    base.agent_secret = base.agent_secret ? ADMIN_SECRET_MASK : ''
     return res.json(base)
   } catch (e) {
     const envBase = (process.env.API_PUBLIC_URL || process.env.BACKEND_PUBLIC_URL || '').replace(/\/$/, '')
@@ -2580,8 +2640,8 @@ app.post('/api/settings/igamewin', adminAuthMiddleware, async (req, res) => {
     const { agent_code, agent_token, agent_secret, sandbox, is_demo, api_mode, site_endpoint } = body
     const existing = await getIgamewinConfig()
     // Se agent_secret/agent_token vazios, mantém o existente (evita apagar ao salvar só outros campos)
-    const finalSecret = (agent_secret != null && String(agent_secret).trim() !== '') ? String(agent_secret).trim() : (existing?.agent_secret || '')
-    const finalToken = (agent_token != null && String(agent_token).trim() !== '') ? String(agent_token).trim() : (existing?.agent_token || '')
+    const finalSecret = (agent_secret != null && String(agent_secret).trim() !== '' && !isAdminSecretMask(agent_secret)) ? String(agent_secret).trim() : (existing?.agent_secret || '')
+    const finalToken = (agent_token != null && String(agent_token).trim() !== '' && !isAdminSecretMask(agent_token)) ? String(agent_token).trim() : (existing?.agent_token || '')
     const finalCode = agent_code != null ? String(agent_code).trim() : (existing?.agent_code || '')
     const mode = (api_mode === 'transfer' || api_mode === 'seamless') ? api_mode : (existing?.api_mode || 'seamless')
     const finalSite =
@@ -2889,8 +2949,15 @@ app.post('/api/igamewin/launch-game', async (req, res) => {
     // 2. Modo transfer: user_deposit com saldo do usuário antes de game_launch
     if (apiMode === 'transfer' && userCode !== 'guest') {
       const af = await findAfiliadoForIgameUserCode(userCode)
-      const balance = af?.balance ?? 0
-      if (balance > 0) {
+      const balance = Math.round((Number(af?.balance) || 0) * 100) / 100
+      if (af?.id && balance > 0) {
+        const reserved = await prisma.afiliadoData.updateMany({
+          where: { id: af.id, balance: { gte: balance } },
+          data: { balance: { decrement: balance }, updatedAt: new Date() }
+        })
+        if (reserved.count !== 1) {
+          return res.json({ status: 0, msg: 'BALANCE_CHANGED_RETRY' })
+        }
         const depositRes = await fetch(IGAMEWIN_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -2904,13 +2971,12 @@ app.post('/api/igamewin/launch-game', async (req, res) => {
         })
         const depositData = await depositRes.json()
         if (depositData.status !== 1) {
+          await prisma.afiliadoData.update({
+            where: { id: af.id },
+            data: { balance: { increment: balance }, updatedAt: new Date() }
+          })
           return res.json({ status: 0, msg: depositData.msg || 'DEPOSIT_FAILED' })
         }
-        // Debita saldo local (agora está no iGameWin)
-        await prisma.afiliadoData.update({
-          where: { id: af.id },
-          data: { balance: 0, updatedAt: new Date() }
-        })
       }
     }
 
@@ -3267,12 +3333,13 @@ app.post('/api/roleta-novos/spin', authMiddleware, async (req, res) => {
     const today = new Date()
     const expiresAt = prize > 0 ? new Date(Date.now() + bonusDays * 24 * 60 * 60 * 1000) : undefined
     const r = await getOrCreateRoleta(req.userId)
-    await prisma.$transaction([
-      prisma.user.update({
-        where: { id: req.userId },
+    const spinResult = await prisma.$transaction(async (tx) => {
+      const claimed = await tx.user.updateMany({
+        where: { id: req.userId, roletaNovosUsedAt: null },
         data: { roletaNovosUsedAt: today }
-      }),
-      prisma.roletaBonus.update({
+      })
+      if (claimed.count !== 1) return { error: 'Você já utilizou sua chance na roleta de novos usuários.' }
+      await tx.roletaBonus.update({
         where: { userId: req.userId },
         data: {
           bonusBalance: { increment: prize },
@@ -3280,15 +3347,17 @@ app.post('/api/roleta-novos/spin', authMiddleware, async (req, res) => {
           ...(expiresAt && { bonusExpiresAt: expiresAt }),
           updatedAt: today
         }
-      }),
-      prisma.roletaBonusLog.create({
+      })
+      await tx.roletaBonusLog.create({
         data: {
           userId: req.userId,
           valor: prize,
           descricao: prize > 0 ? 'Ganhou na roleta (novos usuários)' : 'Sem prêmio (roleta novos)'
         }
       })
-    ])
+      return { ok: true }
+    })
+    if (spinResult.error) return res.json({ ok: false, error: spinResult.error })
     return res.json({
       ok: true,
       prize,
@@ -3314,12 +3383,20 @@ app.get('/api/roleta', authMiddleware, async (req, res) => {
       const rollRoleta = rolloverIncrementFrom(amount, cfg.roletaBonusRolloverTimes ?? 1)
       const u = await prisma.user.findUnique({ where: { id: req.userId } })
       await ensureAfiliado(req.userId, u?.account || '')
-      await prisma.$transaction([
-        prisma.roletaBonus.update({
-          where: { userId: req.userId },
+      await prisma.$transaction(async (tx) => {
+        const claimed = await tx.roletaBonus.updateMany({
+          where: {
+            userId: req.userId,
+            bonusBalance: { gte: amount },
+            OR: [
+              { bonusExpiresAt: null },
+              { bonusExpiresAt: { gt: now } }
+            ]
+          },
           data: { bonusBalance: 0, bonusExpiresAt: null, updatedAt: now }
-        }),
-        prisma.afiliadoData.update({
+        })
+        if (claimed.count !== 1) return
+        await tx.afiliadoData.update({
           where: { userId: req.userId },
           data: {
             balance: { increment: amount },
@@ -3327,7 +3404,7 @@ app.get('/api/roleta', authMiddleware, async (req, res) => {
             updatedAt: now
           }
         })
-      ])
+      })
       r = await prisma.roletaBonus.findUnique({ where: { userId: req.userId } })
     }
     const logs = await prisma.roletaBonusLog.findMany({
@@ -3368,9 +3445,9 @@ app.post('/api/roleta/spin', authMiddleware, async (req, res) => {
     const prize = Number(segments[prizeIndex]?.value) ?? 0
     const today = new Date()
     const expiresAt = prize > 0 ? new Date(Date.now() + bonusDays * 24 * 60 * 60 * 1000) : undefined
-    await prisma.$transaction([
-      prisma.roletaBonus.update({
-        where: { userId: req.userId },
+    const spinResult = await prisma.$transaction(async (tx) => {
+      const claimed = await tx.roletaBonus.updateMany({
+        where: { userId: req.userId, spinsRemaining: { gt: 0 } },
         data: {
           bonusBalance: { increment: prize },
           spinsRemaining: { decrement: 1 },
@@ -3378,15 +3455,18 @@ app.post('/api/roleta/spin', authMiddleware, async (req, res) => {
           ...(expiresAt && { bonusExpiresAt: expiresAt }),
           updatedAt: today
         }
-      }),
-      prisma.roletaBonusLog.create({
+      })
+      if (claimed.count !== 1) return { error: 'Sem giros restantes. Volte amanhã!' }
+      await tx.roletaBonusLog.create({
         data: {
           userId: req.userId,
           valor: prize,
           descricao: prize > 0 ? 'Ganhou na roleta' : 'Sem prêmio'
         }
       })
-    ])
+      return { ok: true }
+    })
+    if (spinResult.error) return res.json({ ok: false, error: spinResult.error })
     return res.json({
       ok: true,
       prize,
@@ -3583,27 +3663,52 @@ app.post('/api/saque', authMiddleware, async (req, res) => {
       return res.json({ error: { message: 'Saque PIX indisponível no momento. Entre em contato com o suporte.' } })
     }
 
-    const [, withdrawal] = await prisma.$transaction([
-      prisma.afiliadoData.update({
-        where: { userId: req.userId },
-        data: {
-          balance: { decrement: v },
-          valorSaque: { increment: v },
-          numSaques: { increment: 1 },
-          updatedAt: new Date()
+    let withdrawal
+    try {
+      withdrawal = await prisma.$transaction(async (tx) => {
+        const claimed = await tx.afiliadoData.updateMany({
+          where: {
+            userId: req.userId,
+            balance: { gte: v },
+            ...(ignoraRollover ? {} : { rolloverPendente: { lte: 0 } })
+          },
+          data: {
+            balance: { decrement: v },
+            valorSaque: { increment: v },
+            numSaques: { increment: 1 },
+            updatedAt: new Date()
+          }
+        })
+        if (claimed.count !== 1) {
+          const fresh = await tx.afiliadoData.findUnique({
+            where: { userId: req.userId },
+            select: { balance: true, rolloverPendente: true }
+          })
+          const err = new Error((fresh?.balance ?? 0) < v ? 'INSUFFICIENT_BALANCE' : 'ROLLOVER_PENDING')
+          err.balance = fresh?.balance ?? 0
+          err.rollover = fresh?.rolloverPendente ?? 0
+          throw err
         }
-      }),
-      prisma.withdrawal.create({
-        data: {
-          userId: req.userId,
-          valor: v,
-          metodo: metodo || 'pix',
-          nome: nomeRecebedor || null,
-          cpfId: chaveArmazenar,
-          status: 'pendente'
-        }
+        return tx.withdrawal.create({
+          data: {
+            userId: req.userId,
+            valor: v,
+            metodo: metodo || 'pix',
+            nome: nomeRecebedor || null,
+            cpfId: chaveArmazenar,
+            status: 'pendente'
+          }
+        })
       })
-    ])
+    } catch (e) {
+      if (e?.message === 'INSUFFICIENT_BALANCE') {
+        return res.json({ error: { message: 'Saldo insuficiente' } })
+      }
+      if (e?.message === 'ROLLOVER_PENDING') {
+        return res.json({ error: { message: `Requisito de rollover não cumprido. Aposte mais R$ ${(e.rollover || 0).toFixed(2)} para liberar o saque.` } })
+      }
+      throw e
+    }
 
     const key = chaveArmazenar
     const name = nomeRecebedor || user?.account || 'Cliente'
@@ -4036,8 +4141,8 @@ app.post('/api/admin/config', adminAuthMiddleware, async (req, res) => {
         : DEFAULT_ROLETA_SEGMENTS)
 
     const whatsappUrl = body.whatsappUrl !== undefined
-      ? String(body.whatsappUrl || '').trim().slice(0, 200)
-      : String(prev.whatsappUrl || '').trim().slice(0, 200)
+      ? normalizeSupportUrl(body.whatsappUrl)
+      : normalizeSupportUrl(prev.whatsappUrl)
 
     const gateboxEnabled = typeof body.gateboxEnabled === 'boolean'
       ? body.gateboxEnabled
@@ -4257,7 +4362,7 @@ app.get('/api/admin/gatebox', adminAuthMiddleware, async (req, res) => {
     return res.json({
       apiUrl: v.apiUrl || 'https://api.gatebox.com.br',
       username: v.username || '',
-      password: v.password ? '••••••' : ''
+      password: v.password ? ADMIN_SECRET_MASK : ''
     })
   } catch (e) {
     return res.json({ apiUrl: 'https://api.gatebox.com.br', username: '', password: '' })
@@ -4271,7 +4376,7 @@ app.post('/api/admin/gatebox', adminAuthMiddleware, async (req, res) => {
     const v = (s?.value && typeof s.value === 'object') ? { ...s.value } : {}
     v.apiUrl = (apiUrl || 'https://api.gatebox.com.br').replace(/\/$/, '')
     v.username = String(username || '').trim()
-    if (password && password !== '••••••') v.password = String(password).trim()
+    if (password && !isAdminSecretMask(password)) v.password = String(password).trim()
     await settingUpsert('gatebox', v)
     return res.json({ ok: true })
   } catch (e) {
@@ -4307,7 +4412,7 @@ app.get('/api/admin/cyber', adminAuthMiddleware, async (req, res) => {
     const s = await settingGet('cyber')
     const v = s?.value || {}
     return res.json({
-      apiKey: v.apiKey ? '••••••' : '',
+      apiKey: v.apiKey ? ADMIN_SECRET_MASK : '',
       apiUrl: v.apiUrl || 'https://api.escalecyber.com/v1'
     })
   } catch (e) {
@@ -4321,7 +4426,7 @@ app.post('/api/admin/cyber', adminAuthMiddleware, async (req, res) => {
     const s = await settingGet('cyber')
     const v = (s?.value && typeof s.value === 'object') ? { ...s.value } : {}
     v.apiUrl = (apiUrl || 'https://api.escalecyber.com/v1').replace(/\/$/, '')
-    if (apiKey && apiKey !== '••••••') v.apiKey = String(apiKey).trim()
+    if (apiKey && !isAdminSecretMask(apiKey)) v.apiKey = String(apiKey).trim()
     await settingUpsert('cyber', v)
     invalidateCyberConfigCache()
     return res.json({ ok: true })
@@ -4362,7 +4467,7 @@ app.get('/api/admin/sarrixpay', adminAuthMiddleware, async (req, res) => {
     return res.json({
       apiUrl: v.apiUrl || 'https://apiv1.sarrixpay.com',
       clientId: v.clientId || v.client_id || '',
-      clientSecret: (v.clientSecret || v.client_secret) ? '••••••' : ''
+      clientSecret: (v.clientSecret || v.client_secret) ? ADMIN_SECRET_MASK : ''
     })
   } catch (e) {
     return res.json({ apiUrl: 'https://apiv1.sarrixpay.com', clientId: '', clientSecret: '' })
@@ -4379,7 +4484,7 @@ app.post('/api/admin/sarrixpay', adminAuthMiddleware, async (req, res) => {
     const cid = String(clientId || client_id || v.clientId || v.client_id || '').trim()
     const csecRaw = clientSecret !== undefined ? clientSecret : client_secret
     if (cid) v.clientId = cid
-    if (csecRaw !== undefined && String(csecRaw).trim() !== '' && String(csecRaw) !== '••••••') {
+    if (csecRaw !== undefined && String(csecRaw).trim() !== '' && !isAdminSecretMask(csecRaw)) {
       v.clientSecret = String(csecRaw).trim()
     }
     v.apiUrl = (apiUrl || v.apiUrl || 'https://apiv1.sarrixpay.com').replace(/\/$/, '')
@@ -4686,7 +4791,7 @@ app.get('/api/manifest', handlePwaManifest)
 app.get('/manifest.json', handlePwaManifest)
 
 // Upload banner de carregamento (tela de loading)
-app.post('/api/upload/loading-banner', upload.single('file'), adminAuthMiddleware, async (req, res) => {
+app.post('/api/upload/loading-banner', adminAuthMiddleware, uploadLogoHandler, async (req, res) => {
   try {
     if (!req.file) {
       return res.json({ ok: false, error: 'Nenhum arquivo enviado' })
@@ -4780,7 +4885,7 @@ app.post('/api/admin/promocoes', adminAuthMiddleware, async (req, res) => {
 })
 
 // Upload banner de promoção
-app.post('/api/upload/promo-banner', upload.single('file'), adminAuthMiddleware, async (req, res) => {
+app.post('/api/upload/promo-banner', adminAuthMiddleware, uploadLogoHandler, async (req, res) => {
   try {
     if (!req.file) return res.json({ ok: false, error: 'Nenhum arquivo enviado' })
     const url = `/uploads/${req.file.filename}`

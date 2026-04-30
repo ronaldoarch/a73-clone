@@ -138,10 +138,15 @@ export const useRechargeStore = defineStore('recharge', () => {
     }
   }
 
-  async function createPixOrder(amount) {
+  async function createPixOrder(payload) {
     loading.value = true
     try {
-      const data = await apiPost('/api/deposito/pix', { amount })
+      const body = payload && typeof payload === 'object'
+        ? { ...payload }
+        : { valor: payload }
+      if (body.amount !== undefined && body.valor === undefined) body.valor = body.amount
+      delete body.amount
+      const data = await apiPost('/api/deposito/pix', body)
       if (data) currentOrder.value = data
       return data
     } catch (e) {

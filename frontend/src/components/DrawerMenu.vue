@@ -165,6 +165,7 @@ import { useAuthStore } from '../stores/auth'
 import { useUserStore } from '../stores/user'
 import { useNotificationStore } from '../stores/notification'
 import { useGamesStore } from '../stores/games'
+import { useSystemStore } from '../stores/system'
 import { storeToRefs } from 'pinia'
 
 const props = defineProps({
@@ -179,6 +180,7 @@ const auth = useAuthStore()
 const userStore = useUserStore()
 const notifStore = useNotificationStore()
 const gamesStore = useGamesStore()
+const systemStore = useSystemStore()
 const { isLoggedIn, user } = storeToRefs(auth)
 const { vipLevel, userDetails } = storeToRefs(userStore)
 const { unreadCount } = storeToRefs(notifStore)
@@ -194,7 +196,7 @@ watch(showLanguageModal, async (val) => {
 })
 
 function openSupport() {
-  window.open('https://t.me/a73support', '_blank')
+  systemStore.openSupport()
   close()
 }
 

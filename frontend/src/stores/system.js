@@ -45,6 +45,19 @@ export const useSystemStore = defineStore('system', () => {
   const skinBackground = computed(() => tenantInfo.value?.background ?? '')
   const tenantId = computed(() => tenantInfo.value?.id ?? null)
   const channelId = computed(() => channelInfo.value?.id ?? null)
+  const supportUrl = computed(() => {
+    const raw = String(settings.value?.whatsappUrl || '').trim()
+    if (!raw) return 'https://t.me/a73support'
+    if (/^(https?:\/\/|whatsapp:\/\/|tg:\/\/)/i.test(raw)) return raw
+    if (/^(wa\.me|api\.whatsapp\.com|t\.me)\//i.test(raw)) return `https://${raw}`
+    if (raw.startsWith('@')) return `https://t.me/${encodeURIComponent(raw.slice(1).trim())}`
+    const digits = raw.replace(/\D/g, '')
+    if (digits.length >= 10 && digits.length <= 15) {
+      const withCountry = digits.startsWith('55') ? digits : `55${digits}`
+      return `https://wa.me/${withCountry}`
+    }
+    return raw
+  })
 
   const isIOS = computed(() => os.value === OSType.IOS)
   const isAndroid = computed(() => os.value === OSType.ANDROID)
@@ -259,15 +272,22 @@ export const useSystemStore = defineStore('system', () => {
     return window.location.hostname.includes('gray')
   }
 
+  async function openSupport() {
+    if (!settings.value) {
+      try { await fetchSettings() } catch {}
+    }
+    window.open(supportUrl.value, '_blank', 'noopener')
+  }
+
   return {
     tenantInfo, channelInfo, domainInfo, settings, carouselList, marqueeContent, announcements, initialized,
     themeConfig,
     os, browser, deviceType, deviceId, deviceModel, appInfo, modalType, inAppBrowser,
     siteName, tenantName, siteLogo, brandingLogoUrl, appIcon, currency, currencySuffix, region, languages, defaultLanguage,
-    skinBackground, tenantId, channelId,
+    skinBackground, tenantId, channelId, supportUrl,
     isIOS, isAndroid, isPwa, isApk, isPC, isNative, isIOSH5, isAndroidH5, isIOSApp, isPwaVisible,
     init, fetchCarousel, fetchMarquee, fetchAnnouncements, fetchSettings,
     setAppInfo, setDeviceInfo, setModalType, checkInAppBrowser, setThemeConfig,
-    getDomain, getFullDomain, getLaunchUrl, isGrayDomain
+    getDomain, getFullDomain, getLaunchUrl, isGrayDomain, openSupport
   }
 })

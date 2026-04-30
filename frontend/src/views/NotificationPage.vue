@@ -116,11 +116,13 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useNotificationStore } from '../stores/notification'
+import { useSystemStore } from '../stores/system'
 import { storeToRefs } from 'pinia'
 import Empty from '../components/Empty.vue'
 
 const router = useRouter()
 const store = useNotificationStore()
+const systemStore = useSystemStore()
 const { notifications, announcements, supportMessages, unreadNotifications, unreadSupport } = storeToRefs(store)
 
 const activeTab = ref('support')
@@ -170,7 +172,7 @@ function markAllAnnouncements() {
 }
 
 function openSupport() {
-  router.push('/notification')
+  systemStore.openSupport()
 }
 
 onMounted(() => {

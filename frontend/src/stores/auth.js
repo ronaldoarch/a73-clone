@@ -107,7 +107,7 @@ export const useAuthStore = defineStore('auth', () => {
     }
     if ((!password.value || force) && _isValid(pwd)) {
       password.value = pwd
-      localStorage.setItem('saved_password', btoa(encodeURIComponent(pwd)))
+      localStorage.removeItem('saved_password')
     }
     if (_isValid(username)) {
       loginType.value = /^\d+$/.test(username) ? LoginType.Phone : LoginType.Account
@@ -128,14 +128,6 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function getPassword() {
-    if (!password.value) {
-      try {
-        const saved = localStorage.getItem('saved_password')
-        password.value = saved ? decodeURIComponent(atob(saved)) : ''
-      } catch {
-        password.value = ''
-      }
-    }
     return password.value
   }
 

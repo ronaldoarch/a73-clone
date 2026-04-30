@@ -16,9 +16,10 @@
 </template>
 
 <script setup>
-function openSupport() {
-  window.open('https://t.me/a73support', '_blank')
-}
+import { useSystemStore } from '../stores/system'
+
+const systemStore = useSystemStore()
+const openSupport = () => systemStore.openSupport()
 </script>
 
 <style scoped>

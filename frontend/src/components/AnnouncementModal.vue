@@ -29,7 +29,7 @@
               <img :src="current.imageUrl" alt="" class="announce-img" @error="(e) => e.target.style.display = 'none'" />
             </div>
 
-            <div v-else class="announce-text" v-html="current.content || current.text || ''"></div>
+            <SafeHtml v-else class="announce-text" :content="current.content || current.text || ''" :level="2" />
           </div>
 
           <div class="announce-footer">
@@ -51,6 +51,7 @@
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
+import SafeHtml from './SafeHtml.vue'
 
 const props = defineProps({
   announcements: { type: Array, default: () => [] }

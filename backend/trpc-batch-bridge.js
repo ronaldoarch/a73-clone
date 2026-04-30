@@ -532,7 +532,31 @@ async function resolveOne(procPath, input, ctx) {
 
   // ── Activity: claim rebate ──────────────
   if (u === 'activityclaimrebate' || u === 'claimrebate') {
-    return okJson({ success: true, amount: 0 })
+    if (!ctx.userId) return errJson('Não autenticado', 'UNAUTHORIZED')
+    const result = await prisma.$transaction(async (tx) => {
+      const af = await tx.afiliadoData.findUnique({ where: { userId: ctx.userId } })
+      if (!af) return { error: 'Dados não encontrados' }
+      const amount = Math.round(Math.max(af.comissaoPendente || 0, af.coletavelRebate || 0) * 100) / 100
+      if (amount <= 0) return { error: 'Nenhum valor disponível' }
+      const claimed = await tx.afiliadoData.updateMany({
+        where: {
+          userId: ctx.userId,
+          comissaoPendente: af.comissaoPendente,
+          coletavelRebate: af.coletavelRebate
+        },
+        data: {
+          comissaoRecebida: { increment: amount },
+          comissaoPendente: Math.max(0, (af.comissaoPendente || 0) - amount),
+          coletavelRebate: Math.max(0, (af.coletavelRebate || 0) - amount),
+          balance: { increment: amount },
+          updatedAt: new Date()
+        }
+      })
+      if (claimed.count !== 1) return { error: 'Comissão já atualizada. Tente novamente.' }
+      return { amount }
+    })
+    if (result.error) return errJson(result.error, 'BAD_REQUEST')
+    return okJson({ success: true, amount: result.amount })
   }
 
   // ── Reward record list ──────────────
@@ -540,6 +564,9 @@ async function resolveOne(procPath, input, ctx) {
     return okJson({ recordList: [], all: { allAmount: 0 }, total: 0 })
   }
 
+  if (ctx.req?.method !== 'GET') {
+    return errJson(`Procedimento não implementado: ${procPath}`, 'NOT_IMPLEMENTED')
+  }
   const fb = fallbackForProc(key)
   return okJson(fb)
 }

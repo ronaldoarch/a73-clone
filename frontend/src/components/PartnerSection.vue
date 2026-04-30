@@ -38,6 +38,9 @@
 
 <script setup>
 import { computed } from 'vue'
+import { useSystemStore } from '../stores/system'
+
+const systemStore = useSystemStore()
 
 const props = defineProps({
   showSocial: { type: Boolean, default: true },
@@ -48,8 +51,7 @@ const props = defineProps({
 const socialLinks = computed(() => {
   if (!props.showSocial) return []
   return [
-    { name: 'Telegram', url: 'https://t.me/a73support', color: '#0088cc' },
-    { name: 'WhatsApp', url: '#', color: '#25D366' },
+    { name: 'Suporte', url: systemStore.supportUrl, color: '#25D366' },
     { name: 'Instagram', url: '#', color: '#E4405F' },
     { name: 'Facebook', url: '#', color: '#1877F2' }
   ]

@@ -266,8 +266,7 @@ function onCategoryClick(cat) {
 }
 
 const socialLinks = computed(() => [
-  { name: 'Telegram', url: 'https://t.me/a73support', color: '#0088cc' },
-  { name: 'WhatsApp', url: 'https://wa.me/', color: '#25D366' },
+  { name: 'Suporte', url: systemStore.supportUrl, color: '#25D366' },
   { name: 'Instagram', url: '#', color: 'linear-gradient(135deg, #833AB4, #E1306C, #F77737)' },
   { name: 'Facebook', url: '#', color: '#1877F2' },
 ])
@@ -430,7 +429,6 @@ onMounted(() => {
   box-shadow: inset 0 0.08rem 0.12rem rgba(255, 255, 255, 0.35);
 }
 .cat-hex-bg.cat-hex-bg--image {
-  background: url('/assets/ui/cat-hex-gold.png') center / cover no-repeat;
   box-shadow: inset 0 0.06rem 0.1rem rgba(255, 255, 255, 0.2);
 }
 .cat-hex-letters {

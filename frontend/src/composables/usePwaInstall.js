@@ -110,19 +110,14 @@ export function usePwaInstall() {
   }
 
   function _openInChrome() {
-    const token = authStore.token
     const currentUrl = window.location.href
 
     if (isIOSDev) {
-      let url = 'googlechromes://' + currentUrl.replace(/^https?:\/\//, '')
-      if (token) url += (url.includes('?') ? '&' : '?') + 'token=' + token
+      const url = 'googlechromes://' + currentUrl.replace(/^https?:\/\//, '')
       window.location.href = url
     } else {
       const protocol = window.location.protocol.replace(':', '')
-      let path = currentUrl.replace(`${window.location.protocol}//`, '')
-      if (token && !path.includes('token=')) {
-        path += (path.includes('?') ? '&' : '?') + 'token=' + token
-      }
+      const path = currentUrl.replace(`${window.location.protocol}//`, '')
       window.location.href = `intent://${path}#Intent;scheme=${protocol};package=com.android.chrome;end`
     }
   }
@@ -165,14 +160,10 @@ export function usePwaInstall() {
 
   async function buildLaunchUrl(baseUrl, params = {}) {
     const account = await authStore.getAccount()
-    const password = await authStore.getPassword()
-    const token = authStore.token
 
     const allParams = {
       ...params,
-      token,
       acc: account,
-      pass: password,
       sd: 2
     }
 

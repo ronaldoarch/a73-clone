@@ -3,15 +3,22 @@
     <Transition name="drawer">
       <div v-if="modelValue" class="drawer-overlay" @click.self="close">
         <div class="drawer-panel">
-          <div class="drawer-header">
-            <div class="drawer-logo-wrap">
-              <AppLogoMark @click="goHome" />
+          <div class="drawer-hero">
+            <div class="drawer-hero-top">
+              <button type="button" class="drawer-close" aria-label="Fechar" @click="close">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M18 6L6 18M6 6l12 12"/>
+                </svg>
+              </button>
+              <div class="drawer-logo-compact">
+                <AppLogoMark @click="goHome" />
+              </div>
             </div>
-            <button class="drawer-close" @click="close">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M18 6L6 18M6 6l12 12"/>
-              </svg>
-            </button>
+            <div class="drawer-brand-panel">
+              <div class="drawer-brand-frame" role="button" tabindex="0" @click="goHome" @keydown.enter.prevent="goHome">
+                <AppLogoMark @click.stop="goHome" />
+              </div>
+            </div>
           </div>
 
           <div class="drawer-user" v-if="isLoggedIn">
@@ -338,14 +345,85 @@ onMounted(() => {
   border-right: 1px solid var(--ep-color-border-default);
 }
 
-.drawer-header {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 1rem; flex-shrink: 0;
+.drawer-hero {
+  flex-shrink: 0;
   border-bottom: 1px solid var(--ep-color-border-default);
 }
 
-.drawer-logo-wrap { display: flex; align-items: center; cursor: pointer; }
-.drawer-close { color: var(--ep-color-text-weakest); padding: .25rem; }
+.drawer-hero-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  background: var(--color-brand-purple-original, #650c96);
+  color: #fff;
+}
+
+.drawer-logo-compact {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex: 1;
+  min-width: 0;
+}
+
+.drawer-logo-compact :deep(.app-logo-mark__img) {
+  max-height: 1.85rem;
+  max-width: 7.5rem;
+  object-position: right center;
+}
+
+.drawer-brand-panel {
+  background: linear-gradient(180deg, #eef5ff 0%, #f5f9ff 100%);
+  padding: 1.35rem 1.15rem 1.25rem 1.35rem;
+}
+
+.drawer-brand-frame {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 auto;
+  padding: 0.45rem 0.65rem;
+  border-radius: 0.75rem;
+  border: 1px solid rgba(0, 0, 0, 0.88);
+  background: #fff;
+  box-sizing: border-box;
+  cursor: pointer;
+}
+
+.drawer-brand-frame:focus-visible {
+  outline: 2px solid var(--ep-color-text-selected, #6ec1ff);
+  outline-offset: 2px;
+}
+
+.drawer-brand-frame :deep(.app-logo-mark__img) {
+  display: block;
+  max-height: 3.85rem;
+  max-width: 100%;
+  width: auto;
+  object-fit: contain;
+}
+
+.drawer-close {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 50%;
+  padding: 0;
+  border: none;
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  cursor: pointer;
+}
+.drawer-close:active {
+  opacity: 0.85;
+}
 
 .drawer-user { display: flex; align-items: center; gap: .75rem; padding: .75rem 1rem 1rem; }
 .drawer-avatar {

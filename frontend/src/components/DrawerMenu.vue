@@ -401,10 +401,18 @@ onMounted(() => {
 
 .drawer-brand-frame :deep(.app-logo-mark__img) {
   display: block;
-  max-height: 3.85rem;
+  max-height: 6.5rem;
   max-width: 100%;
   width: auto;
   object-fit: contain;
+}
+
+.drawer-brand-frame :deep(.app-logo-mark__a),
+.drawer-brand-frame :deep(.app-logo-mark__num) {
+  font-size: 2.35rem;
+}
+.drawer-brand-frame :deep(.app-logo-mark__dot) {
+  font-size: 1rem;
 }
 
 .drawer-close {
